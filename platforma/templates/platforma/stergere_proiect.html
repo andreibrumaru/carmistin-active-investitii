@@ -1,0 +1,27 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Ștergere proiect{% endblock %}
+{% block continut %}
+<h4 class="mb-1"><i class="bi bi-shield-lock text-danger"></i> Ștergerea definitivă a unui proiect</h4>
+<p class="text-secondary small">Operația este ireversibilă în aplicație și se confirmă cu un cod trimis prin SMS pe telefonul administratorului{% if telefon %} ({{ telefon }}){% endif %}. Înainte de ștergere se salvează automat o arhivă completă (date + documente) pe server, iar operația rămâne în jurnalul de audit.</p>
+{% if mod_demo %}<div class="alert alert-warning small"><b>Mod demo:</b> nu este configurat un furnizor de SMS, deci codul nu pleacă pe telefon; apare doar în jurnalul serverului. Pentru SMS real, setați în <code>.env</code> furnizorul (SMSLink.ro sau Twilio) și datele contului.</div>{% endif %}
+<div class="card mb-3" style="max-width:820px"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-9"><label class="form-label small fw-semibold">Proiectul de șters</label>
+      <select name="proiect" class="form-select" onchange="this.form.submit()"><option value="">— alegeți proiectul —</option>{% for x in proiecte %}<option value="{{ x.pk }}" {% if p.pk == x.pk %}selected{% endif %}>{{ x.cod }} · {{ x.denumire }} ({{ x.beneficiar }})</option>{% endfor %}</select></div>
+  </form>
+</div></div>
+{% if p %}
+<div class="card border-danger" style="max-width:820px"><div class="card-header text-danger fw-semibold">Se va șterge definitiv: {{ p.cod }} · {{ p.denumire }}</div>
+ <div class="card-body">
+  <div class="small mb-3">Raport Zero {{ p.nr_inregistrare }} · stare {{ p.get_stare_rz_display }} · beneficiar {{ p.beneficiar }}</div>
+  {% if rezumat %}<table class="table table-sm small" style="max-width:420px">{% for nume, n in rezumat %}<tr><td>{{ nume }}</td><td class="num fw-semibold">{{ n }}</td></tr>{% endfor %}</table>{% else %}<p class="small text-secondary">Proiectul nu are înregistrări asociate.</p>{% endif %}
+  <form method="post" class="mb-3">{% csrf_token %}<input type="hidden" name="proiect" value="{{ p.pk }}"><input type="hidden" name="actiune" value="trimite_cod">
+    <button class="btn btn-outline-danger"><i class="bi bi-phone"></i> {% if cod_trimis %}Retrimite codul{% else %}Trimite codul de verificare prin SMS{% endif %}</button></form>
+  {% if cod_trimis %}<form method="post" class="row g-2 align-items-end" onsubmit="return confirm('Ștergeți DEFINITIV proiectul {{ p.cod }}?')">{% csrf_token %}
+    <input type="hidden" name="proiect" value="{{ p.pk }}"><input type="hidden" name="actiune" value="sterge">
+    <div class="col-md-4"><label class="form-label small fw-semibold">Cod primit prin SMS</label><input name="cod_sms" class="form-control" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></div>
+    <div class="col-md-4"><label class="form-label small fw-semibold">Scrieți codul proiectului: {{ p.cod }}</label><input name="confirmare_cod" class="form-control" required autocomplete="off"></div>
+    <div class="col-md-4"><button class="btn btn-danger w-100"><i class="bi bi-trash"></i> Șterge definitiv</button></div></form>{% endif %}
+ </div></div>
+{% endif %}
+{% endblock %}

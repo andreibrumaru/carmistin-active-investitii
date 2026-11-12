@@ -1,0 +1,68 @@
+{% comment %}Fereastra „Cursul proiectului”. Necesită curs_info în context.{% endcomment %}
+<div class="modal fade" id="fereastraCurs" tabindex="-1" aria-labelledby="titluCurs" aria-hidden="true">
+ <div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title" id="titluCurs"><i class="bi bi-currency-euro"></i> Cursul proiectului</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Închide"></button></div>
+  <div class="modal-body">
+    <p class="small text-secondary mb-2">Cursul de referință este fix pe proiect și se folosește la toate conversiile EUR/RON (buget, contracte și facturi în EUR care aleg „cursul proiectului”).</p>
+    <div class="p-2 bg-light rounded small mb-3">Curs actual: <b class="curs-proiect-val">{{ curs_info.proiect|default:"—" }}</b> · <span class="curs-proiect-sursa">{{ curs_info.proiect_sursa|default:"sursă nespecificată (setat înainte de această funcție)" }}</span></div>
+    {% if curs_info.poate_seta %}
+    <div class="btn-group w-100 mb-3" role="group">
+      <input type="radio" class="btn-check" name="mod_curs" id="mod_bnr" value="bnr" checked><label class="btn btn-outline-primary btn-sm" for="mod_bnr">Curs BNR la o dată</label>
+      <input type="radio" class="btn-check" name="mod_curs" id="mod_manual" value="manual"><label class="btn btn-outline-primary btn-sm" for="mod_manual">Curs stabilit manual</label>
+    </div>
+    <div id="zona_bnr">
+      <label class="form-label small fw-semibold" for="curs_data">Data cursului BNR</label>
+      <input type="date" id="curs_data" class="form-control" value="{{ curs_info.azi_data|date:'Y-m-d' }}">
+      <div class="form-text" id="curs_bnr_info">Alegeți data: de exemplu data Raportului Zero, a semnării contractului de finanțare sau data de azi.</div>
+    </div>
+    <div id="zona_manual" class="d-none">
+      <label class="form-label small fw-semibold" for="curs_valoare">Curs (RON pentru 1 EUR)</label>
+      <input type="text" inputmode="decimal" id="curs_valoare" class="form-control mb-2" placeholder="ex. 5,0500">
+      <label class="form-label small fw-semibold" for="curs_motiv">Motiv / referință</label>
+      <input type="text" id="curs_motiv" class="form-control" placeholder="ex. curs stabilit prin contractul de finanțare" maxlength="60">
+    </div>
+    <div class="alert alert-danger py-2 small mt-3 d-none" id="curs_eroare"></div>
+    {% else %}
+    <div class="alert alert-secondary small mb-0">{% if curs_info.blocat %}Bugetul proiectului este blocat; cursul de referință îl poate schimba doar administratorul.{% else %}Nu aveți drept de modificare a cursului pe acest proiect.{% endif %}</div>
+    {% endif %}
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Închide</button>
+    {% if curs_info.poate_seta %}<button type="button" class="btn btn-primary" id="curs_salveaza"><i class="bi bi-check2"></i> Setează cursul proiectului</button>{% endif %}
+  </div>
+ </div></div>
+</div>
+<script>
+(() => {
+  const f = document.getElementById('fereastraCurs');
+  if (!f) return;
+  const $ = id => document.getElementById(id);
+  const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+  const ro = v => Number(v).toLocaleString('ro-RO', {minimumFractionDigits: 4, maximumFractionDigits: 4});
+  f.querySelectorAll('input[name=mod_curs]').forEach(r => r.addEventListener('change', () => {
+    const bnr = $('mod_bnr').checked;
+    $('zona_bnr').classList.toggle('d-none', !bnr);
+    $('zona_manual').classList.toggle('d-none', bnr);
+  }));
+  async function arataBnr() {
+    const d = $('curs_data');
+    if (!d || !d.value) return;
+    const r = await fetch(`{% url 'curs_bnr' %}?data=${d.value}`);
+    const j = await r.json();
+    $('curs_bnr_info').innerHTML = r.ok ? `Curs BNR: <b>${ro(j.eur)}</b> RON/EUR (publicat ${j.data_ro})` : j.eroare;
+  }
+  $('curs_data')?.addEventListener('change', arataBnr);
+  f.addEventListener('shown.bs.modal', arataBnr);
+  $('curs_salveaza')?.addEventListener('click', async () => {
+    const date = new URLSearchParams({mod: $('mod_bnr').checked ? 'bnr' : 'manual', data: $('curs_data').value,
+                                      valoare: $('curs_valoare').value, motiv: $('curs_motiv').value});
+    const r = await fetch('{% url "proiect_curs" curs_info.pk %}', {method: 'POST', headers: {'X-CSRFToken': csrf}, body: date});
+    const j = await r.json();
+    if (!r.ok) { $('curs_eroare').textContent = j.eroare; $('curs_eroare').classList.remove('d-none'); return; }
+    document.querySelectorAll('.curs-proiect-val').forEach(e => e.textContent = ro(j.eur));
+    document.querySelectorAll('.curs-proiect-sursa').forEach(e => e.textContent = j.sursa);
+    document.dispatchEvent(new CustomEvent('curs-proiect-schimbat', {detail: j}));
+    bootstrap.Modal.getInstance(f).hide();
+  });
+})();
+</script>

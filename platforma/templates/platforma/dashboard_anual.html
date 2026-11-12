@@ -1,0 +1,55 @@
+{% extends "platforma/base.html" %}{% load fmt %}
+{% block titlu %}Buget anual{% endblock %}
+{% block head %}<style>
+.viz-root { --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --text-secondary: #52514e; --grid: #e7e6e2; }
+.legenda span { display:inline-flex; align-items:center; gap:.35rem; margin-right:1rem; font-size:.85rem; color:#0b0b0b; }
+.legenda i { width:12px; height:12px; border-radius:3px; display:inline-block; }
+</style>{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3 gap-2"><h4 class="mb-0">Investiții – buget estimat vs. realizat, pe ani</h4></div>
+<form class="card card-body mb-3"><div class="row g-2">
+  <div class="col-md-4"><select name="societate" class="form-select form-select-sm"><option value="">Toate societățile</option>{% for s in societati %}<option value="{{ s.pk }}" {% if query.societate == s.pk|stringformat:"s" %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><select name="linie" class="form-select form-select-sm"><option value="">Toate liniile de afacere</option>{% for l in linii %}<option {% if query.linie == l.valoare %}selected{% endif %}>{{ l.valoare }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><select name="an" class="form-select form-select-sm">{% for a in ani %}<option {% if a == an %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Aplică</button></div>
+</div></form>
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="card kpi"><div class="card-body"><div class="lbl">Estimat {{ an }} (RON)</div><div class="val">{{ total.estimat|bani }}</div></div></div></div>
+  <div class="col-md-4"><div class="card kpi"><div class="card-body"><div class="lbl">Facturat {{ an }}</div><div class="val">{{ total.facturat|bani }}</div><div class="small text-secondary">{{ total.facturat|procent:total.estimat }}% din estimat</div></div></div></div>
+  <div class="col-md-4"><div class="card kpi"><div class="card-body"><div class="lbl">Plătit {{ an }}</div><div class="val">{{ total.platit|bani }}</div><div class="small text-secondary">{{ total.platit|procent:total.estimat }}% din estimat</div></div></div></div>
+</div>
+<div class="card mb-3 viz-root"><div class="card-header d-flex align-items-center">Evoluție anuală (RON, fără TVA)
+  <div class="legenda ms-auto"><span><i style="background:var(--series-1)"></i>Estimat</span><span><i style="background:var(--series-2)"></i>Facturat</span><span><i style="background:var(--series-3)"></i>Plătit</span>
+  <button class="btn btn-sm btn-link" data-bs-toggle="collapse" data-bs-target="#tabel-ani">tabel</button></div></div>
+  <div class="card-body"><div style="height:300px"><canvas id="grafic"></canvas></div>
+  <div class="collapse" id="tabel-ani"><table class="table table-sm small mt-3"><thead><tr><th>An</th><th class="num">Estimat</th><th class="num">Facturat</th><th class="num">Plătit</th></tr></thead>{% for s in serii %}<tr><td>{{ s.an }}</td><td class="num">{{ s.estimat|bani }}</td><td class="num">{{ s.facturat|bani }}</td><td class="num">{{ s.platit|bani }}</td></tr>{% endfor %}</table></div></div></div>
+<div class="row g-3">
+<div class="col-lg-8"><div class="card"><div class="card-header">Proiecte – {{ an }}</div><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Proiect</th><th>Societate</th><th class="num">Estimat</th><th class="num">Facturat</th><th class="num">Plătit</th><th class="num">Abatere</th><th style="width:120px">Realizare</th></tr></thead>
+  {% for r in randuri %}<tr><td><a class="cod" href="{{ r.p.get_absolute_url }}?tab=setari">{{ r.p.cod }}</a> <span class="small">{{ r.p.denumire|truncatechars:40 }}</span></td><td class="small">{{ r.p.beneficiar }}</td>
+    <td class="num">{{ r.estimat|bani }}</td><td class="num">{{ r.facturat|bani }}</td><td class="num">{{ r.platit|bani }}</td><td class="num {% if r.abatere > 0 %}depasit{% endif %}">{{ r.abatere|bani }}</td>
+    <td><div class="progress"><div class="progress-bar" style="width:{{ r.facturat|procent:r.estimat|plafon }}%"></div></div><div class="small text-secondary">{{ r.facturat|procent:r.estimat }}%</div></td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-secondary py-4">Niciun buget estimat sau realizat în {{ an }}. Bugetele anuale se completează în tabul Setări al fiecărui proiect.</td></tr>{% endfor %}
+</table></div></div></div>
+<div class="col-lg-4"><div class="card"><div class="card-header">Pe societăți – {{ an }}</div><table class="table table-sm small mb-0"><thead><tr><th>Societate</th><th class="num">Estimat</th><th class="num">Facturat</th></tr></thead>
+  {% for soc, v in pe_soc %}<tr><td>{{ soc }}</td><td class="num">{{ v.estimat|bani }}</td><td class="num">{{ v.facturat|bani }}</td></tr>{% endfor %}</table></div></div>
+</div>
+{{ serii_json|json_script:"serii" }}
+{% endblock %}
+{% block scripturi %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const d = JSON.parse(document.getElementById('serii').textContent);
+const css = getComputedStyle(document.querySelector('.viz-root'));
+const c = n => css.getPropertyValue(n).trim();
+const fmt = v => new Intl.NumberFormat('ro-RO', {maximumFractionDigits: 0}).format(v);
+const serie = (label, key, culoare) => ({label, data: d.map(x => x[key]), backgroundColor: culoare, borderRadius: 4, borderSkipped: 'start', maxBarThickness: 36});
+new Chart(document.getElementById('grafic'), {
+  type: 'bar',
+  data: {labels: d.map(x => x.an), datasets: [serie('Estimat', 'estimat', c('--series-1')), serie('Facturat', 'facturat', c('--series-2')), serie('Plătit', 'platit', c('--series-3'))]},
+  options: {maintainAspectRatio: false, datasets: {bar: {categoryPercentage: .7, barPercentage: .9}},
+    plugins: {legend: {display: false}, tooltip: {mode: 'index', intersect: false, callbacks: {label: i => `${i.dataset.label}: ${fmt(i.raw)} RON`}}},
+    scales: {x: {grid: {display: false}, ticks: {color: c('--text-secondary')}}, y: {grid: {color: c('--grid')}, border: {display: false}, ticks: {color: c('--text-secondary'), callback: v => fmt(v)}}}}
+});
+</script>
+{% endblock %}

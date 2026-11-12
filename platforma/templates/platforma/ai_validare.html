@@ -1,0 +1,17 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Validare AI{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3"><a href="{{ p.get_absolute_url }}?tab=documente" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+<div><h4 class="mb-0"><i class="bi bi-stars text-primary"></i> {{ ex.get_tip_display }}</h4><div class="small text-secondary">{{ p.cod }} · document „{{ ex.document.titlu }}” · {{ ex.model_ai }} · {{ ex.creat_la|date:"d.m.Y H:i" }} · <span class="badge text-bg-light">{{ ex.get_status_display }}</span></div></div></div>
+{% if ex.mesaj %}<div class="alert alert-warning">{{ ex.mesaj }}</div>{% endif %}
+{% if antet %}<div class="card mb-3"><div class="card-header">Date generale extrase</div><table class="table table-sm mb-0 rz-tabel">{% for k, v in antet.items %}<tr><th>{{ k }}</th><td>{{ v|default:"—" }}</td></tr>{% endfor %}</table></div>{% endif %}
+<form method="post">{% csrf_token %}
+<div class="card"><div class="card-header">Bifați elementele corecte. Doar acestea vor fi adăugate în proiect, cu trimitere la fragmentul sursă.</div>
+<ul class="list-group list-group-flush">{% for e in elemente %}
+  <li class="list-group-item"><div class="form-check"><input class="form-check-input" type="checkbox" name="element" value="{{ forloop.counter0 }}" id="e{{ forloop.counter0 }}" checked {% if ex.status != 'propus' %}disabled{% endif %}>
+  <label class="form-check-label" for="e{{ forloop.counter0 }}"><b>{% firstof e.denumire e.descriere %}</b>{% if e.tip %} <span class="badge text-bg-light">{{ e.tip }}</span>{% endif %}{% if e.emitent %} · {{ e.emitent }}{% endif %}{% if e.termen %} · termen {{ e.termen }}{% endif %}{% if e.valoare %} · {{ e.valoare }}{% endif %}{% if e.recurenta %} · {{ e.recurenta }}{% endif %}</label>
+  {% if e.fragment %}<div class="fragment mt-1">„{{ e.fragment }}” {% if e.pagina %}(pag. {{ e.pagina }}){% endif %}</div>{% endif %}</div></li>
+{% empty %}<li class="list-group-item text-secondary">AI-ul nu a identificat elemente.</li>{% endfor %}</ul>
+{% if ex.status == 'propus' %}<div class="card-footer d-flex gap-2"><button class="btn btn-primary"><i class="bi bi-check2-all"></i> Validează selecția</button><button name="respinge" value="1" class="btn btn-outline-danger" formnovalidate>Respinge extragerea</button></div>{% endif %}
+</div></form>
+{% endblock %}

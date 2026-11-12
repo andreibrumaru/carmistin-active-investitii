@@ -1,0 +1,80 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}{{ titlu }}{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3">
+  <a href="{{ inapoi }}" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  <div><h4 class="mb-0">{{ titlu }}</h4>{% if subtitlu %}<div class="text-secondary small">{{ subtitlu }}</div>{% endif %}</div>
+</div>
+{% block inainte_form %}{% endblock %}
+{% if document_temp %}<div class="alert alert-info d-flex gap-3 align-items-start"><i class="bi bi-stars fs-4"></i><div>
+  Documentul <a href="{% url 'document' document_temp.pk %}">încărcat</a> a fost citit. Câmpurile marcate <span class="badge text-bg-primary">AI</span> au fost completate automat:
+  verificați-le cu documentul alături, apoi salvați. Documentul se atașează automat la salvare.</div></div>{% endif %}
+<div class="card"><div class="card-body">
+<form method="post" {% if multipart or form.is_multipart %}enctype="multipart/form-data"{% endif %}>{% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="row g-3">
+  {% for field in form %}
+    <div class="{% if field.field.widget.input_type == 'textarea' or field.name in 'descriere_lucrari necesar_achizitii obiect observatii motiv descriere conditii scop fragment_sursa' %}col-12{% else %}col-md-6 col-lg-4{% endif %}">
+      {% if field.field.widget.input_type == 'checkbox' %}
+        <div class="form-check mt-4">{{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+      {% else %}
+        <label class="form-label small fw-semibold" for="{{ field.id_for_label }}">{{ field.label|capfirst }}{% if field.field.required %} *{% endif %}{% if field.name in campuri_ai %} <span class="badge text-bg-primary" title="propus de AI – verificați"><i class="bi bi-stars"></i> AI</span>{% endif %}</label>
+        {{ field }}
+      {% endif %}
+      {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+      {% for e in field.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+  {% endfor %}
+  </div>
+  {% if document_temp %}<input type="hidden" name="document_temp" value="{{ document_temp.pk }}">{% endif %}
+  {% block in_form %}{% endblock %}
+  <div id="avertizareNesalvat" class="alert alert-danger mt-4 mb-0 d-none"></div>
+  <div class="mt-4 d-flex gap-2">
+    <button class="btn btn-primary"><i class="bi bi-check2"></i> Salvează</button>
+    <a href="{{ inapoi }}" class="btn btn-outline-secondary">Renunță</a>
+    {% if poate_sterge %}<button name="sterge" value="1" class="btn btn-outline-danger ms-auto" formnovalidate onclick="return confirm('Ștergeți? Operația rămâne înregistrată în jurnalul de audit.')"><i class="bi bi-trash"></i> Șterge</button>{% endif %}
+  </div>
+</form>
+</div></div>
+<script>
+// Dacă browserul oprește salvarea (câmp obligatoriu necompletat), spunem clar ce lipsește, lângă butonul Salvează.
+(() => {
+  const av = document.getElementById('avertizareNesalvat');
+  const f = av && av.closest('form');
+  if (!f) return;
+  let lipsa = [];
+  f.addEventListener('invalid', e => {
+    const el = e.target, lab = f.querySelector(`label[for="${el.id}"]`);
+    lipsa.push((lab ? lab.textContent : el.name).replace('*', '').trim());
+    el.classList.add('is-invalid');
+    el.addEventListener('input', () => el.classList.remove('is-invalid'), {once: true});
+    clearTimeout(f._t);
+    f._t = setTimeout(() => {
+      av.innerHTML = '<i class="bi bi-exclamation-triangle"></i> <b>Nu s-a salvat.</b> Completați: ' + [...new Set(lipsa)].map(x => `„${x}”`).join(', ') + '.';
+      av.classList.remove('d-none');
+      lipsa = [];
+    }, 0);
+  }, true);
+})();
+</script>
+{% if curs_info %}{% include "platforma/_curs_selector.html" %}{% endif %}
+<div id="ecranCitire" class="d-none position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background:rgba(20,35,60,.55);z-index:2000">
+  <div class="card p-4 text-center" style="max-width:380px"><div class="spinner-border text-primary mx-auto mb-3"></div>
+  <div class="fw-semibold">Se citește documentul cu AI…</div><div class="small text-secondary">Durează de obicei între câteva secunde și un minut. Câmpurile se vor completa automat.</div></div>
+</div>
+<script>
+// Citire AI automată: imediat ce se alege fișierul (cu bifa activă), formularul se trimite pentru citire.
+(() => {
+  const scan = document.querySelector('input[type=file][name=scan]'), bifa = document.querySelector('input[name=citeste_ai]');
+  if (!scan || !bifa) return;
+  scan.addEventListener('change', () => {
+    if (!bifa.checked || !scan.files.length) return;
+    const ecran = document.getElementById('ecranCitire');
+    ecran.classList.remove('d-none');
+    const f = scan.form;
+    f.noValidate = true;  // câmpurile obligatorii goale vor fi completate de AI
+    f.submit();
+  });
+})();
+</script>
+{% endblock %}

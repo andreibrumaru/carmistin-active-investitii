@@ -1,0 +1,96 @@
+{% extends "platforma/base.html" %}{% load fmt %}
+{% block titlu %}Tablou de bord{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3">
+  <h4 class="mb-0">Tablou de bord</h4>
+  {% if poate_crea_proiect %}<a href="{% url 'raport_zero_nou' %}" class="btn btn-primary ms-auto"><i class="bi bi-plus-lg"></i> Raport Zero nou</a>{% endif %}
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card kpi"><div class="card-body"><div class="lbl">Locații în registru</div><div class="val">{{ nr_locatii }}</div><a class="small" href="{% url 'locatii' %}?cod=fara">{{ nr_fara_cod }} fără cod alocat</a></div></div></div>
+  <div class="col-md-3"><div class="card kpi"><div class="card-body"><div class="lbl">Proiecte (vizibile mie)</div><div class="val">{{ nr_proiecte }}</div><span class="small text-secondary">{{ nr_active }} active</span></div></div></div>
+  <div class="col-md-3"><div class="card kpi"><div class="card-body"><div class="lbl">Buget total (RON)</div><div class="val">{{ buget_total|bani }}</div><span class="small text-secondary">facturat {{ facturat_total|bani }}</span></div></div></div>
+  <div class="col-md-3"><div class="card kpi"><div class="card-body"><div class="lbl">Plătit (RON)</div><div class="val">{{ platit_total|bani }}</div><span class="small text-secondary">{{ platit_total|procent:buget_total }}% din buget</span></div></div></div>
+</div>
+<div class="row g-3 mb-3">
+ <div class="col-lg-6"><div class="card h-100"><div class="card-header d-flex align-items-center"><i class="bi bi-building-check me-1 text-primary"></i> Active proprietate grup
+   <a class="small ms-auto" href="{% url 'locatii' %}?detinut=grup">registru</a></div>
+  <div class="card-body"><div class="row g-3">
+   <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Active</div><div class="val">{{ kpi_grup.n }}</div><div class="small text-secondary">{{ kpi_grup.functionale }} funcționale · {{ kpi_grup.nefunctionale }} nefuncț. · {{ kpi_grup.terenuri }} teren inv. · {{ kpi_grup.retail }} retail</div></div></div>
+   <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Valoare de piață</div><div class="val">{{ valoare_grup.eur|bani }} <small>EUR</small></div><div class="small text-secondary">{{ valoare_grup.evaluate }} evaluate · {{ valoare_grup.fara_evaluare }} fără evaluare</div></div></div>
+   <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Investiții (RZ)</div><div class="val">{{ kpi_grup.proiecte }}</div><div class="small text-secondary">buget {{ kpi_grup.buget|bani }} RON</div></div></div>
+   <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Teren</div><div class="val">{{ kpi_grup.teren|ha }} <small>ha</small></div><div class="small text-secondary">{{ kpi_grup.teren|bani }} mp</div></div></div>
+   <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Construcții</div><div class="val">{{ kpi_grup.constructii|bani }} <small>mp</small></div></div></div>
+  </div></div></div></div>
+ <div class="col-lg-6"><div class="card h-100 border-warning-subtle"><div class="card-header d-flex align-items-center bg-warning-subtle"><i class="bi bi-key me-1"></i> Închirieri externe
+   <span class="small text-secondary fw-normal ms-2">active închiriate de la proprietari din afara grupului</span><a class="small ms-auto" href="{% url 'locatii' %}?detinut=extern">registru</a></div>
+  <div class="card-body">{% if kpi_extern.n %}<div class="row g-3">
+   <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Active închiriate</div><div class="val">{{ kpi_extern.n }}</div><div class="small text-secondary">{{ kpi_extern.functionale }} funcționale · {{ kpi_extern.nefunctionale }} nefuncț. · {{ kpi_extern.terenuri }} teren inv. · {{ kpi_extern.retail }} retail · {{ kpi_extern.proprietari }} proprietari</div></div></div>
+   <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Chirie lunară totală</div><div class="val">{{ kpi_extern.chirie_eur|bani }} <small>EUR</small></div><div class="small {% if kpi_extern.fara_chirie %}text-danger{% else %}text-secondary{% endif %}">≈ {{ kpi_extern.chirie_ron|bani }} RON{% if kpi_extern.fara_chirie %} · {{ kpi_extern.fara_chirie }} fără chirie completată{% endif %}</div></div></div>
+   <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Contracte care expiră ≤ 90 zile</div><div class="val {% if kpi_extern.expira %}text-danger{% endif %}">{{ kpi_extern.expira|length }}</div><div class="small text-secondary">{{ kpi_extern.fara_termen }} fără termen completat</div></div></div>
+   <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Investiții (RZ) pe active închiriate</div><div class="val">{{ kpi_extern.proiecte }}</div><div class="small text-secondary">buget {{ kpi_extern.buget|bani }} RON</div></div></div>
+   <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Teren</div><div class="val">{{ kpi_extern.teren|ha }} <small>ha</small></div><div class="small text-secondary">{{ kpi_extern.teren|bani }} mp</div></div></div>
+   <div class="col-6 col-md-4"><div class="kpi"><div class="lbl">Construcții</div><div class="val">{{ kpi_extern.constructii|bani }} <small>mp</small></div></div></div>
+  </div>
+  {% if kpi_extern.expira %}<table class="table table-sm small mt-3 mb-0">{% for l in kpi_extern.expira %}<tr><td><a class="cod" href="{{ l.get_absolute_url }}">{{ l.cod|default:"—" }}</a> {{ l.denumire|truncatechars:40 }}</td><td>{{ l.proprietar_extern }}</td><td class="num {% if l.zile_pana_expira < 0 %}text-danger fw-semibold{% endif %}">{{ l.inchiriere_expira|date:"d.m.Y" }}{% if l.zile_pana_expira < 0 %} expirat{% else %} ({{ l.zile_pana_expira }} zile){% endif %}</td></tr>{% endfor %}</table>{% endif %}
+  {% else %}<div class="text-secondary small">Niciun activ marcat ca închiriere externă. Se marchează din fișa activului → Editează → bifa „Închiriere externă”; proprietarii externi se definesc de administrator (Administrare → Proprietari externi).</div>{% endif %}
+  </div></div></div>
+</div>
+<div class="card mb-3"><div class="card-header d-flex align-items-center"><i class="bi bi-buildings me-1"></i> Valoarea de piață a activelor grupului
+  <span class="small text-secondary fw-normal ms-2">ultimul raport de evaluare al fiecărui activ deținut de grup · curs BNR {{ curs_curent }} RON/EUR</span></div>
+ <div class="card-body pb-0"><div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="kpi"><div class="lbl">Valoare de piață consolidată</div><div class="val">{{ valoare_grup.eur|bani }} <small>EUR</small></div><div class="small text-secondary">≈ {{ valoare_grup.ron|bani }} RON</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="lbl">Active deținute de grup</div><div class="val">{{ valoare_grup.evaluate }} <small>evaluate</small></div><div class="small {% if valoare_grup.fara_evaluare %}text-danger{% else %}text-secondary{% endif %}">{{ valoare_grup.fara_evaluare }} fără raport de evaluare cu valoare de piață</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="lbl">Neincluse (exploatate prin contract)</div><div class="val">{{ valoare_grup.excluse }}</div><div class="small text-secondary">evaluate, dar proprietar din afara grupului{% if valoare_grup.excluse %} · {{ valoare_grup.excluse_eur|bani }} EUR{% endif %}</div></div></div>
+ </div></div>
+ {% if valoare_linii %}<div class="row g-0 border-top">
+  <div class="col-lg-6 border-end"><table class="table table-sm mb-0 align-middle"><thead><tr><th>Linie de business</th><th class="num">Active</th><th class="num">EUR</th><th style="width:30%"></th></tr></thead>
+   {% for r in valoare_linii %}<tr><td>{{ r.nume }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.eur|bani }}</td><td><div class="progress" style="height:8px"><div class="progress-bar" style="width:{{ r.p|stringformat:'.1f' }}%"></div></div></td></tr>{% endfor %}</table></div>
+  <div class="col-lg-6"><table class="table table-sm mb-0 align-middle"><thead><tr><th>Societatea proprietară</th><th class="num">Active</th><th class="num">EUR</th><th class="num">%</th></tr></thead>
+   {% for r in valoare_societati %}<tr><td>{{ r.nume }}{% if r.vechi %} <span class="badge text-bg-warning" title="evaluări mai vechi de 3 ani">{{ r.vechi }} vechi</span>{% endif %}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.eur|bani }}</td><td class="num">{{ r.p|floatformat:1 }}</td></tr>{% endfor %}</table></div>
+ </div>{% else %}<div class="px-3 pb-3 text-secondary small">Încă nu există rapoarte de evaluare cu valoare de piață. Se încarcă din fișa activului → Rapoarte de evaluare (AI-ul citește valoarea de piață, data și evaluatorul).</div>{% endif %}
+ {% if valoare_excluse %}<details class="px-3 py-2 border-top small"><summary>Active evaluate care nu intră în valoarea grupului ({{ valoare_excluse|length }})</summary>
+   <table class="table table-sm mb-0 mt-2">{% for r in valoare_excluse %}<tr><td><a class="cod" href="{{ r.loc.get_absolute_url }}?tab=evaluari">{{ r.loc.cod|default:"—" }}</a> {{ r.loc.denumire }}</td><td>{{ r.loc.proprietar|default:"—" }}</td><td class="text-secondary">{{ r.motiv }}</td><td class="num">{{ r.eur|bani }} EUR</td></tr>{% endfor %}</table></details>{% endif %}
+ <div class="card-footer small text-secondary">Se adună doar activele al căror proprietar e o societate din grup (Administrare → Societăți → „aparține grupului”). Activele închiriate între firmele grupului se adună o singură dată, la proprietar; cele doar exploatate de grup prin contracte cu terți nu se adună. Pe fiecare activ se poate forța includerea / excluderea.</div>
+</div>
+<div class="card mb-3"><div class="card-header d-flex align-items-center"><i class="bi bi-bounding-box me-1"></i> Suprafețe pe linii de business și divizii
+  <span class="small text-secondary fw-normal ms-2">active cu cod din registru</span><a class="small ms-auto" href="{% url 'locatii' %}">registrul activelor</a></div>
+ <div class="card-body pb-0"><div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="kpi"><div class="lbl">Suprafață teren totală</div><div class="val">{{ suprafete_total.teren|bani }} <small>mp</small></div><div class="small text-secondary">{{ suprafete_total.teren|ha }} ha · completată la {{ suprafete_total.cu_teren }} din {{ suprafete_total.active }} active</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="lbl">Suprafață construcții totală</div><div class="val">{{ suprafete_total.constructii|bani }} <small>mp</small></div><div class="small text-secondary">completată la {{ suprafete_total.cu_constr }} din {{ suprafete_total.active }} active</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="lbl">Active cu cod</div><div class="val">{{ suprafete_total.active }}</div><div class="small text-secondary">{{ suprafete_linii|length }} linii de business</div></div></div>
+ </div></div>
+ <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Linie de business</th><th class="num">Active</th><th class="num">Teren (mp)</th><th style="width:22%"></th><th class="num">Construcții (mp)</th><th style="width:22%"></th></tr></thead>
+  <tbody>{% for r in suprafete_linii %}<tr class="{% if r.lista_divizii %}fw-semibold{% endif %}">
+    <td>{% if r.linie != "Nespecificată" %}<a href="{% url 'locatii' %}?linie={{ r.linie|urlencode }}">{{ r.linie }}</a>{% else %}<span class="text-secondary">Nespecificată</span>{% endif %}</td><td class="num">{{ r.active }}</td>
+    <td class="num" title="{{ r.cu_teren }} active cu suprafața terenului completată">{% if r.teren %}{{ r.teren|bani }}{% else %}—{% endif %}</td>
+    <td>{% if r.teren %}<div class="progress" style="height:6px"><div class="progress-bar" style="width:{{ r.pt }}%;background:#1baf7a"></div></div>{% endif %}</td>
+    <td class="num" title="{{ r.cu_constr }} active cu suprafața construcțiilor completată">{% if r.constructii %}{{ r.constructii|bani }}{% else %}—{% endif %}</td>
+    <td>{% if r.constructii %}<div class="progress" style="height:6px"><div class="progress-bar" style="width:{{ r.pc }}%;background:#2a78d6"></div></div>{% endif %}</td>
+  </tr>{% for d in r.lista_divizii %}<tr class="small">
+    <td class="ps-4 text-secondary"><a class="text-secondary" href="{% url 'locatii' %}?linie={{ r.linie|urlencode }}&divizie={{ d.linie|urlencode }}">↳ {{ d.linie }}</a></td><td class="num text-secondary">{{ d.active }}</td>
+    <td class="num text-secondary">{% if d.teren %}{{ d.teren|bani }}{% else %}—{% endif %}</td><td>{% if d.teren %}<div class="progress" style="height:4px"><div class="progress-bar" style="width:{{ d.pt }}%;background:#1baf7a;opacity:.6"></div></div>{% endif %}</td>
+    <td class="num text-secondary">{% if d.constructii %}{{ d.constructii|bani }}{% else %}—{% endif %}</td><td>{% if d.constructii %}<div class="progress" style="height:4px"><div class="progress-bar" style="width:{{ d.pc }}%;background:#2a78d6;opacity:.6"></div></div>{% endif %}</td>
+  </tr>{% endfor %}{% endfor %}</tbody>
+  <tfoot><tr class="fw-bold"><td>Total</td><td class="num">{{ suprafete_total.active }}</td><td class="num">{{ suprafete_total.teren|bani }}</td><td></td><td class="num">{{ suprafete_total.constructii|bani }}</td><td></td></tr></tfoot>
+ </table></div>
+ <div class="card-footer small text-secondary">Suprafețele provin din registrul activelor; liniile cu „—” nu au date completate. Completarea se face din „Editează activul”.</div>
+</div>
+<div class="row g-3">
+  {% if rz_de_avizat %}
+  <div class="col-12"><div class="card border-warning"><div class="card-header text-warning-emphasis"><i class="bi bi-hourglass-split"></i> Rapoarte Zero de avizat</div>
+    <ul class="list-group list-group-flush">{% for p in rz_de_avizat %}<li class="list-group-item"><a class="cod" href="{% url 'raport_zero' p.pk %}">{{ p.cod }}</a> {{ p.denumire }} · {{ p.valoare_rz|bani }} {{ p.moneda_rz }}</li>{% endfor %}</ul></div></div>
+  {% endif %}
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header"><i class="bi bi-exclamation-triangle text-danger"></i> Proiecte cu termen depășit</div>
+    <ul class="list-group list-group-flush">{% for p in intarziate %}<li class="list-group-item"><a class="cod" href="{{ p.get_absolute_url }}">{{ p.cod }}</a> {{ p.denumire }} <span class="text-danger small">termen {{ p.data_finalizare|date:"d.m.Y" }}</span></li>{% empty %}<li class="list-group-item text-secondary">Niciun proiect întârziat.</li>{% endfor %}</ul></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header"><i class="bi bi-cash-coin text-danger"></i> Linii de buget depășite</div>
+    <ul class="list-group list-group-flush">{% for l in linii_depasite %}<li class="list-group-item"><a class="cod" href="{{ l.proiect.get_absolute_url }}?tab=buget">{{ l.proiect.cod }}</a> cap. {{ l.capitol }} {{ l.denumire }} <span class="depasit">angajat {{ l.angajat|bani }} / buget {{ l.valoare_curenta|bani }}</span></li>{% empty %}<li class="list-group-item text-secondary">Nicio depășire.</li>{% endfor %}</ul></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header"><i class="bi bi-calendar-event"></i> Obligații cu termen în următoarele 30 de zile</div>
+    <ul class="list-group list-group-flush">{% for o in obligatii %}<li class="list-group-item"><a class="cod" href="{{ o.proiect.get_absolute_url }}?tab=finantare">{{ o.proiect.cod }}</a> {{ o.descriere|truncatechars:90 }} <span class="small {% if o.termen < azi %}text-danger{% else %}text-secondary{% endif %}">{{ o.termen|date:"d.m.Y" }}</span></li>{% empty %}<li class="list-group-item text-secondary">Nimic scadent.</li>{% endfor %}</ul></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header"><i class="bi bi-patch-check"></i> Avize care expiră în 30 de zile</div>
+    <ul class="list-group list-group-flush">{% for a in avize_expira %}<li class="list-group-item"><a class="cod" href="{{ a.proiect.get_absolute_url }}?tab=avize">{{ a.proiect.cod }}</a> {{ a.denumire }} <span class="small text-danger">{{ a.valabil_pana|date:"d.m.Y" }}</span></li>{% empty %}<li class="list-group-item text-secondary">Niciun aviz nu expiră curând.</li>{% endfor %}</ul></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header">Proiecte pe faze</div><div class="card-body">
+    {% for r in pe_faza %}<div class="d-flex justify-content-between border-bottom py-1"><span>{{ r.faza|default:"—" }}</span><b>{{ r.n }}</b></div>{% empty %}<span class="text-secondary">Niciun proiect.</span>{% endfor %}
+  </div></div></div>
+</div>
+{% endblock %}

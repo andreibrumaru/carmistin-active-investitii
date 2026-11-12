@@ -1,0 +1,157 @@
+{% extends "platforma/form.html" %}
+{% block in_form %}
+<div class="mt-4" id="buget-rz">
+  <h5 class="mb-1"><i class="bi bi-calculator"></i> Bugetul investiției – structura devizului general (HG 907/2016)</h5>
+  <p class="small text-secondary mb-2">Sume în RON, fără TVA. Bugetul face parte din Raportul Zero: după avizare rămâne fixat și se poate modifica doar printr-o revizie a Raportului Zero, aprobată de administrator.</p>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-2" style="max-width:900px">
+    <thead><tr><th style="width:70px">Cap.</th><th>Denumire</th><th class="num" style="width:200px">Bugetat (RON)</th></tr></thead>
+    <tbody>{% for c in capitole_buget %}
+      <tr class="capitol-row"><td>{{ c.cod }}</td><td>{{ c.denumire }}</td><td class="num" data-total-capitol="{{ c.cod }}">0</td></tr>
+      {% for l in c.linii %}<tr><td class="text-secondary">{{ l.cod }}</td><td>{{ l.denumire }}</td>
+        <td><input type="text" inputmode="decimal" name="buget_{{ l.cod }}" value="{% if l.valoare %}{{ l.valoare|floatformat:'-2' }}{% endif %}" placeholder="0" class="form-control form-control-sm text-end celula-buget" data-capitol="{{ c.cod }}"></td></tr>{% endfor %}
+    {% endfor %}</tbody>
+    <tfoot><tr class="fw-bold"><td></td><td>TOTAL BUGET HG</td><td class="num" id="totalBuget">0</td></tr>
+      <tr class="small"><td></td><td class="text-secondary">Valoarea preluată în Raportul Zero (câmpul „Valoare ofertă / buget”), în RON</td><td class="num text-secondary" id="valoareRzRon">—</td></tr>
+      <tr class="small"><td></td><td class="text-secondary">Diferență buget HG – valoare RZ</td><td class="num" id="diferentaRz">—</td></tr></tfoot>
+  </table></div>
+</div>
+
+<div class="mt-4" id="echipamente-rz">
+  <h5 class="mb-1"><i class="bi bi-cpu"></i> Lista echipamentelor și dotărilor (cap. 4.3, 4.4, 4.5) <span class="text-danger">*</span></h5>
+  <p class="small text-secondary mb-2">Banii prevăzuți pe liniile 4.3 (utilaje cu montaj), 4.4 (utilaje fără montaj, transport) și 4.5 (dotări) se justifică prin lista de mai jos.
+    Bugetul acestor linii se calculează automat din valorile estimate (RON, fără TVA). Lista trece apoi în fișa proiectului; la încheierea unui contract de achiziție se bifează exact echipamentele contractate.</p>
+  <div class="row g-2 mb-2" id="ech-sumar">{% for cod, den in linii_echipamente %}
+    <div class="col-md-4"><div class="border rounded px-2 py-1 small h-100" data-ech-sumar="{{ cod }}"><b>{{ cod }}</b> {{ den|truncatechars:48 }}
+      <div class="d-flex justify-content-between"><span class="text-secondary">listă</span><span class="fw-semibold" data-ech-total="{{ cod }}">0</span></div>
+      <div class="ech-stare small" data-ech-stare="{{ cod }}"></div></div></div>{% endfor %}
+  </div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-2" id="tabelEchipamente">
+    <thead><tr><th>Denumire echipament / dotare</th><th>Specificații</th><th style="width:90px" class="num">Cant.</th><th style="width:80px">U.M.</th><th style="width:230px">Linie buget</th><th style="width:170px" class="num">Valoare estimată totală (RON)</th><th style="width:40px"></th></tr></thead>
+    <tbody>
+    {% for e in echipamente_rz %}<tr>
+      <td><input type="hidden" name="ech_id" value="{{ e.id|default:'' }}"><input name="ech_denumire" value="{{ e.denumire }}" class="form-control form-control-sm" required></td>
+      <td><input name="ech_specificatii" value="{{ e.specificatii }}" class="form-control form-control-sm"></td>
+      <td><input name="ech_cantitate" value="{{ e.cantitate_text }}" inputmode="decimal" class="form-control form-control-sm text-end"></td>
+      <td><input name="ech_um" value="{{ e.um }}" class="form-control form-control-sm"></td>
+      <td><select name="ech_linie" class="form-select form-select-sm" required><option value="">—</option>{% for cod, den in linii_echipamente %}<option value="{{ cod }}" {% if e.linie == cod %}selected{% endif %}>{{ cod }} {{ den|truncatechars:30 }}</option>{% endfor %}</select></td>
+      <td><input name="ech_valoare" value="{{ e.valoare_text }}" inputmode="decimal" class="form-control form-control-sm text-end ech-valoare" required></td>
+      <td class="text-center">{% if e.contract %}<i class="bi bi-lock text-secondary" title="contractat prin {{ e.contract.numar }} – nu se poate scoate din listă"></i>{% else %}<button type="button" class="btn btn-sm btn-link text-danger p-0 ech-sterge" title="scoate din listă"><i class="bi bi-x-lg"></i></button>{% endif %}</td>
+    </tr>{% endfor %}
+    </tbody>
+    <tfoot><tr class="fw-bold"><td colspan="5">Total echipamente și dotări</td><td class="num" id="ech-total">0</td><td></td></tr></tfoot>
+  </table></div>
+  <button type="button" class="btn btn-sm btn-outline-primary" id="ech-adauga"><i class="bi bi-plus-lg"></i> Adaugă echipament</button>
+</div>
+<template id="ech-rand-nou"><tr>
+  <td><input type="hidden" name="ech_id" value=""><input name="ech_denumire" class="form-control form-control-sm" required placeholder="ex. Linie de sortare ouă"></td>
+  <td><input name="ech_specificatii" class="form-control form-control-sm" placeholder="model, capacitate…"></td>
+  <td><input name="ech_cantitate" value="1" inputmode="decimal" class="form-control form-control-sm text-end"></td>
+  <td><input name="ech_um" value="buc" class="form-control form-control-sm"></td>
+  <td><select name="ech_linie" class="form-select form-select-sm" required><option value="">—</option>{% for cod, den in linii_echipamente %}<option value="{{ cod }}">{{ cod }} {{ den|truncatechars:30 }}</option>{% endfor %}</select></td>
+  <td><input name="ech_valoare" inputmode="decimal" class="form-control form-control-sm text-end ech-valoare" required placeholder="0"></td>
+  <td class="text-center"><button type="button" class="btn btn-sm btn-link text-danger p-0 ech-sterge" title="scoate din listă"><i class="bi bi-x-lg"></i></button></td>
+</tr></template>
+{% endblock %}
+{% block scripturi %}
+<script>
+(() => {
+  const ben = document.getElementById('id_beneficiar'), loc = document.getElementById('id_locatie');
+  if (!ben || !loc || loc.disabled) return;
+  const toate = [...loc.options].filter(o => o.value);
+  const info = document.createElement('div');
+  info.className = 'form-text fw-semibold text-primary';
+  loc.parentNode.insertBefore(info, loc.nextSibling);
+  function filtreaza() {
+    const b = ben.value, curent = loc.value;
+    loc.length = 1;
+    loc.options[0].text = b ? '— alegeți locația —' : '— alegeți întâi beneficiarul —';
+    toate.filter(o => b && o.dataset.beneficiar === b).forEach(o => loc.add(o));
+    loc.disabled = !b;
+    loc.value = toate.some(o => o.value === curent && o.dataset.beneficiar === b) ? curent : '';
+    actualizeaza();
+  }
+  function actualizeaza() {
+    const o = loc.selectedOptions[0];
+    const n = toate.filter(x => x.dataset.beneficiar === ben.value).length;
+    info.textContent = o && o.value ? `Cod proiect care se va genera: ${o.dataset.urmator}` : (ben.value ? `${n} locații ale beneficiarului` : '');
+  }
+  ben.addEventListener('change', filtreaza);
+  loc.addEventListener('change', actualizeaza);
+  loc.form.addEventListener('submit', () => { loc.disabled = false; });
+  filtreaza();
+})();
+</script>
+<script>
+// Bugetul HG din Raportul Zero: totaluri pe capitole, total general și comparația cu valoarea declarată în RZ
+(() => {
+  const celule = [...document.querySelectorAll('.celula-buget')];
+  const curs = parseFloat('{{ curs_rz|stringformat:"s" }}'.replace(',', '.')) || 1;
+  const nr = t => { t = (t || '').replace(/\s/g, ''); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); else if ((t.match(/\./g) || []).length > 1 || /^\d{1,3}\.\d{3}$/.test(t)) t = t.replace(/\./g, ''); const v = parseFloat(t); return isNaN(v) ? 0 : v; };
+  const fmt = v => new Intl.NumberFormat('ro-RO', {maximumFractionDigits: 0}).format(v);
+  const recalc = () => {
+    const pe = {}; let tot = 0;
+    celule.forEach(c => { const v = nr(c.value); pe[c.dataset.capitol] = (pe[c.dataset.capitol] || 0) + v; tot += v; });
+    document.querySelectorAll('[data-total-capitol]').forEach(el => el.textContent = fmt(pe[el.dataset.totalCapitol] || 0));
+    document.getElementById('totalBuget').textContent = fmt(tot);
+    const camp = document.getElementById('id_valoare_rz'), mon = document.getElementById('id_moneda_rz')?.value;
+    if (camp) {  // valoarea RZ = totalul bugetului HG, convertit în moneda RZ; editabilă doar cât bugetul e gol
+      camp.readOnly = tot > 0;
+      camp.classList.toggle('camp-calculat', tot > 0);
+      if (tot > 0) camp.value = (mon === 'EUR' ? tot / curs : tot).toFixed(2);
+    }
+    const val = nr(camp?.value);
+    const ron = mon === 'EUR' ? val * curs : val;
+    document.getElementById('valoareRzRon').textContent = val ? fmt(ron) + (mon === 'EUR' ? ` (${fmt(val)} EUR × ${curs})` : '') : '—';
+    const d = document.getElementById('diferentaRz');
+    if (val && tot) { const dif = tot - ron; d.textContent = (dif > 0 ? '+' : '') + fmt(dif); d.className = 'num ' + (Math.abs(dif) > ron * 0.01 ? 'text-danger fw-semibold' : 'text-success'); }
+    else { d.textContent = '—'; d.className = 'num'; }
+  };
+  celule.forEach((c, i) => {
+    c.addEventListener('input', recalc);
+    c.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (celule[i + 1] || c).focus(); } });
+  });
+  ['id_valoare_rz', 'id_moneda_rz'].forEach(id => document.getElementById(id)?.addEventListener('input', recalc));
+  document.getElementById('id_moneda_rz')?.addEventListener('change', recalc);
+
+  // Lista de echipamente: liniile 4.3 / 4.4 / 4.5 = suma valorilor estimate din listă
+  const corpEch = document.querySelector('#tabelEchipamente tbody');
+  const liniiEch = [...document.querySelectorAll('[data-ech-total]')].map(el => el.dataset.echTotal);
+  const recalcEch = () => {
+    const pe = {}; let tot = 0;
+    corpEch.querySelectorAll('tr').forEach(r => {
+      const linie = r.querySelector('[name=ech_linie]').value, v = nr(r.querySelector('[name=ech_valoare]').value);
+      tot += v; if (linie) { pe[linie] = pe[linie] || {v: 0, n: 0}; pe[linie].v += v; pe[linie].n++; }
+    });
+    document.getElementById('ech-total').textContent = fmt(tot);
+    liniiEch.forEach(cod => {
+      const celula = document.querySelector(`[name="buget_${cod}"]`), x = pe[cod];
+      document.querySelector(`[data-ech-total="${cod}"]`).textContent = x ? `${fmt(x.v)} RON (${x.n})` : '—';
+      const stare = document.querySelector(`[data-ech-stare="${cod}"]`), cutie = stare.parentElement;
+      if (celula) {
+        celula.readOnly = !!x;
+        celula.classList.toggle('camp-calculat', !!x);
+        celula.title = x ? 'calculat din lista de echipamente' : '';
+        if (x) celula.value = x.v.toFixed(2).replace('.', ',');
+      }
+      const buget = celula ? nr(celula.value) : 0;
+      const lipsa = buget > 0 && !x;
+      stare.innerHTML = x ? '<span class="text-success"><i class="bi bi-check2"></i> bugetul liniei = lista</span>'
+        : lipsa ? '<span class="text-danger fw-semibold"><i class="bi bi-exclamation-triangle"></i> are buget fără listă de echipamente</span>'
+        : '<span class="text-secondary">fără buget</span>';
+      cutie.classList.toggle('border-danger', lipsa); cutie.classList.toggle('bg-danger-subtle', lipsa);
+    });
+    recalc();
+  };
+  corpEch.addEventListener('input', recalcEch);
+  corpEch.addEventListener('change', recalcEch);
+  corpEch.addEventListener('click', e => { const b = e.target.closest('.ech-sterge'); if (b) { b.closest('tr').remove(); recalcEch(); } });
+  document.getElementById('ech-adauga').addEventListener('click', () => {
+    corpEch.appendChild(document.getElementById('ech-rand-nou').content.cloneNode(true));
+    corpEch.lastElementChild.querySelector('[name=ech_denumire]').focus();
+    recalcEch();
+  });
+  liniiEch.forEach(cod => document.querySelector(`[name="buget_${cod}"]`)?.addEventListener('input', recalcEch));
+  recalcEch();
+})();
+</script>
+{% endblock %}

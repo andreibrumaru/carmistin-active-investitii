@@ -1,0 +1,70 @@
+{% load static %}<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block titlu %}Active & Investiții{% endblock %} · Carmistin</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="{% static 'platforma/stil.css' %}?v=20261108m" rel="stylesheet">
+{% block head %}{% endblock %}
+</head>
+<body>
+<div class="d-flex">
+  <nav class="sidebar d-print-none">
+    <a href="{% url 'dashboard' %}" class="brand"><span class="logo">C</span> CARMISTIN<small>Active & Investiții</small></a>
+    {% with u=request.resolver_match.url_name %}
+    <a class="nav-item {% if u == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><i class="bi bi-speedometer2"></i> Tablou de bord</a>
+    <a class="nav-item {% if 'locati' in u and not categorie_curenta %}active{% endif %}" href="{% url 'locatii' %}"><i class="bi bi-buildings"></i> Registrul activelor{% if categorii_active %} <i class="bi bi-chevron-down float-end small mt-1 me-0"></i>{% else %} <i class="bi bi-chevron-right float-end small mt-1 me-0"></i>{% endif %}</a>
+    {% if categorii_active %}<div class="nav-subtree">{% for cod, et, ic, n in categorii_active %}
+      <a class="nav-item nav-sub {% if u == 'locatii' and categorie_curenta == cod %}active{% endif %}" href="{% url 'locatii' %}?categorie={{ cod }}"><i class="bi {{ ic }}"></i> {{ et }} <span class="badge rounded-pill nav-sub-nr">{{ n }}</span></a>{% endfor %}
+    </div>{% endif %}
+    <a class="nav-item {% if 'raport' in u and u != 'raport_autorizatii' %}active{% endif %}" href="{% url 'rapoarte_zero' %}"><i class="bi bi-file-earmark-text"></i> Rapoarte Zero</a>
+    <a class="nav-item {% if u == 'investitii' or u == 'proiect_detaliu' or 'obiect' in u %}active{% endif %}" href="{% url 'investitii' %}"><i class="bi bi-kanban"></i> Registrul investițiilor</a>
+    <a class="nav-item {% if u == 'dashboard_anual' %}active{% endif %}" href="{% url 'dashboard_anual' %}"><i class="bi bi-bar-chart"></i> Buget anual</a>
+    <a class="nav-item {% if u == 'raport_autorizatii' %}active{% endif %}" href="{% url 'raport_autorizatii' %}"><i class="bi bi-patch-check"></i> Raport autorizații</a>
+    <a class="nav-item {% if u == 'aprobari' %}active{% endif %}" href="{% url 'aprobari' %}"><i class="bi bi-check2-square"></i> Aprobări {% if nr_aprobari %}<span class="badge text-bg-warning ms-1">{{ nr_aprobari }}</span>{% endif %}</a>
+    {% if e_financiar %}<a class="nav-item {% if u == 'export_erp' %}active{% endif %}" href="{% url 'export_erp' %}"><i class="bi bi-box-arrow-up-right"></i> Export Charisma</a>{% endif %}
+    {% if rol_curent == 'admin' or rol_curent == 'management' or rol_curent == 'financiar' %}
+    <a class="nav-item {% if u == 'jurnal' %}active{% endif %}" href="{% url 'jurnal' %}"><i class="bi bi-clock-history"></i> Jurnal de audit</a>
+    {% endif %}
+    {% if e_admin %}<a class="nav-item" href="/admin/"><i class="bi bi-gear"></i> Administrare</a>
+    <a class="nav-item {% if u == 'stergere_proiect' %}active{% endif %}" href="{% url 'stergere_proiect' %}"><i class="bi bi-shield-lock"></i> Ștergere proiect</a>{% endif %}
+    {% endwith %}
+    <div class="user-box">
+      <i class="bi bi-person-circle"></i> {{ request.user.get_full_name|default:request.user.username }}
+      <div class="small text-secondary">{{ request.user.profil.get_rol_display }}</div>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn btn-link btn-sm p-0 text-secondary">Ieșire</button></form>
+    </div>
+  </nav>
+  <main class="flex-grow-1 p-4">
+    {% for msg in messages %}
+      <div class="alert alert-{% if msg.tags == 'error' %}danger{% else %}{{ msg.tags }}{% endif %} alert-dismissible fade show">{{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    {% endfor %}
+    {% block continut %}{% endblock %}
+  </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'platforma/filtre.js' %}?v=20261108e"></script>
+<script src="{% static 'platforma/linie_divizie.js' %}"></script>
+{# Vizualizator de documente: orice link către un document se deschide aici, fără descărcare #}
+<div class="modal fade" id="vizualizator" tabindex="-1" aria-labelledby="vizTitlu" aria-hidden="true">
+ <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content" style="height:92vh">
+  <div class="modal-header py-2">
+    <h6 class="modal-title text-truncate" id="vizTitlu">Document</h6>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <span class="small text-secondary" id="vizInfo"></span>
+      <button class="btn btn-sm btn-outline-secondary" id="vizMinus" title="Micșorează"><i class="bi bi-zoom-out"></i></button>
+      <button class="btn btn-sm btn-outline-secondary" id="vizPlus" title="Mărește"><i class="bi bi-zoom-in"></i></button>
+      <a class="btn btn-sm btn-outline-secondary" id="vizTab" target="_blank" title="Deschide într-o filă nouă"><i class="bi bi-box-arrow-up-right"></i></a>
+      <a class="btn btn-sm btn-outline-primary" id="vizDescarca" title="Descarcă"><i class="bi bi-download"></i> Descarcă</a>
+      <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" aria-label="Închide"></button>
+    </div>
+  </div>
+  <div class="modal-body bg-secondary-subtle p-2" id="vizCorp"></div>
+ </div></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="{% static 'platforma/vizualizator.js' %}"></script>
+{% block scripturi %}{% endblock %}
+</body>
+</html>

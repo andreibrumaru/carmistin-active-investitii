@@ -1,0 +1,108 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Registrul activelor{% endblock %}
+{% block scripturi %}
+<script>
+// Filtrele pe coloane trimit formularul după o scurtă pauză de tastare și păstrează cursorul în câmpul editat.
+(() => {
+  const form = document.getElementById('filtre'), focus = document.getElementById('focus-camp');
+  let t;
+  // câmpurile goale nu se trimit, ca adresa paginii să rămână scurtă (și ușor de trimis cuiva)
+  const curata = () => [...form.elements].forEach(e => { if (e.name && !e.value) e.disabled = true; });
+  const trimite = () => { curata(); form.submit(); };
+  form.addEventListener('submit', curata);
+  document.querySelectorAll('.filtru-server').forEach(inp => {
+    inp.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => { focus.value = inp.name; trimite(); }, 600);
+    });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(t); focus.value = inp.name; trimite(); } });
+  });
+  // listele cu bife: „toate” / „niciuna”, căutare în listă; la închiderea listei se aplică filtrul dacă s-a schimbat ceva
+  document.querySelectorAll('.filtru-multi-server').forEach(dd => {
+    const bife = [...dd.querySelectorAll('input[type=checkbox]')], initial = bife.map(c => c.checked).join();
+    const vizibile = () => bife.filter(c => !c.closest('.form-check').classList.contains('d-none'));
+    dd.querySelector('[data-tot]').addEventListener('click', e => { e.preventDefault(); vizibile().forEach(c => c.checked = true); });
+    dd.querySelector('[data-nimic]').addEventListener('click', e => { e.preventDefault(); vizibile().forEach(c => c.checked = false); });
+    dd.querySelector('.cauta-in-lista').addEventListener('input', e => {
+      const q = e.target.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      bife.forEach(c => c.closest('.form-check').classList.toggle('d-none', !!q && !c.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(q)));
+    });
+    dd.querySelector('.cauta-in-lista').addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+    dd.addEventListener('hidden.bs.dropdown', () => { if (bife.map(c => c.checked).join() !== initial) trimite(); });
+  });
+  // listele de sus se aplică imediat la alegere; căutarea la Enter sau după o pauză de tastare
+  form.querySelectorAll('.auto-trimite').forEach(sel => sel.addEventListener('change', trimite));
+  const cauta = form.querySelector('input[name=q]');
+  cauta.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { focus.value = 'q'; trimite(); }, 700); });
+  // al doilea rând fix al capului de tabel (filtrele) stă exact sub primul
+  const cap = document.querySelector('.registru-tabel thead tr');
+  if (cap) document.querySelector('.registru-tabel').style.setProperty('--h-antet', cap.getBoundingClientRect().height + 'px');
+  // clic oriunde pe rând deschide fișa activului (Ctrl/Cmd + clic: filă nouă)
+  document.querySelectorAll('tr[data-href]').forEach(tr => tr.addEventListener('click', e => {
+    if (e.target.closest('a, button, input')) return;
+    e.metaKey || e.ctrlKey ? window.open(tr.dataset.href) : (location = tr.dataset.href);
+  }));
+  const ultim = new URLSearchParams(location.search).get('focus');
+  const el = ultim && document.querySelector(`.filtru-server[name="${ultim}"], #filtre input[name="${ultim}"]`);
+  if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+})();
+</script>
+{% endblock %}
+{% block continut %}
+<div class="registru-antet d-flex align-items-center flex-wrap gap-2 mb-2">
+  <h4 class="mb-0 me-2">Registrul activelor{% if categorie %} <span class="text-secondary fw-normal">›</span> {{ categorie.0 }}{% endif %}</h4>
+  <div class="ms-auto d-flex gap-2">
+    <a href="{% url 'locatii_harta' %}?{{ query.urlencode }}" class="btn btn-sm btn-light border" title="Hartă"><i class="bi bi-map"></i><span class="d-none d-lg-inline"> Hartă</span></a>
+    <a href="?{{ query.urlencode }}&export=1" class="btn btn-sm btn-light border" title="Export Excel"><i class="bi bi-file-earmark-excel text-success"></i><span class="d-none d-lg-inline"> Export</span></a>
+    {% if e_admin %}<a href="{% url 'locatie_noua' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Activ nou</a>{% endif %}
+  </div>
+</div>
+
+{# categoriile, ca butoane cu numărul de active #}
+<div class="categorii-registru d-flex flex-wrap gap-2 mb-3">
+  <a href="{% url 'locatii' %}" class="cat-pastila {% if not cod_categorie %}activ{% endif %}"><i class="bi bi-grid"></i> Toate <b>{{ total_active }}</b></a>
+  {% for cod, et, ic, n in categorii_active %}<a href="{% url 'locatii' %}?categorie={{ cod }}" class="cat-pastila cat-{{ cod }} {% if cod_categorie == cod %}activ{% endif %}"><i class="bi {{ ic }}"></i> {{ et }} <b>{{ n }}</b></a>{% endfor %}
+</div>
+
+<form id="filtre" class="bara-filtre mb-2"><input type="hidden" name="focus" id="focus-camp">{% if cod_categorie %}<input type="hidden" name="categorie" value="{{ cod_categorie }}">{% endif %}
+  <div class="cautare"><i class="bi bi-search"></i><input name="q" value="{{ query.q }}" class="form-control form-control-sm" placeholder="Caută cod, denumire, utilizator, proprietar, adresă, CF…" aria-label="Caută"></div>
+  <select name="linie" class="form-select form-select-sm auto-trimite" aria-label="Linie"><option value="">Linie: toate</option>{% for l in linii %}<option {% if query.linie == l %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <select name="divizie" class="form-select form-select-sm auto-trimite" aria-label="Divizie"><option value="">Divizie: toate</option>{% for d in divizii %}<option {% if query.divizie == d %}selected{% endif %}>{{ d }}</option>{% endfor %}</select>
+  <select name="status" class="form-select form-select-sm auto-trimite" aria-label="Status"><option value="">Status: oricare</option>{% for st in statusuri %}<option {% if query.status == st %}selected{% endif %}>{{ st }}</option>{% endfor %}</select>
+  <select name="detinut" class="form-select form-select-sm auto-trimite" aria-label="Deținere"><option value="">Grup + externe</option><option value="grup" {% if query.detinut == 'grup' %}selected{% endif %}>Doar proprietate grup</option><option value="extern" {% if query.detinut == 'extern' %}selected{% endif %}>Doar închirieri externe</option></select>
+  <select name="cod" class="form-select form-select-sm auto-trimite" aria-label="Cod"><option value="">Cu / fără cod</option><option value="cu" {% if query.cod == 'cu' %}selected{% endif %}>Doar cu cod</option><option value="fara" {% if query.cod == 'fara' %}selected{% endif %}>Fără cod alocat</option></select>
+  <button class="d-none">Filtrează</button>
+</form>
+{% if filtre_active %}<div class="d-flex flex-wrap align-items-center gap-1 mb-2 small">
+  <span class="text-secondary me-1"><i class="bi bi-funnel-fill text-primary"></i> Filtre:</span>
+  {% for et, url in filtre_active %}<a href="{{ url }}" class="filtru-eticheta" title="scoate filtrul">{{ et }} <i class="bi bi-x"></i></a>{% endfor %}
+  <a href="{% url 'locatii' %}{% if cod_categorie %}?categorie={{ cod_categorie }}{% endif %}" class="btn btn-sm btn-link text-danger py-0">Șterge toate</a>
+</div>{% endif %}
+
+<div class="card registru-card"><div class="registru-tabel"><table class="table table-sm table-hover mb-0 align-middle">
+<thead><tr>{% for param, et, val, opt, nr_alese in coloane %}<th {% if param == 'f_teren' or param == 'f_proiecte' %}class="num"{% endif %}>{{ et }}</th>{% endfor %}</tr>
+<tr class="filtre-coloane">{% for param, et, val, opt, nr_alese in coloane %}<th><div class="input-group input-group-sm flex-nowrap">
+  <input type="search" form="filtre" name="{{ param }}" value="{{ val }}" class="form-control form-control-sm filtru-server" placeholder="filtru…" aria-label="Filtru {{ et }}">
+  {% if opt %}<div class="dropdown filtru-multi-server"><button type="button" class="btn btn-sm filtru-multi-buton {% if nr_alese %}btn-primary{% else %}btn-outline-secondary{% endif %}" data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-popper-config='{"strategy":"fixed"}' title="alegeți una sau mai multe valori">{% if nr_alese %}<i class="bi bi-funnel-fill"></i> {{ nr_alese }}{% else %}<i class="bi bi-funnel"></i>{% endif %}</button>
+    <div class="dropdown-menu p-2 filtru-multi-meniu shadow-sm">
+      <div class="d-flex justify-content-between small mb-1"><a href="#" data-tot>toate</a><a href="#" data-nimic>niciuna</a></div>
+      <input type="search" class="form-control form-control-sm mb-1 cauta-in-lista" placeholder="caută în listă…">
+      <div class="filtru-multi-lista">{% for v, n, ales in opt %}<div class="form-check small text-nowrap"><input class="form-check-input" type="checkbox" form="filtre" name="m_{{ param }}" value="{{ v }}" id="m_{{ param }}_{{ forloop.counter }}" {% if ales %}checked{% endif %}><label class="form-check-label" for="m_{{ param }}_{{ forloop.counter }}">{{ v }} <span class="text-secondary">({{ n }})</span></label></div>{% endfor %}</div>
+      <button type="submit" form="filtre" class="btn btn-sm btn-primary w-100 mt-2">Aplică</button>
+    </div></div>{% endif %}
+</div></th>{% endfor %}</tr></thead>
+<tbody>{% for l in pagina %}
+<tr data-href="{{ l.get_absolute_url }}">
+  <td>{% if l.cod %}<a class="cod" href="{{ l.get_absolute_url }}">{{ l.cod }}</a>{% else %}<a class="badge text-bg-light text-decoration-none" href="{{ l.get_absolute_url }}">fără cod</a>{% endif %}{% if l.cod_alias %}<div class="small text-secondary">alias {{ l.cod_alias }}</div>{% endif %}</td>
+  <td class="col-denumire"><div class="fw-semibold">{{ l.denumire }}</div>{% if l.adresa %}<div class="small text-secondary text-truncate" title="{{ l.adresa }}">{{ l.adresa }}</div>{% endif %}</td>
+  <td><span class="badge badge-categorie-{{ l.stare_activ }}">{{ l.get_stare_activ_display }}</span></td>
+  <td class="col-utilizator">{{ l.utilizator|default:"—" }}</td>
+  <td class="col-proprietar">{% if l.inchiriere_externa %}{{ l.proprietar_extern|default:"" }} <span class="badge text-bg-warning" title="închiriere externă – chiriaș {{ l.proprietar|default:'' }}">extern</span>{% else %}{{ l.proprietar|default:"" }}{% endif %}</td>
+  <td>{{ l.linie }}</td><td class="small">{{ l.divizie }}</td><td class="small">{{ l.status }}</td>
+  <td class="small">{{ l.judet|default:"—" }}</td><td class="num">{{ l.suprafata_teren|default_if_none:""|floatformat:"0g" }}</td><td class="num">{% if l.nr_proiecte %}<span class="badge rounded-pill text-bg-light border">{{ l.nr_proiecte }}</span>{% endif %}</td>
+</tr>{% empty %}<tr><td colspan="11" class="text-center text-secondary py-5"><i class="bi bi-search fs-3 d-block mb-2"></i>Niciun activ nu corespunde filtrelor.</td></tr>{% endfor %}</tbody></table></div>
+<div class="card-footer d-flex flex-wrap gap-3 justify-content-between small text-secondary">
+  <span><b class="text-body">{{ total }}</b> pozi{{ total|pluralize:"ție,ții" }}{% if filtre_coloane %} după filtrele pe coloane · <a href="{{ url_fara_coloane }}">șterge filtrele pe coloane</a>{% endif %}</span>
+  <span>Teren total: <b class="text-body">{{ total_teren|floatformat:"0g" }}</b> mp</span>
+</div></div>
+{% endblock %}

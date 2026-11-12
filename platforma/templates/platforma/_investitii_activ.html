@@ -1,0 +1,18 @@
+{% load fmt %}<div class="card mb-3">
+  <div class="card-header d-flex">{{ titlu }} <span class="badge text-bg-light ms-2">{{ lista|length }}</span></div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>Cod</th><th>Proiect</th><th>Fază / status</th><th>PM</th><th class="num">Buget (RON)</th><th class="num">Facturat</th><th style="width:130px">Execuție</th><th>{% if finalizate %}Finalizat la{% else %}Termen{% endif %}</th><th></th></tr></thead>
+  <tbody>{% for p in lista %}{% with b=p.buget_actualizat_ron|default:p.buget_rz_ron %}
+  <tr style="cursor:pointer" onclick="location='{% if p.pk in vizibile %}{{ p.get_absolute_url }}{% else %}{% url 'raport_zero' p.pk %}{% endif %}'">
+    <td><span class="cod">{{ p.cod }}</span></td>
+    <td>{{ p.denumire }}<div class="small text-secondary">{{ p.beneficiar }} · {{ p.finantare }}</div></td>
+    <td class="small"><span class="badge text-bg-light">{{ p.faza }}</span><div class="text-secondary">{{ p.status }}</div></td>
+    <td class="small">{{ p.pm|default:"—" }}</td>
+    <td class="num">{{ b|bani }}</td><td class="num">{{ p.facturat_ron|bani }}</td>
+    <td><div class="progress" title="financiar"><div class="progress-bar" style="width:{{ p.procent_executie|plafon }}%"></div></div>
+      <div class="progress mt-1" title="fizic"><div class="progress-bar bg-success" style="width:{{ p.progres_fizic }}%"></div></div>
+      <div class="small text-secondary">fin. {{ p.procent_executie }}% · fizic {{ p.progres_fizic }}%</div></td>
+    <td class="small {% if not finalizate and p.intarziat %}text-danger fw-semibold{% endif %}">{% if finalizate %}{{ p.data_finalizare_reala|date:"d.m.Y"|default:"—" }}{% else %}{{ p.data_finalizare|date:"d.m.Y" }}{% endif %}</td>
+    <td>{% if p.pk in vizibile %}<a class="btn btn-sm btn-outline-primary py-0" href="{{ p.get_absolute_url }}">Deschide</a>{% else %}<a class="btn btn-sm btn-outline-secondary py-0" href="{% url 'raport_zero' p.pk %}">Raport Zero</a>{% endif %}</td>
+  </tr>{% endwith %}{% empty %}<tr><td colspan="9" class="text-center text-secondary py-3">Nicio investiție.</td></tr>{% endfor %}</tbody></table></div>
+</div>

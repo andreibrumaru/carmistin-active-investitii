@@ -1,0 +1,471 @@
+{% extends "platforma/base.html" %}{% load fmt %}
+{% block titlu %}{{ loc.cod|default:"Activ" }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-start mb-3 gap-2">
+  <a href="{% url 'locatii' %}" class="btn btn-sm btn-outline-secondary me-2"><i class="bi bi-arrow-left"></i></a>
+  <div><h4 class="mb-0">{% if loc.cod %}<span class="cod">{{ loc.cod }}</span> · {% endif %}{{ loc.denumire }}</h4>
+  <div class="text-secondary small"><span class="badge badge-categorie-{{ loc.stare_activ }}">{{ loc.get_stare_activ_display }}</span> · {% if loc.inchiriere_externa %}<span class="badge text-bg-warning">închiriere externă</span> {{ loc.proprietar_extern|default:"proprietar extern necompletat" }} → {{ loc.proprietar|default:"" }}{% else %}{{ loc.proprietar|default:"proprietar necunoscut" }}{% endif %} · {{ loc.linie|default:"" }} · <span class="badge text-bg-light">{{ loc.status|default:"status necunoscut" }}</span></div></div>
+  <div class="ms-auto d-flex gap-2">
+    {% if poate_crea_proiect and loc.cod %}<a href="{% url 'raport_zero_nou' %}?locatie={{ loc.pk }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Investiție nouă ({{ urmator.0 }})</a>{% endif %}
+    {% if e_admin %}<a href="{% url 'locatie_editare' loc.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editează activul</a>{% endif %}
+  </div>
+</div>
+{% if not loc.cod %}<div class="alert alert-warning">Această locație nu are cod alocat. {% if e_admin %}Alocați un cod din <a href="{% url 'locatie_editare' loc.pk %}">editare</a> pentru a putea înregistra investiții.{% endif %}</div>{% endif %}
+{% if aut_expira or ctrl_deschise %}<div class="alert alert-warning small py-2">
+  {% if aut_expira %}<div><i class="bi bi-exclamation-triangle"></i> {{ aut_expira|length }} autorizați{{ aut_expira|length|pluralize:"e,i" }} expiră în cel mult 60 de zile sau au expirat.</div>{% endif %}
+  {% if ctrl_deschise %}<div><i class="bi bi-clipboard-x"></i> Documente de control cu măsuri în curs de remediere: {{ ctrl_deschise|length }}.</div>{% endif %}
+</div>{% endif %}
+
+{% with cf_curent=contracte_folosinta.0 %}
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="card kpi h-100"><div class="card-body py-2"><div class="lbl"><i class="bi bi-person-vcard"></i> Proprietar</div>
+    {% if loc.inchiriere_externa %}<div class="val fs-6">{{ loc.proprietar_extern|default:"—" }} <span class="badge text-bg-warning align-middle">închiriere externă</span></div>
+    <div class="small text-secondary">{% if loc.proprietar_extern.cui %}CUI {{ loc.proprietar_extern.cui }} · {% endif %}{{ loc.proprietar_extern.get_tip_display|default:"" }}{% if loc.proprietar_extern.persoana_contact %} · {{ loc.proprietar_extern.persoana_contact }}{% endif %}{% if loc.proprietar_extern.telefon %} {{ loc.proprietar_extern.telefon }}{% endif %}</div>
+    {% else %}<div class="val fs-6">{{ loc.proprietar|default:"—" }}</div>
+    <div class="small text-secondary">{% if loc.proprietar.cui %}CUI {{ loc.proprietar.cui }} · {% endif %}{{ loc.grup|default:"" }}</div>{% endif %}</div></div></div>
+  <div class="col-md-4"><div class="card kpi h-100"><div class="card-body py-2"><div class="lbl"><i class="bi bi-people"></i> {% if loc.inchiriere_externa %}Chiriaș (firma din grup){% else %}Beneficiar / utilizator{% endif %}</div>
+    {% if loc.inchiriere_externa %}<div class="val fs-6">{{ loc.proprietar|default:"—" }}</div>
+    <div class="small {% if loc.zile_pana_expira is not None and loc.zile_pana_expira < 90 %}text-danger fw-semibold{% else %}text-secondary{% endif %}">{% if loc.chirie_lunara %}chirie {{ loc.chirie_lunara|floatformat:"-2g" }} {{ loc.moneda_chirie }}/lună{% else %}chirie necompletată{% endif %}{% if loc.contract_inchiriere %} · contract {{ loc.contract_inchiriere }}{% endif %}{% if loc.inchiriere_expira %} · până la {{ loc.inchiriere_expira|date:"d.m.Y" }}{% if loc.zile_pana_expira < 0 %} (expirat){% elif loc.zile_pana_expira < 90 %} ({{ loc.zile_pana_expira }} zile){% endif %}{% endif %}</div>
+    {% else %}<div class="val fs-6">{{ loc.utilizator|default:loc.proprietar|default:"—" }}</div>
+    <div class="small text-secondary">{% if not loc.utilizator %}aceeași societate cu proprietarul{% else %}societatea care folosește activul{% endif %}</div>{% endif %}</div></div></div>
+  <div class="col-md-4"><div class="card kpi h-100"><div class="card-body py-2"><div class="lbl"><i class="bi bi-key"></i> Drept de folosință</div>
+    <div class="val fs-6">{% if cf_curent %}{{ cf_curent.TIP_SCURT|get:cf_curent.tip }}{% else %}{{ loc.get_detinere_display|default:"nespecificat" }}{% endif %}</div>
+    <div class="small">{% if cf_curent %}{% with d=cf_curent.scan %}{% if d %}<a href="{% url 'document' d.pk %}" title="{{ cf_curent }}"><i class="bi bi-file-earmark-pdf text-danger"></i> {{ cf_curent }}</a>{% else %}{{ cf_curent }} <span class="badge text-bg-warning">fără scan</span>{% endif %}{% endwith %}
+      {% if cf_curent.cu_plata %}<div class="{% if cf_curent.zile_ramase is not None and cf_curent.zile_ramase < 90 %}text-danger{% else %}text-secondary{% endif %}">până la {{ cf_curent.data_sfarsit|date:"d.m.Y" }}{% if cf_curent.chirie %} · {{ cf_curent.chirie|floatformat:"0g" }} {{ cf_curent.moneda }}/lună{% endif %}</div>{% endif %}
+      <a class="small" href="#folosinta">{{ contracte_folosinta|length }} act{{ contracte_folosinta|length|pluralize:",e" }} – vezi detalii</a>
+    {% elif loc.detinere and loc.detinere != 'owned' %}<span class="text-danger">actul de {{ loc.get_detinere_display|lower }} nu e atașat</span>{% if e_admin %} · <a href="{% url 'locatie_obiect_nou' loc.pk 'folosinta' %}">adaugă</a>{% endif %}
+    {% else %}<span class="text-secondary">fără act atașat</span>{% if e_admin %} · <a href="{% url 'locatie_obiect_nou' loc.pk 'folosinta' %}">adaugă act de proprietate</a>{% endif %}{% endif %}</div></div></div></div>
+</div>
+{% endwith %}
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="card kpi h-100"><div class="card-body py-2"><div class="lbl"><i class="bi bi-diagram-3"></i> Linie de business</div>
+    <div class="val fs-5">{{ loc.linie|default:"—"|capfirst }}{% if loc.divizie %} <span class="fs-6 text-secondary">· {{ loc.divizie }}</span>{% endif %}</div><div class="small text-secondary">{% if loc.divizie %}divizia {{ loc.divizie }} · {% endif %}{{ loc.obiectiv_functional|default:loc.get_stare_activ_display }}</div></div></div></div>
+  <div class="col-md-4"><div class="card kpi h-100"><div class="card-body py-2"><div class="lbl"><i class="bi bi-bounding-box"></i> Suprafață teren</div>
+    <div class="val fs-5">{% if loc.suprafata_teren %}{{ loc.suprafata_teren|floatformat:"0g" }} <small>mp</small>{% else %}—{% endif %}</div>
+    <div class="small text-secondary">{% if loc.suprafata_teren %}{{ loc.suprafata_teren|ha }} ha{% else %}necompletată{% endif %}
+      {% include "platforma/_badge_cf.html" with v=verif_cf.teren %}</div></div></div></div>
+  <div class="col-md-4"><div class="card kpi h-100"><div class="card-body py-2"><div class="lbl"><i class="bi bi-building"></i> Suprafață construcții</div>
+    {% with sc=loc.suprafata_constructii|default:loc.suprafata_construita_totala %}<div class="val fs-5">{% if sc %}{{ sc|floatformat:"0g" }} <small>mp</small>{% else %}—{% endif %}</div>{% endwith %}
+    <div class="small text-secondary">{% if loc.suprafata_construita_totala and loc.suprafata_constructii %}construită totală {{ loc.suprafata_construita_totala|floatformat:"0g" }} mp · {% endif %}{% if loc.suprafata_construita_productie %}producție {{ loc.suprafata_construita_productie|floatformat:"0g" }} mp{% elif not loc.suprafata_constructii and not loc.suprafata_construita_totala %}necompletată{% endif %}
+      {% include "platforma/_badge_cf.html" with v=verif_cf.constructii %}</div></div></div></div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col"><div class="card kpi"><div class="card-body py-2"><div class="lbl">Investiții în derulare</div><div class="val fs-5">{{ deschise|length }}</div><div class="small text-secondary">buget {{ total_deschise|bani }} RON</div></div></div></div>
+  <div class="col"><div class="card kpi"><div class="card-body py-2"><div class="lbl">Investiții finalizate</div><div class="val fs-5">{{ inchise|length }}</div><div class="small text-secondary">realizat {{ total_inchise|bani }} RON</div></div></div></div>
+  <div class="col"><div class="card kpi"><div class="card-body py-2"><div class="lbl">Valoare de piață</div>{% with e=loc.evaluare_curenta %}<div class="val fs-5">{% if e %}{{ e.valoare_piata|bani }} <small>{{ e.moneda }}</small>{% else %}—{% endif %}</div><div class="small text-secondary">{% if e %}evaluare {{ e.data|date:"d.m.Y" }}{% else %}niciun raport cu valoare{% endif %}</div>
+    <div class="small {% if valoare_inclusa %}text-success{% else %}text-secondary{% endif %}" title="{{ valoare_motiv }}">{% if valoare_inclusa %}<i class="bi bi-check-circle"></i> în valoarea grupului{% else %}<i class="bi bi-dash-circle"></i> nu intră în valoarea grupului{% endif %}</div>{% endwith %}</div></div></div>
+  <div class="col"><div class="card kpi"><div class="card-body py-2"><div class="lbl">Autorizații</div><div class="val fs-5">{{ autorizatii|length }}</div><div class="small {% if aut_lipsa %}text-danger fw-semibold{% else %}text-secondary{% endif %}">{% if aut_lipsa %}{{ aut_lipsa }} necesare lipsă / expirate{% else %}{{ aut_expira|length }} de reînnoit{% endif %}</div></div></div></div>
+</div>
+
+{% with t=tab %}
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item"><button class="nav-link {% if t == 'prezentare' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-prezentare" id="buton-prezentare">Prezentare</button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'investitii' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-investitii">Investiții <span class="badge text-bg-light">{{ deschise|length }} / {{ inchise|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'anexe' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-anexe">Anexe <span class="badge text-bg-light">{{ anexe|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'poze' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-poze">Fotografii <span class="badge text-bg-light">{{ poze|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'evaluari' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-evaluari">Rapoarte de evaluare <span class="badge text-bg-light">{{ evaluari|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'autorizatii' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-autorizatii">Autorizații de funcționare {% if aut_lipsa %}<span class="badge text-bg-danger">{{ aut_lipsa }} lipsă</span>{% else %}<span class="badge text-bg-light">{{ autorizatii|length }}</span>{% endif %}</button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'standarde' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-standarde">Standarde <span class="badge text-bg-light">{{ standarde|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'controale' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-controale">Procese-verbale și note de constatare <span class="badge {% if ctrl_deschise %}text-bg-warning{% else %}text-bg-light{% endif %}">{{ controale|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'documente' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-documente">Alte documente</button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'istoric' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-istoric"><i class="bi bi-clock-history"></i> Istoric modificări <span class="badge text-bg-light">{{ istoric_modificari|length }}</span></button></li>
+</ul>
+{% endwith %}
+
+<div class="tab-content">
+{# ---------- PREZENTARE ---------- #}
+<div class="tab-pane fade {% if tab == 'prezentare' %}show active{% endif %}" id="a-prezentare"><div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card mb-3"><div class="card-header">Prezentarea obiectivului</div><div class="card-body">
+      {% if loc.prezentare %}<p class="mb-0">{{ loc.prezentare|linebreaksbr }}</p>{% else %}<p class="text-secondary mb-0">Nicio prezentare. {% if e_admin %}<a href="{% url 'locatie_editare' loc.pk %}">Adăugați o descriere succintă</a> (activitate, capacitate, clădiri, utilități).{% endif %}</p>{% endif %}
+      {% if loc.obiectiv_functional and loc.obiectiv_functional != loc.denumire %}<div class="small text-secondary mt-2">Obiectiv funcțional: {{ loc.obiectiv_functional }}</div>{% endif %}
+    </div></div>
+    <div class="card"><div class="card-header">Date activ</div><table class="table mb-0 rz-tabel">
+      <tr><th>Cod / cod în Excel / alias</th><td>{{ loc.cod|default:"—" }} / {{ loc.cod_original|default:"—" }} {% if loc.cod_alias %}/ {{ loc.cod_alias }}{% endif %}</td></tr>
+      <tr><th>Proprietar / utilizator</th><td>{% if loc.inchiriere_externa %}{{ loc.proprietar_extern|default:"—" }} (extern) / chiriaș {{ loc.proprietar|default:"—" }}{% else %}{{ loc.proprietar|default:"—" }} / {{ loc.utilizator|default:"—" }}{% endif %}</td></tr>
+      <tr><th>Grup / sindicat</th><td>{{ loc.grup|default:"—" }} / {{ loc.sindicat|default:"—" }}</td></tr>
+      <tr><th>Deținere</th><td>{{ loc.get_detinere_display|default:"—" }}</td></tr>
+      <tr><th>Cărți funciare</th><td>{% if randuri_cf %}<a href="#carti-funciare">{{ randuri_cf|length }} CF ({{ carti|length }} înregistrate) – vezi lista de mai jos</a>{% else %}{{ loc.carti_funciare|default:"—" }}{% endif %}</td></tr>
+      <tr><th>Suprafețe (mp)</th><td>teren {% if loc.suprafata_teren %}{{ loc.suprafata_teren|floatformat:"0g" }}{% else %}—{% endif %} · construcții {% if loc.suprafata_constructii %}{{ loc.suprafata_constructii|floatformat:"0g" }}{% else %}—{% endif %} · construită totală {% if loc.suprafata_construita_totala %}{{ loc.suprafata_construita_totala|floatformat:"0g" }}{% else %}—{% endif %} · producție {% if loc.suprafata_construita_productie %}{{ loc.suprafata_construita_productie|floatformat:"0g" }}{% else %}—{% endif %}
+        {% if verif_cf.teren.stare == 'ok' and verif_cf.constructii.stare == 'ok' %} <span class="badge text-bg-success">confirmate de CF</span>{% endif %}</td></tr>
+      <tr><th>Valoare garantare</th><td>{% if loc.valoare_garantare_eur %}{{ loc.valoare_garantare_eur|bani }} EUR{% else %}—{% endif %}</td></tr>
+      <tr><th>Nr. / data înregistrării</th><td>{{ loc.nr_registru|default:"—" }} / {{ loc.data_inregistrare|date:"d.m.Y"|default:"—" }}</td></tr>
+      {% if loc.observatii %}<tr><th>Observații</th><td>{{ loc.observatii|linebreaksbr }}</td></tr>{% endif %}
+    </table></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-person-badge"></i> Responsabil locație</div><div class="card-body">
+      {% if loc.responsabil_activ %}
+        <div class="fw-semibold fs-6">{{ loc.responsabil_activ }}</div>
+        <div class="text-secondary small mb-2">{{ loc.responsabil_functie|default:"funcție nespecificată" }}</div>
+        {% if loc.telefon %}<div><i class="bi bi-telephone"></i> <a href="tel:{{ loc.telefon|cut:' ' }}">{{ loc.telefon }}</a></div>{% endif %}
+        {% if loc.responsabil_email %}<div><i class="bi bi-envelope"></i> <a href="mailto:{{ loc.responsabil_email }}">{{ loc.responsabil_email }}</a></div>{% endif %}
+        {% if not loc.telefon and not loc.responsabil_email %}<div class="small text-secondary">Fără date de contact.</div>{% endif %}
+      {% else %}<span class="text-secondary">Nedefinit.</span>{% endif %}
+      {% if e_admin %}<div class="mt-2"><a class="small" href="{% url 'locatie_editare' loc.pk %}">modifică responsabilul</a></div>{% endif %}
+    </div></div>
+    <div class="card"><div class="card-header"><i class="bi bi-geo-alt"></i> Localizare</div>
+      <div class="card-body pb-2"><div>{{ loc.adresa|default:"Adresă necompletată" }}</div>
+      {% if loc.lat %}<div class="small"><a target="_blank" href="https://www.google.com/maps?q={{ loc.lat }},{{ loc.lng }}">{{ loc.lat|floatformat:5 }}, {{ loc.lng|floatformat:5 }} – deschide în Google Maps <i class="bi bi-box-arrow-up-right"></i></a></div>{% endif %}</div>
+      {% if loc.lat %}<div id="harta-activ" style="height:260px" data-lat="{{ loc.lat|stringformat:'f' }}" data-lng="{{ loc.lng|stringformat:'f' }}"></div>{% else %}<div class="card-body pt-0 small text-secondary">Coordonate lipsă{% if loc.coordonate %} („{{ loc.coordonate }}”){% endif %}.</div>{% endif %}
+    </div>
+  </div>
+</div>
+<div class="card mt-3" id="carti-funciare">
+  <div class="card-header d-flex align-items-center gap-2"><i class="bi bi-journal-text"></i> Cărți funciare <span class="badge text-bg-light">{{ randuri_cf|length }}</span>
+    <span class="small text-secondary fw-normal">– lista CF-urilor activului; apăsați pe număr pentru extras</span>
+    {% if e_admin %}<div class="ms-auto d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('inputExtrase').click()"><i class="bi bi-stars"></i> Încarcă extrase CF (mai multe, citire AI)</button>
+      <a class="btn btn-sm btn-outline-primary" href="{% url 'locatie_obiect_nou' loc.pk 'cf' %}">+ O carte funciară</a></div>
+    <form method="post" enctype="multipart/form-data" action="{% url 'cf_extrase_multiple' loc.pk %}" class="d-none" id="formExtrase">{% csrf_token %}
+      <input type="file" name="extrase" id="inputExtrase" multiple accept=".pdf,image/*"
+        onchange="if(this.files.length){document.getElementById('ecranExtrase').classList.remove('d-none');document.getElementById('nrExtrase').textContent=this.files.length;this.form.submit();}"></form>{% endif %}</div>
+  <div id="ecranExtrase" class="d-none position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background:rgba(20,35,60,.55);z-index:2000">
+    <div class="card p-4 text-center" style="max-width:400px"><div class="spinner-border text-primary mx-auto mb-3"></div>
+    <div class="fw-semibold">Se citesc <span id="nrExtrase"></span> extrase CF cu AI…</div>
+    <div class="small text-secondary">Fiecare extras durează câteva secunde până la un minut. Cărțile funciare se creează sau se completează automat.</div></div></div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>CF nr.</th><th>UAT</th><th>Nr. cadastral</th><th class="num">Teren (mp)</th><th class="num">Construcții (mp)</th><th>Proprietar tabular / sarcini</th><th>Extras CF</th><th></th></tr></thead>
+  <tbody>{% for r in randuri_cf %}{% with c=r.cf x=r.extras %}<tr {% if not c %}class="table-light"{% endif %}>
+    <td class="fw-semibold text-nowrap">{% if x %}<a href="{% url 'document' x.pk %}" title="Extras CF {{ r.numar }}">CF {{ r.numar }} <i class="bi bi-file-earmark-pdf text-danger"></i></a>{% else %}CF {{ r.numar }}{% endif %}</td>
+    {% if c %}
+      <td class="small">{{ c.uat|default:"—" }}</td><td class="small">{{ c.nr_cadastral|default:"—" }}</td>
+      <td class="num">{% if c.suprafata_mp %}{{ c.suprafata_mp|floatformat:"0g" }}{% else %}—{% endif %}</td>
+      <td class="num">{% if c.suprafata_constructii_mp %}{{ c.suprafata_constructii_mp|floatformat:"0g" }}{% else %}—{% endif %}</td>
+      <td class="small">{{ c.proprietar_tabular|default:"—" }}{% if c.sarcini %}<div class="text-danger">Sarcini: {{ c.sarcini|truncatechars:80 }}</div>{% endif %}</td>
+      <td class="small">{% if x %}<span class="text-success"><i class="bi bi-check-circle"></i> atașat</span>{% if c.data_extras %} <span class="text-secondary">din {{ c.data_extras|date:"d.m.Y" }}</span>{% endif %}{% else %}<span class="badge text-bg-warning">fără extras</span>{% endif %}</td>
+      <td class="text-nowrap">{% if e_admin %}<a class="btn btn-sm {% if x %}btn-outline-secondary{% else %}btn-primary{% endif %} py-0" href="{% url 'locatie_obiect_editare' loc.pk 'cf' c.pk %}">{% if x %}<i class="bi bi-arrow-repeat"></i> Extras nou / editează{% else %}<i class="bi bi-paperclip"></i> Atașează extras{% endif %}</a>{% endif %}</td>
+    {% else %}
+      <td colspan="5" class="small text-secondary">identificată în registrul Excel, încă neînregistrată</td>
+      <td class="small"><span class="badge text-bg-secondary">neînregistrată</span></td>
+      <td class="text-nowrap">{% if e_admin %}<a class="btn btn-sm btn-primary py-0" href="{% url 'locatie_obiect_nou' loc.pk 'cf' %}?numar={{ r.numar|urlencode }}"><i class="bi bi-plus-lg"></i> Adaugă și atașează extras</a>{% endif %}</td>
+    {% endif %}
+  </tr>{% endwith %}{% empty %}<tr><td colspan="8" class="text-center text-secondary py-4">Nicio carte funciară identificată.{% if e_admin %} <a href="{% url 'locatie_obiect_nou' loc.pk 'cf' %}">Adăugați una</a>.{% endif %}</td></tr>{% endfor %}</tbody>
+  {% if carti %}<tfoot><tr class="fw-bold"><td colspan="3">Total din extrasele CF</td><td class="num">{% if verif_cf.teren.cf %}{{ verif_cf.teren.cf|floatformat:"0g" }}{% else %}—{% endif %}</td><td class="num">{% if verif_cf.constructii.cf %}{{ verif_cf.constructii.cf|floatformat:"0g" }}{% else %}—{% endif %}</td><td colspan="3"></td></tr></tfoot>{% endif %}
+  </table></div>
+  <div class="card-body border-top">
+    <div class="small fw-semibold mb-2"><i class="bi bi-check2-square"></i> Verificare suprafețe: registru (dashboard) față de extrasele CF</div>
+    <table class="table table-sm small mb-2" style="max-width:820px"><thead><tr><th></th><th class="num">În registru</th><th class="num">Din extrasele CF</th><th class="num">Diferență</th><th>Rezultat</th></tr></thead>
+    {% for eticheta, v in verif_cf_randuri %}<tr><td class="fw-semibold">{{ eticheta }}</td>
+      <td class="num">{% if v.registru %}{{ v.registru|floatformat:"0g" }} mp{% else %}—{% endif %}</td>
+      <td class="num">{% if v.cf %}{{ v.cf|floatformat:"0g" }} mp <span class="text-secondary">({{ v.n }} CF)</span>{% else %}—{% endif %}</td>
+      <td class="num {% if v.stare == 'diferenta' %}text-danger fw-semibold{% endif %}">{% if v.diferenta is not None %}{% if v.diferenta > 0 %}+{% endif %}{{ v.diferenta|floatformat:"0g" }} mp{% else %}—{% endif %}</td>
+      <td>{% if v.stare == 'ok' %}<span class="badge text-bg-success"><i class="bi bi-check-lg"></i> concordă</span>
+        {% elif v.stare == 'diferenta' %}<span class="badge text-bg-danger">diferență</span>
+        {% elif v.stare == 'lipsa_registru' %}<span class="badge text-bg-warning">lipsește din registru</span>
+        {% else %}<span class="badge text-bg-light">fără date în extrase</span>{% endif %}</td></tr>{% endfor %}</table>
+    {% if e_admin and verif_cf.teren.cf or e_admin and verif_cf.constructii.cf %}{% if verif_cf.teren.stare != 'ok' or verif_cf.constructii.stare != 'ok' %}
+      <form method="post" action="{% url 'preia_din_cf' loc.pk %}" class="d-inline" onsubmit="return confirm('Actualizați suprafețele din registru cu valorile din extrasele CF?')">{% csrf_token %}
+        <input type="hidden" name="camp" value="ambele"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-down-circle"></i> Preia în registru valorile din extrasele CF</button></form>{% endif %}{% endif %}
+    <div class="form-text">Diferențele sub 1% sunt considerate concordante. Suprafețele din extrase se completează automat la încărcarea extrasului cu citire AI.</div>
+  </div>
+</div>
+<div class="card mt-3" id="folosinta">
+  <div class="card-header d-flex align-items-center"><i class="bi bi-key me-1"></i> Drept de folosință
+    <span class="small text-secondary fw-normal ms-2">proprietate, chirie, superficie, concesiune, arendă, comodat – cu actele și anexele lor</span>
+    {% if e_admin %}<a class="btn btn-sm btn-outline-primary ms-auto" href="{% url 'locatie_obiect_nou' loc.pk 'folosinta' %}">+ Drept de folosință</a>{% endif %}</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Formă</th><th>Act / contract</th><th>Cealaltă parte</th><th>Titular</th><th>Valabilitate</th><th class="num">Valoare lunară</th><th>Anexe</th><th></th></tr></thead>
+  <tbody>{% for k in contracte_folosinta %}{% with d=k.scan anexe=k.anexe %}<tr>
+    <td><span class="badge {% if k.tip == 'proprietate' %}text-bg-success{% elif k.cu_plata %}text-bg-primary{% else %}text-bg-secondary{% endif %}">{{ k.TIP_SCURT|get:k.tip }}</span></td>
+    <td class="text-nowrap">{% if d %}<a href="{% url 'document' d.pk %}" title="{{ k }}">{{ k }} <i class="bi bi-file-earmark-pdf text-danger"></i></a>{% else %}{{ k }} <span class="badge text-bg-warning">fără scan</span>{% endif %}</td>
+    <td class="small">{{ k.contraparte }}</td><td class="small">{{ k.folosit_de|default:"—" }}</td>
+    <td class="small {% if not k.activ %}text-danger{% elif k.zile_ramase is not None and k.zile_ramase < 90 %}text-warning-emphasis fw-semibold{% endif %}">{% if k.cu_plata or k.data_sfarsit %}{{ k.data_inceput|date:"d.m.Y"|default:"—" }} – {{ k.data_sfarsit|date:"d.m.Y"|default:"nedeterminat" }}{% if not k.activ %} (expirat){% endif %}{% else %}nelimitat{% endif %}</td>
+    <td class="num">{% if k.cu_plata and k.chirie %}{{ k.chirie|floatformat:"2g" }} {{ k.moneda }}<div class="small text-secondary">{{ k.denumire_plata }} / lună</div>{% else %}—{% endif %}</td>
+    <td class="small">{% if anexe %}<a href="#" data-bs-toggle="collapse" data-bs-target="#anexe-{{ k.pk }}">{{ anexe|length }} anex{{ anexe|length|pluralize:"ă,e" }} <i class="bi bi-chevron-down"></i></a>{% else %}<span class="text-secondary">—</span>{% endif %}</td>
+    <td class="text-nowrap">{% if e_admin %}<a href="{% url 'locatie_obiect_editare' loc.pk 'folosinta' k.pk %}" title="editează"><i class="bi bi-pencil"></i></a>
+      <a href="#" data-bs-toggle="collapse" data-bs-target="#anexe-{{ k.pk }}" title="adaugă anexe" class="ms-1"><i class="bi bi-paperclip"></i>+</a>{% endif %}</td>
+  </tr>
+  <tr class="collapse" id="anexe-{{ k.pk }}"><td></td><td colspan="7" class="bg-light">
+    <div class="small fw-semibold mb-1">Anexe la {{ k }}</div>
+    {% if anexe %}<ul class="list-unstyled small mb-2">{% for x in anexe %}<li class="py-1 border-bottom"><a href="{% url 'document' x.pk %}" title="{{ x.titlu }}"><i class="bi bi-paperclip"></i> {{ x.titlu }}</a> <span class="text-secondary">· {{ x.incarcat_la|date:"d.m.Y" }}</span>
+      {% if e_admin %}<form class="d-inline" method="post" action="{% url 'document_arhiveaza' x.pk %}" onsubmit="return confirm('Arhivați anexa?')">{% csrf_token %}<button class="btn btn-link btn-sm p-0 ms-2" title="arhivează"><i class="bi bi-archive"></i></button></form>{% endif %}</li>{% endfor %}</ul>
+    {% else %}<div class="small text-secondary mb-2">Nicio anexă.</div>{% endif %}
+    {% if e_admin %}<form method="post" enctype="multipart/form-data" action="{% url 'drept_anexe' loc.pk k.pk %}" class="d-flex gap-2">{% csrf_token %}
+      <input type="file" name="anexe" multiple required class="form-control form-control-sm" style="max-width:420px">
+      <button class="btn btn-sm btn-primary"><i class="bi bi-upload"></i> Adaugă anexe</button></form>{% endif %}
+  </td></tr>{% endwith %}{% empty %}<tr><td colspan="8" class="text-center text-secondary py-3">{% if loc.detinere and loc.detinere != 'owned' %}Activul figurează ca „{{ loc.get_detinere_display }}”, dar actul nu e atașat.{% else %}Niciun act înregistrat. Adăugați actul de proprietate (cu anexe) sau contractul de folosință.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+</div>
+</div>
+
+{# ---------- INVESTIȚII ---------- #}
+<div class="tab-pane fade {% if tab == 'investitii' %}show active{% endif %}" id="a-investitii">
+  {% include "platforma/_investitii_activ.html" with titlu="Investiții în derulare" lista=deschise finalizate=False %}
+  {% include "platforma/_investitii_activ.html" with titlu="Investiții finalizate / închise" lista=inchise finalizate=True %}
+  <p class="small text-secondary">Proiectele pe care nu le aveți în drept se deschid în varianta Raport Zero (vizibil tuturor).</p>
+</div>
+
+{# ---------- ANEXE ---------- #}
+<div class="tab-pane fade {% if tab == 'anexe' %}show active{% endif %}" id="a-anexe"><div class="card">
+  <div class="card-header">Anexe: documentații cadastrale, planuri topografice și alte anexe</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle tabel-filtrabil">
+  <thead><tr><th>Document</th><th>Tip</th><th>Încărcat</th><th></th></tr></thead>
+  <tbody>{% for d in anexe %}<tr><td><a href="{% url 'document' d.pk %}" title="{{ d.titlu }}">{{ d.titlu }}</a></td><td class="small">{{ d.get_categorie_display }}</td>
+    <td class="small">{{ d.incarcat_de }} · {{ d.incarcat_la|date:"d.m.Y H:i" }}</td>
+    <td>{% if e_admin %}<form class="d-inline" method="post" action="{% url 'document_arhiveaza' d.pk %}" onsubmit="return confirm('Arhivați documentul?')">{% csrf_token %}<button class="btn btn-link btn-sm p-0" title="arhivează"><i class="bi bi-archive"></i></button></form>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="4" class="text-center text-secondary py-4">Nicio anexă.</td></tr>{% endfor %}</tbody></table></div>
+  {% if e_admin %}<div class="card-body border-top"><form method="post" enctype="multipart/form-data" action="{% url 'locatie_incarcare' loc.pk 'anexe' %}" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-md-3"><label class="form-label small fw-semibold">Tip</label><select name="categorie" class="form-select form-select-sm">{% for k, v in categorii_anexe %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold">Titlu (opțional)</label><input name="titlu" class="form-control form-control-sm" placeholder="implicit: numele fișierului"></div>
+    <div class="col-md-4"><label class="form-label small fw-semibold">Fișiere (puteți alege mai multe)</label><input type="file" name="fisiere" multiple required class="form-control form-control-sm"></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-upload"></i> Încarcă</button></div></form></div>{% endif %}
+</div></div>
+
+{# ---------- FOTOGRAFII ---------- #}
+<div class="tab-pane fade {% if tab == 'poze' %}show active{% endif %}" id="a-poze"><div class="card">
+  <div class="card-header d-flex align-items-center">Fotografii <span class="small text-secondary ms-2">{{ poze|length }} imagini · apăsați pe o fotografie și folosiți săgețile ← → pentru a trece la următoarea</span></div>
+  {% if e_admin %}<div class="card-body border-bottom"><form method="post" enctype="multipart/form-data" action="{% url 'locatie_incarcare' loc.pk 'poze' %}" class="d-flex gap-2 align-items-center zona-poze" id="formPoze">{% csrf_token %}
+    <input type="file" name="fisiere" multiple accept="image/*" required class="form-control form-control-sm" style="max-width:420px" id="inputPoze">
+    <button class="btn btn-sm btn-primary"><i class="bi bi-images"></i> Încarcă fotografiile</button>
+    <span class="small text-secondary">sau trageți imaginile aici</span></form></div>{% endif %}
+  <div class="card-body">
+  {% if e_admin and poze %}<form method="post" action="{% url 'poze_sterge' loc.pk %}" id="formStergePoze" class="d-flex align-items-center gap-2 mb-2">{% csrf_token %}
+    <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="bifeazaToate"><label class="form-check-label small" for="bifeazaToate">Selectează toate</label></div>
+    <span class="small text-secondary" id="nrSelectate">0 selectate</span>
+    <button class="btn btn-sm btn-outline-danger ms-auto" id="btnStergePoze" disabled><i class="bi bi-trash"></i> Șterge definitiv selectatele</button></form>{% endif %}
+  <div class="galerie">{% for d in poze %}
+    <div class="galerie-celula">
+      {% if e_admin %}<input class="form-check-input galerie-bifa" type="checkbox" value="{{ d.pk }}" aria-label="Selectează {{ d.titlu }}">{% endif %}
+      <button type="button" class="galerie-item" data-index="{{ forloop.counter0 }}" data-src="{% url 'document' d.pk %}" data-titlu="{{ d.titlu }}" data-data="{{ d.incarcat_la|date:'d.m.Y' }}" data-pk="{{ d.pk }}">
+        <img src="{% url 'document' d.pk %}" alt="{{ d.titlu }}" loading="lazy"><span>{{ d.titlu|truncatechars:28 }}</span></button>
+    </div>
+  {% empty %}<div class="text-secondary">Nicio fotografie.</div>{% endfor %}</div></div>
+</div></div>
+
+<div class="modal fade" id="lightbox" tabindex="-1" aria-label="Fotografie" aria-hidden="true">
+ <div class="modal-dialog modal-fullscreen"><div class="modal-content bg-dark text-white">
+  <div class="modal-header border-0 py-2"><span id="lbTitlu" class="small"></span><span id="lbContor" class="small text-secondary ms-3"></span>
+    <a id="lbDescarca" class="btn btn-sm btn-outline-light ms-auto" title="Descarcă"><i class="bi bi-download"></i></a>
+    {% if e_admin %}<button type="button" class="btn btn-sm btn-outline-danger ms-2" id="lbSterge" title="Șterge această fotografie"><i class="bi bi-trash"></i></button>{% endif %}
+    <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="modal" aria-label="Închide"></button></div>
+  <div class="modal-body d-flex align-items-center justify-content-center position-relative p-0">
+    <button class="btn btn-dark lb-nav start-0" id="lbPrev" aria-label="Fotografia anterioară"><i class="bi bi-chevron-left fs-2"></i></button>
+    <img id="lbImg" alt="" style="max-width:100%;max-height:calc(100vh - 70px);object-fit:contain">
+    <button class="btn btn-dark lb-nav end-0" id="lbNext" aria-label="Fotografia următoare"><i class="bi bi-chevron-right fs-2"></i></button>
+  </div>
+ </div></div>
+</div>
+
+{# ---------- EVALUĂRI ---------- #}
+<div class="tab-pane fade {% if tab == 'evaluari' %}show active{% endif %}" id="a-evaluari"><div class="card">
+  <div class="card-header d-flex align-items-center gap-2 flex-wrap">Rapoarte de evaluare {% if e_admin %}<a class="btn btn-sm btn-primary ms-auto" href="{% url 'locatie_obiect_nou' loc.pk 'evaluare' %}"><i class="bi bi-stars"></i> Încarcă raport de evaluare (citire AI)</a>{% endif %}</div>
+  <div class="card-body py-2 small border-bottom d-flex align-items-center gap-2 flex-wrap">
+    <span><b>Valoarea consolidată a grupului:</b> {% if valoare_inclusa %}<span class="badge text-bg-success">se include</span>{% else %}<span class="badge text-bg-secondary">nu se include</span>{% endif %} <span class="text-secondary">– {{ valoare_motiv }}. Se ia valoarea de piață din ultimul raport.</span></span>
+    {% if e_admin %}<form method="post" action="{% url 'consolidare_valoare' loc.pk %}" class="ms-auto d-flex gap-1 align-items-center">{% csrf_token %}
+      <select name="valoare" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+        <option value="auto" {% if loc.consolideaza_valoare is None %}selected{% endif %}>automat (după proprietar)</option>
+        <option value="da" {% if loc.consolideaza_valoare is True %}selected{% endif %}>include forțat</option>
+        <option value="nu" {% if loc.consolideaza_valoare is False %}selected{% endif %}>exclude forțat</option></select></form>{% endif %}</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Data</th><th>Evaluator</th><th>Scop / emis pentru</th><th class="num">Valoare de piață</th><th class="num">Valoare de garantare</th><th>Document</th><th></th></tr></thead>
+  <tbody>{% for e in evaluari %}<tr class="{% if e.pk == loc.evaluare_curenta.pk %}table-success{% endif %}"><td>{{ e.data|date:"d.m.Y" }}{% if e.pk == loc.evaluare_curenta.pk %} <span class="badge text-bg-success">curentă</span>{% endif %}</td><td>{{ e.evaluator }}</td><td class="small">{{ e.scop }}{% if e.beneficiar_raport %}<div class="text-secondary">{{ e.beneficiar_raport }}</div>{% endif %}</td>
+    <td class="num">{{ e.valoare_piata|bani }} {{ e.moneda }}</td><td class="num">{{ e.valoare_garantare|bani }} {{ e.moneda }}</td>
+    <td>{% for d in e.documente.all %}{% if not d.arhivat %}<a href="{% url 'document' d.pk %}" target="_blank"><i class="bi bi-file-earmark-pdf text-danger"></i></a>{% endif %}{% empty %}<span class="badge text-bg-warning">fără scan</span>{% endfor %}</td>
+    <td>{% if e_admin %}<a href="{% url 'locatie_obiect_editare' loc.pk 'evaluare' e.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-secondary py-4">Niciun raport de evaluare.{% if loc.data_raport_evaluare %} În registrul Excel figurează o evaluare din {{ loc.data_raport_evaluare|date:"d.m.Y" }}.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+
+{# ---------- AUTORIZAȚII ---------- #}
+<div class="tab-pane fade {% if tab == 'autorizatii' %}show active{% endif %}" id="a-autorizatii">
+ <div class="card mb-3">
+  <div class="card-header d-flex align-items-center gap-2 flex-wrap">Lista standard de autorizații de funcționare
+    {% if loc.in_lista_autorizatii %}<span class="badge text-bg-primary">se urmărește</span>{% else %}<span class="badge text-bg-light">nu se urmărește (activ nefuncțional)</span>{% endif %}
+    {% if aut_lipsa %}<span class="badge text-bg-danger">{{ aut_lipsa }} de atașat / reînnoit</span>{% endif %}
+    {% if e_admin %}<form method="post" action="{% url 'urmarire_autorizatii' loc.pk %}" class="ms-auto d-flex gap-1 align-items-center">{% csrf_token %}
+      <span class="small text-secondary">Urmărire:</span>
+      <select name="valoare" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+        <option value="auto" {% if loc.urmareste_autorizatii is None %}selected{% endif %}>automat (doar activele funcționale)</option>
+        <option value="da" {% if loc.urmareste_autorizatii is True %}selected{% endif %}>da, urmărește</option>
+        <option value="nu" {% if loc.urmareste_autorizatii is False %}selected{% endif %}>nu urmări</option></select></form>{% endif %}</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Autorizație</th><th>Stare</th><th>Nr. / data</th><th>Valabilă până la</th><th>Documente suport</th><th>Responsabil</th><th></th></tr></thead>
+  <tbody>{% for r in matrice_aut %}{% with a=r.aut t=r.tip %}
+  <tr class="{% if r.stare == 'lipsa' or r.stare == 'expirata' %}table-danger{% elif r.stare == 'nu_e_necesara' or r.stare == 'neurmarit' %}text-secondary{% endif %}">
+    <td><span class="fw-semibold" title="{{ t.denumire }}">{{ t.scurt }}</span><div class="small text-secondary">{{ t.denumire }} · {{ t.emitent }}</div></td>
+    <td>{% if r.stare == 'atasata' %}<span class="badge text-bg-success"><i class="bi bi-check-lg"></i> atașată</span>
+      {% elif r.stare == 'expirata' %}<span class="badge text-bg-danger">expirată – de reînnoit</span>
+      {% elif r.stare == 'lipsa' %}<span class="badge text-bg-danger"><i class="bi bi-exclamation-triangle"></i> necesară – lipsă</span>
+      {% elif r.stare == 'nu_e_necesara' %}<span class="badge text-bg-light">nu e necesară</span>{% if r.cerinta.motiv %}<div class="small">{{ r.cerinta.motiv }}</div>{% endif %}
+      {% else %}<span class="badge text-bg-light">neevaluat</span>{% endif %}</td>
+    <td class="small">{% if a %}{% with d=a.scan %}{% if d %}<a href="{% url 'document' d.pk %}" title="{{ a }}">{{ a.numar }} <i class="bi bi-file-earmark-pdf text-danger"></i></a>{% else %}{{ a.numar }} <span class="badge text-bg-warning">fără scan</span>{% endif %}{% endwith %}<div class="text-secondary">{{ a.data|date:"d.m.Y" }}</div>{% else %}—{% endif %}</td>
+    <td class="small {% if a and a.zile_ramase is not None and a.zile_ramase <= 60 %}text-danger fw-semibold{% endif %}">{% if a %}{% if a.valabil_pana %}{{ a.valabil_pana|date:"d.m.Y" }}{% else %}nelimitată{% endif %}{% if a.viza_anuala %}<div class="text-secondary">viză anuală</div>{% endif %}{% else %}—{% endif %}</td>
+    <td class="small">{% if a and r.suport %}<a href="#" data-bs-toggle="collapse" data-bs-target="#suport-{{ t.cod }}">{{ r.suport|length|add:0 }} cerute{% if r.suport_lipsa %} · <span class="text-danger">{{ r.suport_lipsa }} lipsă</span>{% else %} · <span class="text-success">complete</span>{% endif %} <i class="bi bi-chevron-down"></i></a>
+      {% elif a %}<a href="#" data-bs-toggle="collapse" data-bs-target="#suport-{{ t.cod }}">{{ a.documente_suport|length }} atașate <i class="bi bi-chevron-down"></i></a>{% else %}—{% endif %}</td>
+    <td class="small">{% if e_admin %}<form method="post" action="{% url 'cerinta_autorizatie' loc.pk t.cod %}">{% csrf_token %}<input type="hidden" name="actiune" value="responsabil">
+        <select name="responsabil" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:150px">
+          <option value="">{% if t.responsabil %}implicit: {{ t.responsabil.get_full_name|default:t.responsabil }}{% else %}— nealocat —{% endif %}</option>
+          {% for u in utilizatori %}<option value="{{ u.pk }}" {% if r.cerinta.responsabil_id == u.pk %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select></form>
+      {% else %}{{ r.responsabil.get_full_name|default:r.responsabil|default:"—" }}{% endif %}</td>
+    <td class="text-nowrap">{% if e_admin %}
+      {% if not a or r.stare == 'expirata' %}<a class="btn btn-sm {% if r.stare == 'lipsa' or r.stare == 'expirata' %}btn-danger{% else %}btn-outline-primary{% endif %} py-0" href="{% url 'locatie_din_scan' loc.pk 'autorizatie' %}?tip={{ t.cod }}"><i class="bi bi-paperclip"></i> Atașează</a>{% else %}<a class="btn btn-sm btn-outline-secondary py-0" href="{% url 'locatie_obiect_editare' loc.pk 'autorizatie' a.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}
+      {% if not a %}{% if r.stare == 'nu_e_necesara' %}<form class="d-inline" method="post" action="{% url 'cerinta_autorizatie' loc.pk t.cod %}">{% csrf_token %}<input type="hidden" name="actiune" value="necesara"><button class="btn btn-sm btn-link py-0">e necesară</button></form>
+        {% else %}<form class="d-inline" method="post" action="{% url 'cerinta_autorizatie' loc.pk t.cod %}" onsubmit="const m=prompt('Motivul pentru care autorizația {{ t.scurt|escapejs }} nu e necesară la acest obiectiv:'); if(m===null) return false; this.motiv.value=m;">{% csrf_token %}<input type="hidden" name="actiune" value="nu_e_necesara"><input type="hidden" name="motiv">
+          <label class="form-check-label small ms-1"><input type="checkbox" class="form-check-input" onchange="this.form.requestSubmit()"> nu e necesară</label></form>{% endif %}{% endif %}{% endif %}</td>
+  </tr>
+  {% if a %}<tr class="collapse" id="suport-{{ t.cod }}"><td></td><td colspan="6" class="bg-light">
+    <div class="small fw-semibold mb-1">Documente suport – {{ t.denumire }}</div>
+    <ul class="list-unstyled small mb-2">{% for x in r.suport %}<li class="py-1 border-bottom">{% if x.doc %}<i class="bi bi-check-circle text-success"></i> <a href="{% url 'document' x.doc.pk %}" title="{{ x.titlu }}">{{ x.titlu }}</a>{% else %}<i class="bi bi-x-circle text-danger"></i> {{ x.titlu }} <span class="text-danger">– lipsă</span>{% endif %}</li>{% endfor %}
+      {% for d in r.alte_suport %}<li class="py-1 border-bottom"><i class="bi bi-paperclip"></i> <a href="{% url 'document' d.pk %}" title="{{ d.titlu }}">{{ d.titlu }}</a></li>{% endfor %}</ul>
+    {% if e_admin %}<form method="post" enctype="multipart/form-data" action="{% url 'suport_autorizatie' loc.pk a.pk %}" class="d-flex gap-2 flex-wrap">{% csrf_token %}
+      <input name="titlu" list="suport-lista-{{ t.cod }}" class="form-control form-control-sm" style="max-width:320px" placeholder="tipul documentului (alegeți sau scrieți)">
+      <datalist id="suport-lista-{{ t.cod }}">{% for x in r.suport %}<option value="{{ x.titlu }}">{% endfor %}</datalist>
+      <input type="file" name="fisiere" multiple required class="form-control form-control-sm" style="max-width:320px">
+      <button class="btn btn-sm btn-primary"><i class="bi bi-upload"></i> Atașează</button></form>{% endif %}
+  </td></tr>{% endif %}
+  {% endwith %}{% endfor %}</tbody></table></div>
+  <div class="card-footer small text-secondary">Roșu = autorizație necesară care lipsește sau a expirat. Lista standard și responsabilii impliciți se modifică din Administrare → Tipuri de autorizații. <a href="{% url 'raport_autorizatii' %}">Raport pe tip de autorizație</a></div>
+ </div>
+ {% if aut_alte %}<div class="card"><div class="card-header">Alte autorizații</div><table class="table table-sm mb-0 small">
+   {% for a in aut_alte %}<tr><td>{{ a.denumire_completa }}</td><td>{{ a.emitent }}</td><td>{{ a.numar }} / {{ a.data|date:"d.m.Y" }}</td><td>{{ a.valabil_pana|date:"d.m.Y"|default:"nelimitată" }}</td>
+   <td>{% with d=a.scan %}{% if d %}<a href="{% url 'document' d.pk %}" title="{{ a }}"><i class="bi bi-file-earmark-pdf text-danger"></i></a>{% endif %}{% endwith %}</td><td>{% if e_admin %}<a href="{% url 'locatie_obiect_editare' loc.pk 'autorizatie' a.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}</td></tr>{% endfor %}</table></div>{% endif %}
+ {% if e_admin %}<div class="mt-2"><a class="small" href="{% url 'locatie_din_scan' loc.pk 'autorizatie' %}?tip=altele">+ altă autorizație (în afara listei standard)</a></div>{% endif %}
+</div>
+
+{# ---------- STANDARDE ---------- #}
+<div class="tab-pane fade {% if tab == 'standarde' %}show active{% endif %}" id="a-standarde"><div class="card">
+  <div class="card-header d-flex">Standarde certificate (ISO, IFS, BRCGS, GLOBALG.A.P. …) {% if e_admin %}<a class="btn btn-sm btn-primary ms-auto" href="{% url 'locatie_obiect_nou' loc.pk 'standard' %}"><i class="bi bi-stars"></i> Încarcă certificat (citire AI)</a>{% endif %}</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Standard</th><th>Organism</th><th>Nr. certificat</th><th>Emis</th><th>Valabil până la</th><th>Domeniu</th><th>Certificat</th><th></th></tr></thead>
+  <tbody>{% for x in standarde %}<tr>
+    <td class="fw-semibold">{{ x.denumire_alt|default:x.get_standard_display }}{% if x.nivel %}<div class="small text-secondary">{{ x.nivel }}</div>{% endif %}</td>
+    <td class="small">{{ x.organism|default:"—" }}</td><td class="small">{{ x.numar|default:"—" }}</td><td class="small">{{ x.data_emitere|date:"d.m.Y" }}</td>
+    <td class="small {% if x.zile_ramase is not None and x.zile_ramase <= 60 %}text-danger fw-semibold{% endif %}">{{ x.valabil_pana|date:"d.m.Y"|default:"—" }}{% if x.zile_ramase is not None and x.zile_ramase < 0 %} (expirat){% endif %}</td>
+    <td class="small">{{ x.domeniu|truncatechars:90 }}</td>
+    <td>{% for d in x.documente.all %}{% if not d.arhivat %}<a href="{% url 'document' d.pk %}" title="{{ x }}"><i class="bi bi-file-earmark-pdf text-danger"></i></a>{% endif %}{% empty %}<span class="badge text-bg-warning">fără scan</span>{% endfor %}</td>
+    <td>{% if e_admin %}<a href="{% url 'locatie_obiect_editare' loc.pk 'standard' x.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="8" class="text-center text-secondary py-4">Niciun standard certificat înregistrat.</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+
+{# ---------- CONTROALE ---------- #}
+<div class="tab-pane fade {% if tab == 'controale' %}show active{% endif %}" id="a-controale"><div class="card">
+  <div class="card-header d-flex">Procese-verbale și note de constatare emise de autorități {% if e_admin %}<a class="btn btn-sm btn-primary ms-auto" href="{% url 'locatie_obiect_nou' loc.pk 'control' %}">+ Document de control</a>{% endif %}</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Data</th><th>Document</th><th>Autoritate</th><th>Constatări / măsuri</th><th>Termen remediere</th><th class="num">Amendă</th><th>Status</th><th>Scan</th><th></th></tr></thead>
+  <tbody>{% for c in controale %}<tr>
+    <td class="small text-nowrap">{{ c.data|date:"d.m.Y" }}</td><td class="small">{{ c.get_tip_display }}{% if c.numar %}<div class="text-secondary">nr. {{ c.numar }}</div>{% endif %}</td><td class="small">{{ c.autoritate }}</td>
+    <td class="small">{{ c.constatari|truncatechars:120 }}{% if c.masuri %}<div class="text-secondary">Măsuri: {{ c.masuri|truncatechars:120 }}</div>{% endif %}{% if c.responsabil %}<div class="text-secondary">Responsabil: {{ c.responsabil }}</div>{% endif %}</td>
+    <td class="small {% if c.intarziat %}text-danger fw-semibold{% endif %}">{{ c.termen_remediere|date:"d.m.Y"|default:"—" }}</td>
+    <td class="num">{% if c.amenda_ron %}{{ c.amenda_ron|bani }} RON{% else %}—{% endif %}</td>
+    <td><span class="badge {% if c.status == 'remediat' or c.status == 'fara_masuri' %}text-bg-success{% elif c.intarziat %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ c.get_status_display }}</span></td>
+    <td>{% for d in c.documente.all %}{% if not d.arhivat %}<a href="{% url 'document' d.pk %}" target="_blank"><i class="bi bi-file-earmark-pdf text-danger"></i></a>{% endif %}{% empty %}<span class="badge text-bg-warning">fără scan</span>{% endfor %}</td>
+    <td>{% if e_admin %}<a href="{% url 'locatie_obiect_editare' loc.pk 'control' c.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="9" class="text-center text-secondary py-4">Niciun proces-verbal sau notă de constatare.</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+
+{# ---------- ALTE DOCUMENTE ---------- #}
+<div class="tab-pane fade {% if tab == 'istoric' %}show active{% endif %}" id="a-istoric">
+ <div class="card mb-3"><div class="card-header d-flex align-items-center"><i class="bi bi-signpost-split me-1"></i> Istoricul categoriei activului
+   <span class="badge ms-2 badge-categorie-{{ loc.stare_activ }}">acum: {{ loc.get_stare_activ_display }}</span>
+   {% if e_admin %}<a class="small ms-auto" href="{% url 'locatie_editare' loc.pk %}">schimbă categoria</a>{% endif %}</div>
+  <table class="table table-sm mb-0 align-middle small">
+   <thead><tr><th style="width:110px">Data</th><th>Schimbare</th><th>Motiv</th><th>Cine</th><th>Înregistrat la</th></tr></thead>
+   {% for h in istoric_stare %}<tr><td class="fw-semibold">{{ h.data|date:"d.m.Y" }}</td>
+     <td>{% if h.stare_veche %}{{ h.get_stare_veche_display }} <i class="bi bi-arrow-right"></i> {% endif %}<b>{{ h.get_stare_noua_display }}</b></td>
+     <td>{{ h.motiv|default:"—" }}</td><td>{{ h.user.get_full_name|default:h.user|default:"sistem" }}</td><td class="text-secondary">{{ h.creat_la|date:"d.m.Y H:i" }}</td></tr>
+   {% empty %}<tr><td colspan="5" class="text-secondary text-center py-3">Nicio schimbare de categorie înregistrată.</td></tr>{% endfor %}
+  </table>
+  <div class="card-footer small text-secondary">Categoria (funcțional / nefuncțional / teren investiții / retail) o schimbă administratorul din „Editează”, cu dată și motiv. Înregistrările nu se pot modifica sau șterge.</div></div>
+ <div class="card"><div class="card-header"><i class="bi bi-journal-text me-1"></i> Toate modificările activului și ale înregistrărilor lui
+   <span class="small text-secondary fw-normal ms-2">din jurnalul de audit: cine, când, valoarea veche → nouă</span></div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-top small tabel-filtrabil">
+   <thead><tr><th style="width:130px">Moment</th><th>Utilizator</th><th>Acțiune</th><th>Înregistrare</th><th>Modificări</th></tr></thead>
+   <tbody>{% for x in istoric_modificari %}<tr>
+     <td class="text-nowrap" data-sort="{{ x.j.moment|date:'Y-m-d H:i:s' }}">{{ x.j.moment|date:"d.m.Y H:i" }}</td>
+     <td>{{ x.j.user.get_full_name|default:x.j.user|default:"sistem" }}</td>
+     <td><span class="badge {% if x.j.actiune == 'creare' %}text-bg-success{% elif x.j.actiune == 'stergere' %}text-bg-danger{% else %}text-bg-light{% endif %}">{{ x.j.actiune }}</span></td>
+     <td>{{ x.j.model|capfirst }}<div class="text-secondary">{{ x.j.obiect|truncatechars:60 }}</div></td>
+     <td>{% for c in x.campuri %}<div><span class="text-secondary">{{ c.camp }}:</span> {% if x.j.actiune == 'modificare' %}<del class="text-danger">{{ c.vechi|default_if_none:"—"|truncatechars:80 }}</del> → {% endif %}<b>{{ c.nou|default_if_none:"—"|truncatechars:120 }}</b></div>{% empty %}<span class="text-secondary">—</span>{% endfor %}</td>
+   </tr>{% empty %}<tr><td colspan="5" class="text-secondary text-center py-3">Nicio modificare înregistrată încă în jurnal.</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+</div>
+<div class="tab-pane fade {% if tab == 'documente' %}show active{% endif %}" id="a-documente"><div class="card" style="max-width:900px">
+  <div class="card-header">Alte documente ale activului (CF, contracte de închiriere, fotografii…)</div>
+  <ul class="list-group list-group-flush">{% for d in documente %}<li class="list-group-item"><a href="{% url 'document' d.pk %}" target="_blank">{{ d.titlu }}</a> <span class="small text-secondary">{{ d.get_categorie_display }} · {{ d.incarcat_la|date:"d.m.Y" }}</span></li>{% empty %}<li class="list-group-item text-secondary">Niciun document.</li>{% endfor %}</ul>
+  {% if form_doc %}<div class="card-body border-top"><form method="post" enctype="multipart/form-data" action="{% url 'locatie_document' loc.pk %}" class="row g-2">{% csrf_token %}
+    <div class="col-md-4">{{ form_doc.categorie }}</div><div class="col-md-4">{{ form_doc.titlu }}</div><div class="col-md-3">{{ form_doc.fisier }}</div><div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Încarcă</button></div></form></div>{% endif %}
+</div></div>
+</div>
+{% endblock %}
+{% block scripturi %}
+<script>
+// Galerie foto: deschidere pe ecran complet, navigare cu săgeți (butoane sau tastatură ← →)
+(() => {
+  const items = [...document.querySelectorAll('.galerie-item')];
+  const el = document.getElementById('lightbox');
+  if (!el) return;
+  const lb = new bootstrap.Modal(el);
+  let i = 0;
+  const arata = k => {
+    if (!items.length) return;
+    i = (k + items.length) % items.length;
+    const d = items[i].dataset;
+    document.getElementById('lbImg').src = d.src;
+    document.getElementById('lbTitlu').textContent = `${d.titlu} · ${d.data}`;
+    document.getElementById('lbContor').textContent = `${i + 1} / ${items.length}`;
+    document.getElementById('lbDescarca').href = d.src + '?dl=1';
+    [items[i - 1], items[i + 1]].forEach(x => { if (x) new Image().src = x.dataset.src; });  // preîncărcare
+  };
+  items.forEach((b, k) => b.addEventListener('click', () => { arata(k); lb.show(); }));
+  // selecție pentru ștergere (administrator)
+  const form = document.getElementById('formStergePoze');
+  if (form) {
+    const bife = [...document.querySelectorAll('.galerie-bifa')];
+    const actualizeaza = () => {
+      const n = bife.filter(b => b.checked).length;
+      document.getElementById('nrSelectate').textContent = `${n} selectat${n === 1 ? 'ă' : 'e'}`;
+      document.getElementById('btnStergePoze').disabled = !n;
+      bife.forEach(b => b.closest('.galerie-celula').classList.toggle('selectata', b.checked));
+      document.getElementById('bifeazaToate').checked = n && n === bife.length;
+    };
+    bife.forEach(b => b.addEventListener('change', actualizeaza));
+    document.getElementById('bifeazaToate').addEventListener('change', e => { bife.forEach(b => b.checked = e.target.checked); actualizeaza(); });
+    const trimite = ids => {
+      form.querySelectorAll('input[name=poze]').forEach(x => x.remove());
+      ids.forEach(id => { const h = document.createElement('input'); h.type = 'hidden'; h.name = 'poze'; h.value = id; form.appendChild(h); });
+      form.submit();
+    };
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const ids = bife.filter(b => b.checked).map(b => b.value);
+      if (ids.length && confirm(`Ștergeți DEFINITIV ${ids.length} fotografi${ids.length === 1 ? 'e' : 'i'}? Fișierele nu mai pot fi recuperate.`)) trimite(ids);
+    });
+    document.getElementById('lbSterge')?.addEventListener('click', () => {
+      if (confirm('Ștergeți DEFINITIV această fotografie? Fișierul nu mai poate fi recuperat.')) trimite([items[i].dataset.pk]);
+    });
+  }
+  document.getElementById('lbPrev').addEventListener('click', () => arata(i - 1));
+  document.getElementById('lbNext').addEventListener('click', () => arata(i + 1));
+  document.addEventListener('keydown', e => {
+    if (!el.classList.contains('show')) return;
+    if (e.key === 'ArrowLeft') arata(i - 1);
+    if (e.key === 'ArrowRight') arata(i + 1);
+  });
+  // încărcare prin tragere (drag & drop) în zona de fotografii
+  const zona = document.getElementById('formPoze'), inp = document.getElementById('inputPoze');
+  if (zona && inp) {
+    const tinta = zona.closest('.card');
+    ['dragover', 'dragenter'].forEach(ev => tinta.addEventListener(ev, e => { e.preventDefault(); tinta.classList.add('drag-activ'); }));
+    ['dragleave', 'drop'].forEach(ev => tinta.addEventListener(ev, e => { e.preventDefault(); tinta.classList.remove('drag-activ'); }));
+    tinta.addEventListener('drop', e => { if (e.dataTransfer.files.length) { inp.files = e.dataTransfer.files; zona.submit(); } });
+  }
+})();
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+  const el = document.getElementById('harta-activ');
+  if (!el) return;
+  let h;
+  const deseneaza = () => {
+    if (h) { h.invalidateSize(); return; }
+    const p = [parseFloat(el.dataset.lat), parseFloat(el.dataset.lng)];
+    h = L.map(el).setView(p, 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '© OpenStreetMap'}).addTo(h);
+    L.marker(p).addTo(h).bindPopup("{{ loc.cod|default:''|escapejs }} {{ loc.denumire|escapejs }}");
+  };
+  if (el.offsetParent) deseneaza();
+  document.getElementById('buton-prezentare').addEventListener('shown.bs.tab', deseneaza);
+})();
+</script>
+{% endblock %}

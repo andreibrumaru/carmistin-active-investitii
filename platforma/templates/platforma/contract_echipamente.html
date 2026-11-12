@@ -1,0 +1,69 @@
+{% extends "platforma/base.html" %}{% load fmt %}
+{% block titlu %}Echipamente – contract {{ c.numar }}{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3">
+  <a href="{{ p.get_absolute_url }}?tab=contracte" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  <div><h4 class="mb-0">Echipamente achiziționate prin contractul {{ c.numar }}</h4>
+    <div class="text-secondary small">{{ p.cod }} · {{ c.partener }} · {{ c.data|date:"d.m.Y" }} · valoare {{ c.valoare|bani2 }} {{ c.moneda }}{% if c.moneda == 'EUR' %} @ {{ c.curs }}{% endif %} = {{ c.valoare_totala_ron|bani2 }} RON</div></div>
+</div>
+<p class="small text-secondary">Bifați exact echipamentele din lista Raportului Zero care fac obiectul acestui contract și completați prețul unitar din contract ({{ c.moneda }}, fără TVA).
+  Diferența față de valoarea estimată în RZ se vede imediat; valoarea contractată se descarcă în execuția bugetului pe linia echipamentului.</p>
+{% if not echipamente %}<div class="alert alert-warning">Proiectul nu are încă listă de echipamente. Lista se definește în Raportul Zero (cap. 4.3, 4.4, 4.5){% if p.stare_rz == 'aprobat' %}, printr-o revizie{% endif %}. <a href="{% url 'raport_zero' p.pk %}">Deschide Raportul Zero</a></div>{% else %}
+<form method="post">{% csrf_token %}
+<div class="card"><div class="table-responsive"><table class="table table-sm align-middle mb-0" id="tabelContractEch">
+  <thead><tr><th style="width:40px"></th><th>Linie</th><th>Echipament</th><th class="num">Cant.</th><th class="num">Estimat RZ (RON)</th><th style="width:170px" class="num">Preț unitar contract ({{ c.moneda }})</th><th class="num">Contractat (RON)</th><th class="num">Diferență</th></tr></thead>
+  <tbody>{% for e in echipamente %}
+  <tr class="{% if e.alt %}text-secondary{% endif %}" data-cant="{{ e.cantitate|stringformat:'s' }}" data-estimat="{{ e.valoare_estimata|stringformat:'s' }}">
+    <td><input class="form-check-input ech-bifa" type="checkbox" name="bifat" value="{{ e.pk }}" {% if e.contract_id == c.pk %}checked{% endif %} {% if e.alt %}disabled{% endif %}></td>
+    <td>{{ e.linie_buget.capitol|default:"—" }}</td>
+    <td>{{ e.denumire }}{% if e.specificatii %}<div class="small text-secondary">{{ e.specificatii }}</div>{% endif %}{% if e.alt %}<div class="small"><i class="bi bi-link-45deg"></i> contractat prin {{ e.contract.numar }} ({{ e.contract.partener|truncatechars:30 }})</div>{% endif %}</td>
+    <td class="num">{{ e.cantitate|floatformat:"-2" }} {{ e.um }}</td>
+    <td class="num">{{ e.valoare_estimata|bani2 }}</td>
+    <td>{% if not e.alt %}<input name="pret_{{ e.pk }}" inputmode="decimal" class="form-control form-control-sm text-end ech-pret" value="{% if e.contract_id == c.pk and e.valoare_unitara is not None %}{{ e.valoare_unitara|floatformat:'-2' }}{% endif %}" placeholder="0">{% endif %}</td>
+    <td class="num fw-semibold ech-contractat">{% if e.alt %}{{ e.valoare_ron|bani2 }}{% endif %}</td>
+    <td class="num ech-dif"></td>
+  </tr>{% endfor %}</tbody>
+  <tfoot><tr class="fw-bold"><td colspan="4">Total bifat în acest contract</td><td class="num" id="totEstimat">0</td><td></td><td class="num" id="totContractat">0</td><td class="num" id="totDif"></td></tr>
+    <tr class="small"><td colspan="6" class="text-secondary">Valoarea contractului (cu acte adiționale)</td><td class="num">{{ c.valoare_totala_ron|bani2 }}</td><td class="num" id="restContract"></td></tr></tfoot>
+</table></div>
+<div class="card-body border-top">
+  <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="aloca" value="1" id="aloca" checked>
+    <label class="form-check-label" for="aloca">Actualizează alocarea contractului pe liniile de buget 4.3 / 4.4 / 4.5 cu valoarea echipamentelor bifate (descărcare în execuția bugetului)</label></div>
+  {% if alocari %}<div class="small text-secondary mb-2">Alocare actuală: {% for a in alocari %}cap. {{ a.linie_buget.capitol }} {{ a.valoare_ron|bani2 }} RON{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+  <button class="btn btn-primary"><i class="bi bi-check2"></i> Salvează</button>
+  <a href="{{ p.get_absolute_url }}?tab=contracte" class="btn btn-outline-secondary">Renunță</a>
+</div></div>
+</form>{% endif %}
+{% endblock %}
+{% block scripturi %}
+<script>
+(() => {
+  const curs = parseFloat('{% if c.moneda == "EUR" %}{{ c.curs|stringformat:"s" }}{% else %}1{% endif %}') || 1, valContract = parseFloat('{{ c.valoare_totala_ron|stringformat:"s" }}') || 0;
+  const nr = t => { t = (t || '').replace(/\s/g, ''); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); const v = parseFloat(t); return isNaN(v) ? 0 : v; };
+  const fmt = v => new Intl.NumberFormat('ro-RO', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(v);
+  const semn = (el, v) => { el.textContent = v ? (v > 0 ? '+' : '') + fmt(v) : '0,00'; el.className = el.className.replace(/ ?text-(danger|success)( fw-semibold)?/g, '') + (v > 0.5 ? ' text-danger fw-semibold' : v < -0.5 ? ' text-success' : ''); };
+  const calc = () => {
+    let te = 0, tc = 0;
+    document.querySelectorAll('#tabelContractEch tbody tr').forEach(r => {
+      const b = r.querySelector('.ech-bifa'), pret = r.querySelector('.ech-pret');
+      if (!pret) return;
+      pret.disabled = !b.checked; pret.required = b.checked;
+      const cel = r.querySelector('.ech-contractat'), dif = r.querySelector('.ech-dif');
+      if (!b.checked) { cel.textContent = ''; dif.textContent = ''; return; }
+      const est = parseFloat(r.dataset.estimat) || 0, val = nr(pret.value) * (parseFloat(r.dataset.cant) || 0) * curs;
+      cel.textContent = pret.value ? fmt(val) : '—'; if (pret.value) semn(dif, val - est); else dif.textContent = '';
+      te += est; tc += val;
+    });
+    document.getElementById('totEstimat').textContent = fmt(te);
+    document.getElementById('totContractat').textContent = fmt(tc);
+    semn(document.getElementById('totDif'), tc - te);
+    const rest = valContract - tc, el = document.getElementById('restContract');
+    el.textContent = Math.abs(rest) > 0.5 ? (rest > 0 ? `rămân ${fmt(rest)} pe alte linii` : `echipamentele depășesc contractul cu ${fmt(-rest)}`) : 'acoperit integral';
+    el.className = 'num small ' + (rest < -0.5 ? 'text-danger fw-semibold' : 'text-secondary');
+  };
+  document.getElementById('tabelContractEch')?.addEventListener('input', calc);
+  document.getElementById('tabelContractEch')?.addEventListener('change', calc);
+  calc();
+})();
+</script>
+{% endblock %}

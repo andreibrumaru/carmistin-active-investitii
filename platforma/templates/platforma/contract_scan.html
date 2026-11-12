@@ -1,0 +1,20 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Încarcă contract{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3"><a href="{% if inapoi %}{{ inapoi }}{% else %}{{ p.get_absolute_url }}?tab=contracte{% endif %}" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+<div><h4 class="mb-0">{% if titlu_pagina %}{{ titlu_pagina }}{% else %}Încarcă contract – {{ p.cod }}{% endif %}</h4><div class="small text-secondary">Pasul 1 din 2: documentul scanat. La pasul 2 verificați datele citite și salvați.</div></div></div>
+<div class="card" style="max-width:720px"><div class="card-body">
+<form method="post" enctype="multipart/form-data" onsubmit="const b=this.querySelector('button');b.disabled=true;b.innerHTML='<span class=&quot;spinner-border spinner-border-sm&quot;></span> Se citește documentul (până la ~1 minut)…'">{% csrf_token %}
+  <label class="form-label fw-semibold">{{ eticheta_fisier|default:"Contractul semnat (PDF sau imagine)" }}</label>
+  <input type="file" name="fisier" class="form-control mb-3" accept=".pdf,image/*" required>
+  <button class="btn btn-primary"><i class="bi bi-stars"></i> {{ buton|default:"Citește contractul" }}</button>
+  <a class="btn btn-link" href="{% if url_manual %}{{ url_manual }}{% else %}{% url 'obiect_nou' p.pk 'contract' %}{% endif %}">sau introduceți datele manual</a>
+</form>
+<hr>
+<div class="small text-secondary">
+  <p class="mb-1"><b>Ce se extrage:</b> {% if ce_se_extrage %}{{ ce_se_extrage }}</p><p class="d-none">{% endif %}tipul, numărul și data contractului, partenerul și CUI-ul lui, obiectul, valoarea și moneda, termenul de execuție, termenul de plată, garanția de bună execuție, perioada de garanție, plus condițiile importante (avans, penalități, recepție, reziliere), fiecare cu fragmentul din contract din care provine.</p>
+  <p class="mb-1"><i class="bi bi-cpu"></i> AI local: {% if stare_ai.0 %}<span class="text-success">activ ({{ stare_ai.1 }})</span>{% else %}<span class="text-warning-emphasis">{{ stare_ai.1 }} – se folosește recunoașterea pe reguli, mai puțin precisă</span>{% endif %}.
+  OCR pentru contracte scanate ca imagine: {% if ocr %}<span class="text-success">disponibil</span>{% else %}<span class="text-warning-emphasis">neinstalat pe acest calculator (inclus în instalarea de pe server)</span>{% endif %}.</p>
+  <p class="mb-0">Datele propuse nu se salvează până nu le verificați și apăsați „Salvează”.</p>
+</div></div></div>
+{% endblock %}

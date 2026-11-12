@@ -1,0 +1,20 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Harta activelor{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3"><a href="{% url 'locatii' %}?{{ request.GET.urlencode }}" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a><h4 class="mb-0">Harta activelor <span class="text-secondary fs-6">({{ puncte|length }} cu coordonate)</span></h4></div>
+<div class="card"><div id="harta" style="height:75vh;border-radius:10px"></div></div>
+{{ puncte|json_script:"puncte" }}
+{% endblock %}
+{% block scripturi %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const h = L.map('harta').setView([45.0, 24.8], 7);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '© OpenStreetMap'}).addTo(h);
+const culori = {functional: '#198754', nefunctional: '#6c757d', teren: '#a0682a', retail: '#1d4f91'};
+for (const p of JSON.parse(document.getElementById('puncte').textContent)) {
+  L.circleMarker([p.lat, p.lng], {radius: 7, color: culori[p.tip] || '#555', fillOpacity: .8})
+   .bindPopup(`<b>${p.cod}</b> ${p.den}<br>${p.status}<br><a href="/active/${p.id}/">Deschide</a>`).addTo(h);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "platforma/base.html" %}{% load fmt %}
+{% block titlu %}Rapoarte Zero{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3 gap-2">
+  <h4 class="mb-0">Registrul Rapoartelor Zero <span class="text-secondary fs-6">({{ proiecte|length }})</span></h4>
+  <form class="ms-auto"><input name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Caută cod, denumire, beneficiar…"></form>
+  <a href="?{{ request.GET.urlencode }}&export=1" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Export</a>
+  {% if poate_crea_proiect %}<a href="{% url 'raport_zero_nou' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Raport Zero nou</a>{% endif %}
+</div>
+<p class="text-secondary small">Registrul Rapoartelor Zero este vizibil tuturor utilizatorilor. Detaliile de proiect (buget, contracte, documente) sunt accesibile doar persoanelor cu drept. Apăsați pe capul unei coloane pentru sortare (din nou, pentru ordinea inversă).</p>
+<div class="card"><div class="table-responsive"><table class="table table-hover mb-0 align-middle tabel-filtrabil">
+<thead><tr><th>Nr. înregistrare</th><th>Înregistrat</th><th title="data ultimei avizări (aprobări) a Raportului Zero">Avizat</th><th>Cod proiect</th><th>Denumire</th><th>Beneficiar</th><th class="num">Valoare</th><th>Finanțare</th><th>Prioritate</th><th>Perioadă</th><th>Stare</th><th></th></tr></thead>
+<tbody>{% for p in proiecte %}<tr>
+  <td class="small">{{ p.nr_inregistrare }}</td>
+  {% with di=p.data_inregistrare_rz %}<td class="small text-nowrap" data-sort="{{ di|date:'Y-m-d' }}">{{ di|date:"d.m.Y" }}</td>{% endwith %}
+  {% with av=p.ultima_avizare_rz %}<td class="small text-nowrap" data-sort="{% if av.0 %}{{ av.0|date:'Y-m-d H:i' }}{% endif %}">{% if av.0 %}<span class="{% if p.stare_rz != 'aprobat' %}text-secondary{% endif %}" title="{% if p.stare_rz != 'aprobat' %}avizarea reviziei anterioare – revizia curentă nu e încă avizată{% elif av.1 %}avizare rev.{{ av.1 }}; prima avizare {{ p.prima_avizare_rz|date:'d.m.Y' }}{% else %}{{ av.0|date:'d.m.Y H:i' }}{% endif %}">{{ av.0|date:"d.m.Y" }}</span>{% if av.1 %} <span class="badge text-bg-light">rev.{{ av.1 }}</span>{% endif %}{% else %}<span class="text-secondary">—</span>{% endif %}</td>{% endwith %}
+  <td><a class="cod" href="{% url 'raport_zero' p.pk %}">{{ p.cod }}</a>{% if p.revizie_rz %} <span class="badge text-bg-light">rev.{{ p.revizie_rz }}</span>{% endif %}</td>
+  <td>{{ p.denumire }}</td><td>{{ p.beneficiar }}</td><td class="num" data-sort="{{ p.buget_rz_ron|stringformat:'s' }}">{{ p.valoare_rz|bani }} {{ p.moneda_rz }}</td><td>{{ p.finantare }}</td>
+  <td data-sort="{% if p.prioritate == 'mare' %}3{% elif p.prioritate == 'medie' %}2{% else %}1{% endif %}">{{ p.get_prioritate_display }}</td><td class="small" data-sort="{{ p.data_demarare|date:'Y-m-d' }}">{{ p.data_demarare|date:"d.m.Y" }} – {{ p.data_finalizare|date:"d.m.Y" }}</td>
+  <td><span class="badge badge-stare-{{ p.stare_rz }}">{{ p.get_stare_rz_display }}</span></td>
+  <td>{% if p.pk in vizibile %}<a href="{{ p.get_absolute_url }}" class="btn btn-sm btn-outline-primary">Proiect</a>{% endif %}</td>
+</tr>{% empty %}<tr><td colspan="12" class="text-secondary text-center py-4">Niciun Raport Zero înregistrat.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

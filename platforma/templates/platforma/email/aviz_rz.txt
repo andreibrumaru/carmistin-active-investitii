@@ -1,0 +1,14 @@
+{% load fmt %}Raport Zero {{ p.cod }}{% if p.revizie_rz %} rev.{{ p.revizie_rz }}{% endif %} trimis spre avizare{% if trimis_de %} de {{ trimis_de.get_full_name|default:trimis_de.username }}{% endif %}.
+
+Denumire: {{ p.denumire }}
+Nr. înregistrare: {{ p.nr_inregistrare }}
+Beneficiar: {{ p.beneficiar }}
+Locație: {{ p.locatie.cod }} · {{ p.obiectiv|default:p.locatie.denumire }}
+Valoare: {{ p.valoare_rz|bani }} {{ p.moneda_rz }}
+Buget HG (RON fără TVA): {{ total_buget|bani }}
+Perioada: {{ p.data_demarare|date:"d.m.Y" }} – {{ p.data_finalizare|date:"d.m.Y" }}
+
+Pentru a aproba sau respinge, deschideți (valabil {{ zile }} zile, o singură dată):
+{{ link }}
+
+Raportul complet în aplicație: {{ link_aplicatie }}

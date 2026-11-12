@@ -1,0 +1,38 @@
+{% extends "platforma/base.html" %}{% load fmt %}
+{% block titlu %}Export Charisma{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-2"><h4 class="mb-0">Export pentru Charisma</h4></div>
+<p class="text-secondary small">Fluxul de date este doar aplicație → ERP. Aplicația generează fișiere Excel numerotate (loturi) care se importă în Charisma. Fiecare document exportat rămâne legat de lotul lui și nu mai poate fi modificat. Formatul coloanelor se ajustează când primim modelul de import Charisma.</p>
+<ul class="nav nav-tabs mb-3"><li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#e-fac">Facturi neexportate <span class="badge text-bg-light">{{ facturi|length }}</span></button></li>
+<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#e-pl">Plăți aprobate <span class="badge text-bg-light">{{ plati|length }}</span></button></li>
+<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#e-lot">Loturi generate</button></li></ul>
+<div class="tab-content">
+<div class="tab-pane fade show active" id="e-fac">
+  <form class="mb-2 d-flex gap-2" method="get"><select name="societate" class="form-select form-select-sm" style="max-width:320px" onchange="this.form.submit()"><option value="">Toate societățile</option>{% for s in societati %}<option value="{{ s.pk }}" {% if request.GET.societate == s.pk|stringformat:"s" %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></form>
+  <form method="post">{% csrf_token %}<input type="hidden" name="tip" value="facturi"><div class="card"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th><input type="checkbox" onclick="document.querySelectorAll('.cf').forEach(c=>{if(!c.disabled)c.checked=this.checked})"></th><th>Societate / centru cost</th><th>Proiect</th><th>Furnizor</th><th>Factură</th><th class="num">RON fără TVA</th><th>Repartizare</th></tr></thead>
+  <tbody>{% for x in facturi %}<tr><td><input type="checkbox" class="cf" name="id" value="{{ x.pk }}" {% if x.nealocat_ron %}disabled{% endif %}></td>
+    <td class="small">{{ x.proiect.beneficiar }}<div class="text-secondary">{{ x.proiect.centru_cost }}{% if not x.proiect.beneficiar.cod_erp %} · <span class="text-danger">fără cod Charisma</span>{% endif %}</div></td>
+    <td><a class="cod" href="{% url 'proiect_detaliu' x.proiect.pk %}?tab=financiar">{{ x.proiect.cod }}</a></td><td>{{ x.furnizor }}{% if x.intragrup %} <span class="badge text-bg-info">intragrup</span>{% endif %}</td>
+    <td class="small">{{ x.numar }} / {{ x.data|date:"d.m.Y" }}</td><td class="num">{{ x.valoare_ron|bani2 }}</td>
+    <td class="small">{% if x.nealocat_ron %}<span class="text-danger">nealocat {{ x.nealocat_ron|bani2 }}</span>{% else %}{{ x.alocari.all|length }} linii{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-secondary py-4">Toate facturile sunt exportate.</td></tr>{% endfor %}</tbody></table></div>
+  {% if facturi %}<div class="card-footer"><button class="btn btn-primary btn-sm"><i class="bi bi-file-earmark-excel"></i> Generează lot facturi</button></div>{% endif %}</div></form>
+</div>
+<div class="tab-pane fade" id="e-pl">
+  <form method="post">{% csrf_token %}<input type="hidden" name="tip" value="plati"><div class="card"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th><input type="checkbox" onclick="document.querySelectorAll('.cp').forEach(c=>c.checked=this.checked)"></th><th>Societate</th><th>Proiect</th><th>Beneficiar plată</th><th>Factură</th><th class="num">Sumă fără TVA</th><th>Data</th><th>Aprobări</th></tr></thead>
+  <tbody>{% for pl in plati %}<tr><td><input type="checkbox" class="cp" name="id" value="{{ pl.pk }}"></td><td class="small">{{ pl.factura.proiect.beneficiar }}</td>
+    <td><span class="cod">{{ pl.factura.proiect.cod }}</span></td><td>{{ pl.factura.furnizor }}{% if pl.factura.intragrup %} <span class="badge text-bg-info">intragrup</span>{% endif %}</td><td class="small">{{ pl.factura.numar }}</td>
+    <td class="num">{{ pl.suma_ron|bani2 }}</td><td class="small">{{ pl.data|date:"d.m.Y" }}</td><td class="small">{{ pl.aprobat_tehnic_de }} / {{ pl.aprobat_financiar_de }}</td></tr>
+  {% empty %}<tr><td colspan="8" class="text-center text-secondary py-4">Nicio plată aprobată în așteptare.</td></tr>{% endfor %}</tbody></table></div>
+  {% if plati %}<div class="card-footer"><button class="btn btn-primary btn-sm"><i class="bi bi-file-earmark-excel"></i> Generează fișier de plată</button></div>{% endif %}</div></form>
+</div>
+<div class="tab-pane fade" id="e-lot"><div class="card"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Lot</th><th>Tip</th><th>Generat</th><th class="num">Înregistrări</th><th class="num">Total RON</th><th></th></tr></thead>
+  {% for l in loturi %}<tr><td class="cod">{{ l.numar }}</td><td>{{ l.get_tip_display }}</td><td class="small">{{ l.creat_de }} · {{ l.creat_la|date:"d.m.Y H:i" }}</td><td class="num">{{ l.nr_inregistrari }}</td><td class="num">{{ l.total_ron|bani2 }}</td>
+    <td class="text-nowrap"><a class="btn btn-sm btn-outline-success py-0" href="{% url 'lot_descarca' l.pk %}"><i class="bi bi-download"></i> Excel</a>
+    {% if l.tip == 'plati' %}{% with n=l.plati.all|length %}<form class="d-inline" method="post" action="{% url 'lot_confirma' l.pk %}" onsubmit="const o=prompt('Nr. OP / extras (opțional):',''); if(o===null) return false; this.document_plata.value=o;">{% csrf_token %}<input type="hidden" name="document_plata"><button class="btn btn-sm btn-outline-primary py-0">Confirmă plătite</button></form>{% endwith %}{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="6" class="text-center text-secondary py-4">Niciun lot generat.</td></tr>{% endfor %}</table></div></div>
+</div>
+{% endblock %}

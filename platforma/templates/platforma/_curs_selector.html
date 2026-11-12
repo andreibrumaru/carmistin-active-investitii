@@ -1,0 +1,48 @@
+{% include "platforma/_curs_fereastra.html" %}
+<template id="tpl-curs"><div class="curs-selector border rounded p-2 mb-2 small">
+  <div class="form-check"><input class="form-check-input" type="radio" name="sursa_curs" id="sc_proiect" value="proiect">
+    <label class="form-check-label" for="sc_proiect">Cursul proiectului: <b class="curs-proiect-val">{{ curs_info.proiect|default:"nesetat" }}</b> <span class="text-secondary curs-proiect-sursa">{{ curs_info.proiect_sursa }}</span></label>
+    <a href="#" class="ms-1" data-bs-toggle="modal" data-bs-target="#fereastraCurs">{% if curs_info.poate_seta %}definește / modifică{% else %}detalii{% endif %}</a></div>
+  <div class="form-check"><input class="form-check-input" type="radio" name="sursa_curs" id="sc_azi" value="azi" {% if not curs_info.azi %}disabled{% endif %}>
+    <label class="form-check-label" for="sc_azi">Cursul BNR de azi: <b>{{ curs_info.azi|default:"indisponibil" }}</b> <span class="text-secondary">{% if curs_info.azi_data %}(publicat {{ curs_info.azi_data|date:"d.m.Y" }}){% endif %}</span></label></div>
+  <div class="form-check"><input class="form-check-input" type="radio" name="sursa_curs" id="sc_alt" value="alt">
+    <label class="form-check-label" for="sc_alt">Alt curs (îl scrieți mai jos)</label></div>
+</div></template>
+<script>
+(() => {
+  const inp = document.getElementById('id_curs'), moneda = document.getElementById('id_moneda');
+  if (!inp) return;
+  const ro = v => (v === null || v === '' ? '' : String(v));
+  let cursProiect = '{{ curs_info.proiect|stringformat:"s" }}'.replace(',', '.');
+  const cursAzi = '{{ curs_info.azi|stringformat:"s" }}'.replace(',', '.');
+  const sel = document.getElementById('tpl-curs').content.firstElementChild.cloneNode(true);
+  const col = inp.closest('[class*="col-"]');
+  col.className = 'col-12';
+  inp.before(sel);
+  inp.style.maxWidth = '220px';
+  col.querySelector('.form-text')?.remove();
+  const radios = sel.querySelectorAll('input[name=sursa_curs]');
+  const egal = (a, b) => a && b && Math.abs(parseFloat(a) - parseFloat(b)) < 0.00005;
+  const aplica = () => {
+    const v = sel.querySelector('input[name=sursa_curs]:checked')?.value;
+    if (v === 'proiect') inp.value = cursProiect;
+    if (v === 'azi') inp.value = cursAzi;
+    inp.readOnly = v !== 'alt';
+    if (v === 'alt' && !inp.dataset.atins) { inp.focus(); }
+  };
+  radios.forEach(r => r.addEventListener('change', aplica));
+  inp.addEventListener('input', () => { inp.dataset.atins = 1; });
+  // starea inițială: după valoarea existentă, altfel cursul proiectului
+  const curent = inp.value.replace(',', '.');
+  const ales = !curent || egal(curent, cursProiect) ? 'sc_proiect' : egal(curent, cursAzi) ? 'sc_azi' : 'sc_alt';
+  document.getElementById(ales).checked = true;
+  aplica();
+  const vizibil = () => { col.style.display = moneda && moneda.value !== 'EUR' ? 'none' : ''; };
+  moneda?.addEventListener('change', vizibil);
+  vizibil();
+  document.addEventListener('curs-proiect-schimbat', e => {
+    cursProiect = e.detail.eur;
+    if (document.getElementById('sc_proiect').checked) inp.value = cursProiect;
+  });
+})();
+</script>

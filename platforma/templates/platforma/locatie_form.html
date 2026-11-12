@@ -1,0 +1,254 @@
+{% extends "platforma/form.html" %}
+{% block inainte_form %}
+<div class="card mb-3 border-primary-subtle" id="cf-definire"><div class="card-body">
+  <div class="d-flex align-items-center flex-wrap gap-2">
+    <i class="bi bi-file-earmark-text fs-4 text-primary"></i>
+    <div class="flex-grow-1"><div class="fw-semibold">Cărți funciare – încarcă extrasele CF (citire AI)</div>
+      <div class="small text-secondary">Se pot alege mai multe extrase deodată (PDF sau scan). AI-ul citește nr. CF, UAT, nr. cadastral, suprafețele, proprietarul tabular și sarcinile
+        și completează formularul de mai jos. Extrasele se atașează activului la salvare.</div></div>
+    <label class="btn btn-primary btn-sm mb-0"><i class="bi bi-upload"></i> Încarcă extrase CF<input type="file" id="cf_fisiere" accept=".pdf,image/*" multiple hidden></label>
+  </div>
+  <div id="cf_stare" class="small mt-2 d-none"></div>
+  <div class="table-responsive"><table class="table table-sm small align-middle mt-2 mb-0 d-none" id="cf_tabel">
+    <thead><tr><th>Extras</th><th>Nr. CF</th><th>UAT</th><th>Nr. cadastral</th><th class="num">Teren (mp)</th><th class="num">Construcții (mp)</th><th>Categorie folosință</th><th>Proprietar tabular</th><th>Sarcini</th><th></th></tr></thead>
+    <tbody></tbody>
+    <tfoot><tr class="fw-semibold"><td colspan="4">Total</td><td class="num" id="cf_tot_teren"></td><td class="num" id="cf_tot_constr"></td><td colspan="4"></td></tr></tfoot>
+  </table></div>
+</div></div>
+{% endblock %}
+{% block scripturi %}
+<div class="modal fade" id="fereastraFirma" tabindex="-1" aria-labelledby="titluFirma" aria-hidden="true">
+ <div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title" id="titluFirma"><i class="bi bi-building-add"></i> Definire firmă nouă</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Închide"></button></div>
+  <div class="modal-body">
+    <div class="mb-2"><label class="form-label small fw-semibold" for="fn_denumire">Denumire firmă *</label><input id="fn_denumire" class="form-control" placeholder="ex. Agro Logistic Transport SRL"></div>
+    <div class="row g-2 mb-2"><div class="col"><label class="form-label small fw-semibold" for="fn_cui">CUI</label><input id="fn_cui" class="form-control"></div>
+      <div class="col"><label class="form-label small fw-semibold" for="fn_erp">Cod Charisma</label><input id="fn_erp" class="form-control"></div></div>
+    <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="fn_grup" checked><label class="form-check-label" for="fn_grup">Aparține grupului</label></div>
+    <label class="form-label small fw-semibold" for="fn_prefix">Acronim (prefix pentru codurile locațiilor) *</label>
+    <div class="input-group"><input id="fn_prefix" class="form-control text-uppercase fw-semibold" maxlength="5" autocomplete="off"><span class="input-group-text" id="fn_prefix_stare">—</span></div>
+    <div class="form-text">Propus automat din denumire, unic față de toate firmele și codurile existente. Se poate modifica.</div>
+    <div class="alert alert-danger py-2 small mt-3 d-none" id="fn_eroare"></div>
+  </div>
+  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Renunță</button>
+    <button type="button" class="btn btn-primary" id="fn_salveaza"><i class="bi bi-check2"></i> Salvează firma</button></div>
+ </div></div>
+</div>
+<div class="modal fade" id="fereastraExtern" tabindex="-1" aria-labelledby="titluExtern" aria-hidden="true">
+ <div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title" id="titluExtern"><i class="bi bi-person-badge"></i> Proprietar extern nou</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Închide"></button></div>
+  <div class="modal-body">
+    <p class="small text-secondary">Se adaugă în baza proprietarilor din afara grupului (Administrare → Proprietari externi), separată de firmele grupului.</p>
+    <div class="mb-2"><label class="form-label small fw-semibold" for="pe_denumire">Denumire / nume *</label><input id="pe_denumire" class="form-control" required></div>
+    <div class="row g-2 mb-2"><div class="col"><label class="form-label small fw-semibold" for="pe_tip">Tip</label><select id="pe_tip" class="form-select"><option value="pj">Persoană juridică</option><option value="pf">Persoană fizică</option><option value="uat">Instituție publică / UAT</option></select></div>
+      <div class="col"><label class="form-label small fw-semibold" for="pe_cui">CUI / CIF</label><input id="pe_cui" class="form-control"></div></div>
+    <div class="mb-2"><label class="form-label small fw-semibold" for="pe_adresa">Adresă</label><input id="pe_adresa" class="form-control"></div>
+    <div class="row g-2 mb-2"><div class="col"><label class="form-label small fw-semibold" for="pe_contact">Persoană de contact</label><input id="pe_contact" class="form-control"></div>
+      <div class="col"><label class="form-label small fw-semibold" for="pe_telefon">Telefon</label><input id="pe_telefon" class="form-control"></div></div>
+    <div class="mb-2"><label class="form-label small fw-semibold" for="pe_email">E-mail</label><input id="pe_email" type="email" class="form-control"></div>
+    <div class="alert alert-danger py-2 small mt-3 d-none" id="pe_eroare"></div>
+  </div>
+  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Renunță</button>
+    <button type="button" class="btn btn-primary" id="pe_salveaza"><i class="bi bi-check2"></i> Salvează proprietarul</button></div>
+ </div></div>
+</div>
+<script>
+// Cărți funciare în faza de definire: extrasele se citesc cu AI, datele completează formularul, documentele se atașează la salvare.
+(() => {
+  const inp = document.getElementById('cf_fisiere'), form = document.getElementById('id_denumire')?.form;
+  if (!inp || !form) return;
+  const csrf = form.querySelector('input[name=csrfmiddlewaretoken]').value;
+  if (!form.id) form.id = 'form-locatie';  // tabelul CF e deasupra formularului: câmpurile lui trimit cu form="…"
+  const stare = document.getElementById('cf_stare'), tabel = document.getElementById('cf_tabel'), corp = tabel.querySelector('tbody');
+  const citite = [];
+  const nr = v => { const x = parseFloat(String(v ?? '').replace(',', '.')); return isNaN(x) ? 0 : x; };
+  const fmt = v => new Intl.NumberFormat('ro-RO', {maximumFractionDigits: 2}).format(v);
+  const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const marcheaza = id => {
+    const lab = document.querySelector(`label[for=${id}]`);
+    if (lab && !lab.querySelector('.badge-cf')) lab.insertAdjacentHTML('beforeend', ' <span class="badge text-bg-primary badge-cf" title="completat din extrasele CF – verificați"><i class="bi bi-stars"></i> CF</span>');
+  };
+  const seteaza = (id, val, suprascrie) => {
+    const el = document.getElementById(id);
+    if (!el || val === '' || val == null) return;
+    if (el.value && !suprascrie && !el.dataset.dinCf) return;  // valorile introduse de mână nu se suprascriu
+    el.value = val; el.dataset.dinCf = '1'; marcheaza(id);
+  };
+  function completeaza() {
+    const ok = citite.filter(r => r.valori.numar);
+    const teren = ok.reduce((s, r) => s + nr(r.valori.suprafata_mp), 0), constr = ok.reduce((s, r) => s + nr(r.valori.suprafata_constructii_mp), 0);
+    document.getElementById('cf_tot_teren').textContent = teren ? fmt(teren) : '';
+    document.getElementById('cf_tot_constr').textContent = constr ? fmt(constr) : '';
+    // lista CF din registru: numerele existente + cele citite
+    const txt = document.getElementById('id_carti_funciare');
+    if (txt) {
+      const existente = (txt.value.match(/\d{3,}(?:-[A-Z0-9]+)?/gi) || []);
+      const noi = ok.map(r => r.valori.numar).filter(n => !existente.includes(n));
+      if (noi.length) { txt.value = (txt.value.trim() ? txt.value.trim() + ', ' : 'CF ') + noi.join(', '); marcheaza('id_carti_funciare'); }
+    }
+    if (teren) seteaza('id_suprafata_teren', teren.toFixed(2));
+    if (constr) { seteaza('id_suprafata_constructii', constr.toFixed(2)); seteaza('id_suprafata_construita_totala', constr.toFixed(2)); }
+    const uat = ok.map(r => r.valori.uat).find(Boolean);
+    if (uat) seteaza('id_adresa', uat);
+  }
+  function rand(r) {
+    const v = r.valori, tr = document.createElement('tr');
+    const firma = document.getElementById('id_inchiriere_externa')?.checked ? document.getElementById('id_proprietar_extern') : document.getElementById('id_proprietar');
+    const numeFirma = firma?.selectedOptions[0]?.value ? firma.selectedOptions[0].text : '';
+    const cuv = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\b(srl|sa|s\.r\.l\.|s\.a\.)\b/g, '').replace(/[^a-z0-9 ]/g, ' ').trim();
+    const altProp = v.proprietar_tabular && numeFirma && !cuv(v.proprietar_tabular).includes(cuv(numeFirma).split(' ')[0]);
+    tr.innerHTML = `<td><a href="${r.url}" target="_blank">${esc(r.fisier)}</a>${r.mesaj ? `<div class="text-danger">${esc(r.mesaj)}</div>` : ''}</td>
+      <td><input form="${form.id}" name="cf_numar_${r.document}" value="${esc(v.numar)}" class="form-control form-control-sm" style="width:110px" placeholder="nr. CF" ${v.numar ? '' : 'required'}></td>
+      <td>${esc(v.uat)}</td><td>${esc(v.nr_cadastral)}</td><td class="num">${v.suprafata_mp ? fmt(nr(v.suprafata_mp)) : ''}</td>
+      <td class="num">${v.suprafata_constructii_mp ? fmt(nr(v.suprafata_constructii_mp)) : ''}</td><td>${esc(v.categorie_folosinta)}</td>
+      <td class="${altProp ? 'text-danger fw-semibold' : ''}" title="${altProp ? 'diferă de firma aleasă în formular – verificați' : ''}">${esc(v.proprietar_tabular)}${altProp ? ' <i class="bi bi-exclamation-triangle"></i>' : ''}</td>
+      <td class="${v.sarcini ? 'text-danger' : 'text-secondary'}">${esc(v.sarcini) || 'fără'}</td>
+      <td><input type="hidden" form="${form.id}" name="cf_document" value="${r.document}"><button type="button" class="btn btn-sm btn-link text-danger p-0" title="nu atașa acest extras"><i class="bi bi-x-lg"></i></button></td>`;
+    tr.querySelector('input[name^=cf_numar_]').addEventListener('input', e => { r.valori.numar = e.target.value.trim(); completeaza(); });
+    tr.querySelector('button').addEventListener('click', () => { citite.splice(citite.indexOf(r), 1); tr.remove(); completeaza(); });
+    if (!v.numar) tr.classList.add('table-warning');
+    corp.appendChild(tr);
+  }
+  inp.addEventListener('change', async () => {
+    if (!inp.files.length) return;
+    const date = new FormData(); [...inp.files].forEach(fi => date.append('extrase', fi));
+    stare.className = 'small mt-2 text-primary'; stare.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Se citesc ${inp.files.length} extrase CF cu AI… (de obicei sub un minut pe extras)`;
+    try {
+      const r = await fetch('{% url "cf_citire_definire" %}', {method: 'POST', headers: {'X-CSRFToken': csrf}, body: date});
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.eroare || 'eroare');
+      j.rezultate.forEach(x => { citite.push(x); rand(x); });
+      tabel.classList.remove('d-none');
+      const fara = j.rezultate.filter(x => !x.valori.numar).length;
+      stare.className = 'small mt-2 ' + (fara ? 'text-warning-emphasis' : 'text-success');
+      stare.innerHTML = `<i class="bi bi-check2-circle"></i> ${j.rezultate.length} extrase citite. Câmpurile marcate <span class="badge text-bg-primary">CF</span> au fost completate din extrase – verificați-le, apoi salvați.` +
+        (fara ? ` ${fara} extrase fără nr. CF recunoscut: completați numărul în tabel.` : '');
+      completeaza();
+    } catch (e) {
+      stare.className = 'small mt-2 text-danger'; stare.textContent = 'Extrasele nu au putut fi citite: ' + e.message;
+    }
+    inp.value = '';
+  });
+})();
+</script>
+<script>
+// Starea activului: la schimbare se cer data și motivul (intră în istoricul activului)
+(() => {
+  const st = document.getElementById('id_stare_activ'), data = document.getElementById('id_data_schimbare_stare'), motiv = document.getElementById('id_motiv_schimbare_stare');
+  if (!st || !data || !motiv) return;
+  const initial = st.dataset.initial, cutie = el => el.closest('[class*="col-"]');
+  const aplica = () => {
+    const schimbat = !!initial && st.value !== initial;
+    [data, motiv].forEach(el => cutie(el).classList.toggle('d-none', !schimbat));
+    cutie(motiv).className = cutie(motiv).className.includes('d-none') ? 'col-12 d-none' : 'col-12';
+    if (schimbat && !data.value) data.value = new Date().toISOString().slice(0, 10);
+  };
+  st.addEventListener('change', aplica);
+  aplica();
+})();
+</script>
+<script>
+// Închiriere externă: bifa schimbă lista de proprietari (baza proprietarilor externi în loc de firmele grupului)
+(() => {
+  const bifa = document.getElementById('id_inchiriere_externa'), ext = document.getElementById('id_proprietar_extern');
+  const grup = document.getElementById('id_proprietar');
+  if (!bifa || !ext || !grup) return;
+  const cutie = el => el.closest('[class*="col-"]');
+  const campuriChirie = ['id_proprietar_extern', 'id_contract_inchiriere', 'id_chirie_lunara', 'id_moneda_chirie', 'id_inchiriere_expira'];
+  const etGrup = document.querySelector('label[for=id_proprietar]');
+  cutie(bifa).className = 'col-12';
+  cutie(bifa).querySelector('.form-check').classList.add('p-2', 'ps-5', 'rounded', 'border', 'mt-0');
+  const nou = document.createElement('button');
+  nou.type = 'button'; nou.className = 'btn btn-sm btn-outline-primary mt-1';
+  nou.innerHTML = '<i class="bi bi-plus-lg"></i> Proprietar extern nou';
+  nou.dataset.bsToggle = 'modal'; nou.dataset.bsTarget = '#fereastraExtern';
+  ext.after(nou);
+  const aplica = () => {
+    const e = bifa.checked;
+    campuriChirie.forEach(id => { const el = document.getElementById(id); if (el) cutie(el).classList.toggle('d-none', !e); });
+    ext.required = e;
+    cutie(bifa).querySelector('.form-check').classList.toggle('bg-warning-subtle', e);
+    etGrup.textContent = e ? 'Firma din grup care închiriază (chiriaș / beneficiar) *' : 'Firma din grup care deține locația *';
+  };
+  bifa.addEventListener('change', aplica);
+  aplica();
+  const csrf = document.querySelector('input[name=csrfmiddlewaretoken]').value, $ = id => document.getElementById(id);
+  $('pe_salveaza').addEventListener('click', async () => {
+    const date = new URLSearchParams({denumire: $('pe_denumire').value, tip: $('pe_tip').value, cui: $('pe_cui').value, adresa: $('pe_adresa').value,
+                                      persoana_contact: $('pe_contact').value, telefon: $('pe_telefon').value, email: $('pe_email').value});
+    const r = await fetch('{% url "proprietar_extern_nou" %}', {method: 'POST', headers: {'X-CSRFToken': csrf}, body: date});
+    const j = await r.json();
+    if (!r.ok) { $('pe_eroare').textContent = j.eroare || Object.values(j.erori || {}).join(' '); $('pe_eroare').classList.remove('d-none'); return; }
+    ext.add(new Option(j.denumire, j.pk, true, true)); ext.value = j.pk;
+    bootstrap.Modal.getInstance($('fereastraExtern')).hide();
+  });
+})();
+</script>
+<script>
+(() => {
+  const soc = document.getElementById('id_proprietar'), pref = document.getElementById('id_prefix'), cod = document.getElementById('id_cod');
+  if (!soc || !pref || !cod) return;
+  const csrf = document.querySelector('input[name=csrfmiddlewaretoken]').value;
+  const codInitial = cod.value;
+  let codAuto = !codInitial;
+  // butonul „Firmă nouă” lângă lista de firme
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'btn btn-sm btn-outline-primary mt-1';
+  btn.innerHTML = '<i class="bi bi-plus-lg"></i> Firmă nouă';
+  btn.dataset.bsToggle = 'modal'; btn.dataset.bsTarget = '#fereastraFirma';
+  soc.after(btn);
+  const info = document.createElement('div'); info.className = 'form-text fw-semibold'; pref.after(info);
+  cod.addEventListener('input', () => { codAuto = false; });
+
+  async function laFirma() {
+    if (!soc.value) { info.textContent = ''; return; }
+    const r = await fetch(`{% url 'cod_pentru_societate' %}?societate=${soc.value}`);
+    const j = await r.json();
+    const areCod = !!codInitial;
+    if (!(areCod && codInitial.startsWith(j.prefix + '.'))) pref.value = j.prefix;
+    pref.readOnly = !j.nou;
+    info.className = 'form-text fw-semibold ' + (j.nou ? 'text-primary' : 'text-success');
+    info.textContent = j.nou ? `Acronim nou propus pentru această firmă (unic). Îl puteți modifica; va rămâne alocat firmei.`
+                             : `Acronimul firmei (${j.locatii} locații existente). Următorul cod liber: ${j.cod}`;
+    if (codAuto) cod.value = j.cod;
+  }
+  soc.addEventListener('change', laFirma);
+  pref.addEventListener('input', () => { pref.value = pref.value.toUpperCase().replace(/[^A-Z]/g, ''); if (codAuto && pref.value) cod.value = pref.value + '.01'; });
+  if (soc.value) laFirma();
+
+  // fereastra „Firmă nouă”
+  const $ = id => document.getElementById(id);
+  let t;
+  const verifica = async () => {
+    const v = $('fn_prefix').value.trim();
+    if (!v) { $('fn_prefix_stare').textContent = '—'; return; }
+    const j = await (await fetch(`{% url 'acronim_propus' %}?verifica=${encodeURIComponent(v)}`)).json();
+    $('fn_prefix_stare').innerHTML = j.ok ? '<i class="bi bi-check-circle text-success"></i> liber' : '<i class="bi bi-x-circle text-danger"></i> ocupat';
+    $('fn_prefix_stare').title = j.eroare;
+  };
+  $('fn_denumire').addEventListener('input', () => {
+    clearTimeout(t);
+    t = setTimeout(async () => {
+      if (!$('fn_denumire').value.trim() || $('fn_prefix').dataset.manual) return;
+      const j = await (await fetch(`{% url 'acronim_propus' %}?denumire=${encodeURIComponent($('fn_denumire').value)}`)).json();
+      $('fn_prefix').value = j.prefix; verifica();
+    }, 400);
+  });
+  $('fn_prefix').addEventListener('input', () => { $('fn_prefix').dataset.manual = 1; $('fn_prefix').value = $('fn_prefix').value.toUpperCase().replace(/[^A-Z]/g, ''); clearTimeout(t); t = setTimeout(verifica, 300); });
+  $('fn_salveaza').addEventListener('click', async () => {
+    const date = new URLSearchParams({denumire: $('fn_denumire').value, cui: $('fn_cui').value, cod_erp: $('fn_erp').value,
+                                      prefix_cod: $('fn_prefix').value, ...($('fn_grup').checked ? {in_grup: 'on'} : {})});
+    const r = await fetch('{% url "societate_noua" %}', {method: 'POST', headers: {'X-CSRFToken': csrf}, body: date});
+    const j = await r.json();
+    if (!r.ok) {
+      $('fn_eroare').textContent = j.eroare || Object.entries(j.erori || {}).map(([k, v]) => v).join(' ');
+      $('fn_eroare').classList.remove('d-none'); return;
+    }
+    const o = new Option(j.denumire, j.pk, true, true);
+    soc.add(o); soc.value = j.pk; codAuto = true;
+    bootstrap.Modal.getInstance(document.getElementById('fereastraFirma')).hide();
+    laFirma();
+  });
+})();
+</script>
+{% endblock %}

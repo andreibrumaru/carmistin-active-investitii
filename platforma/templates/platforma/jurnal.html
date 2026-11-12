@@ -1,0 +1,11 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Jurnal de audit{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3"><h4 class="mb-0">Jurnal de audit</h4>
+<form class="ms-auto"><input name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Caută utilizator, cod proiect, obiect…"></form></div>
+<div class="card"><div class="table-responsive"><table class="table table-sm small mb-0">
+<thead><tr><th>Moment</th><th>Utilizator</th><th>IP</th><th>Acțiune</th><th>Tip</th><th>Obiect</th><th>Proiect</th><th>Modificări</th></tr></thead>
+<tbody>{% for j in pagina %}<tr><td class="text-nowrap">{{ j.moment|date:"d.m.Y H:i:s" }}</td><td>{{ j.user|default:"sistem" }}</td><td>{{ j.ip|default:"" }}</td><td>{{ j.actiune }}</td><td>{{ j.model }}</td><td>{{ j.obiect|truncatechars:60 }}</td><td>{% if j.proiect %}<span class="cod">{{ j.proiect.cod }}</span>{% endif %}</td>
+<td>{% for k, v in j.modificari.items %}{% if forloop.counter <= 4 %}<div><b>{{ k }}</b>: {{ v|truncatechars:70 }}</div>{% endif %}{% endfor %}</td></tr>{% endfor %}</tbody></table></div>
+<div class="card-footer small d-flex justify-content-between"><span>{{ total }} înregistrări</span></div></div>
+{% endblock %}

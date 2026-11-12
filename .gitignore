@@ -1,0 +1,22 @@
+# Mediul Python – fiecare și-l creează local
+.venv/
+__pycache__/
+*.pyc
+
+# DATE REALE – nu pleacă niciodată pe GitHub (baza, documentele, backup-urile, jurnalele)
+date/
+*.sqlite3
+*.sqlite3-journal
+
+# Parole și chei – fiecare are propriul .env (vezi .env.example)
+.env
+.env.*
+!.env.example
+
+# Binar compilat automat din tools/ocr_macos.swift la prima folosire
+tools/ocr_macos
+
+# Fișiere de sistem / editor
+.DS_Store
+.idea/
+.vscode/

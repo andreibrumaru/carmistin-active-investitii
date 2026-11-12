@@ -1,0 +1,16 @@
+{% extends "platforma/base.html" %}{% load fmt %}
+{% block titlu %}Aprobări{% endblock %}
+{% block continut %}
+<h4 class="mb-3">Aprobările mele</h4>
+{% if rz %}<div class="card mb-3"><div class="card-header">Rapoarte Zero de avizat</div><ul class="list-group list-group-flush">{% for p in rz %}<li class="list-group-item"><a class="cod" href="{% url 'raport_zero' p.pk %}">{{ p.cod }}</a> {{ p.denumire }} · {{ p.valoare_rz|bani }} {{ p.moneda_rz }}</li>{% endfor %}</ul></div>{% endif %}
+<div class="card"><div class="card-header">Plăți care așteaptă aprobarea mea</div>
+<div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+<thead><tr><th>Proiect</th><th>Societate</th><th>Furnizor / factură</th><th class="num">Sumă fără TVA</th><th>Data plății</th><th>Stare</th><th>Propusă de</th><th></th></tr></thead>
+<tbody>{% for pl in plati %}<tr>
+  <td><a class="cod" href="{% url 'proiect_detaliu' pl.factura.proiect.pk %}?tab=financiar">{{ pl.factura.proiect.cod }}</a></td><td class="small">{{ pl.factura.proiect.beneficiar }}</td>
+  <td>{{ pl.factura.furnizor }}{% if pl.factura.intragrup %} <span class="badge text-bg-info">intragrup</span>{% endif %}<div class="small text-secondary">{{ pl.factura.numar }} / {{ pl.factura.data|date:"d.m.Y" }}</div></td>
+  <td class="num">{{ pl.suma_ron|bani2 }}</td><td class="small">{{ pl.data|date:"d.m.Y" }}</td><td><span class="badge text-bg-warning">{{ pl.get_stare_display }}</span>{% if pl.necesita_aprobare_suplimentara %}<div class="small text-warning-emphasis">peste prag</div>{% endif %}</td>
+  <td class="small">{{ pl.propusa_de }}</td>
+  <td class="text-nowrap">{% for a, et in pl.actiuni %}<form class="d-inline" method="post" action="{% url 'plata_actiune' pl.pk a %}" {% if a == 'respinge' %}onsubmit="const m=prompt('Motivul respingerii:'); if(!m) return false; this.motiv.value=m;"{% endif %}>{% csrf_token %}<input type="hidden" name="motiv"><input type="hidden" name="inapoi" value="{% url 'aprobari' %}"><button class="btn btn-sm {% if a == 'respinge' %}btn-outline-danger{% else %}btn-success{% endif %} py-0">{{ et }}</button></form> {% endfor %}</td>
+</tr>{% empty %}<tr><td colspan="8" class="text-center text-secondary py-4">Nu aveți plăți de aprobat.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

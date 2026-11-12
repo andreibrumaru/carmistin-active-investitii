@@ -1,0 +1,39 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Raport autorizații{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3 gap-2"><h4 class="mb-0">Raport autorizații de funcționare</h4>
+  {% if tip %}<a href="?{{ query.urlencode }}&export=1" class="btn btn-sm btn-outline-success ms-auto"><i class="bi bi-file-earmark-excel"></i> Export Excel</a>{% endif %}</div>
+<form class="card card-body mb-3"><div class="row g-2">
+  <div class="col-md-3"><select name="tip" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">— toate tipurile (sumar) —</option>{% for t in tipuri %}<option value="{{ t.cod }}" {% if tip.cod == t.cod %}selected{% endif %}>{{ t.scurt }} – {{ t.denumire }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><select name="stare" class="form-select form-select-sm"><option value="">Orice stare</option>
+    <option value="atasata" {% if query.stare == 'atasata' %}selected{% endif %}>Atașată</option><option value="lipsa" {% if query.stare == 'lipsa' %}selected{% endif %}>Necesară – lipsă</option>
+    <option value="expirata" {% if query.stare == 'expirata' %}selected{% endif %}>Expirată</option><option value="nu_e_necesara" {% if query.stare == 'nu_e_necesara' %}selected{% endif %}>Nu e necesară</option></select></div>
+  <div class="col-md-2"><select name="responsabil" class="form-select form-select-sm"><option value="">Orice responsabil</option>{% for u in utilizatori %}<option value="{{ u.pk }}" {% if query.responsabil == u.pk|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><select name="linie" class="form-select form-select-sm"><option value="">Toate liniile</option>{% for l in linii %}<option {% if query.linie == l.valoare %}selected{% endif %}>{{ l.valoare }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><input name="divizie" value="{{ query.divizie }}" class="form-control form-control-sm" placeholder="divizie"></div>
+  <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Aplică</button></div>
+</div></form>
+{% if not tip %}
+<div class="card"><div class="card-header">Sumar pe tipuri de autorizații <span class="small text-secondary fw-normal">– obiectivele urmărite (active funcționale și cele activate manual)</span></div>
+<div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+<thead><tr><th>Autorizație</th><th>Responsabil implicit</th><th class="num">Atașate</th><th class="num">Necesare – lipsă</th><th class="num">Expirate</th><th class="num">Nu sunt necesare</th></tr></thead>
+{% for s in sumar %}<tr><td><a href="?tip={{ s.tip.cod }}" class="fw-semibold">{{ s.tip.scurt }}</a> <span class="small text-secondary">{{ s.tip.denumire }}</span></td>
+  <td class="small">{{ s.tip.responsabil.get_full_name|default:s.tip.responsabil|default:"—" }}</td>
+  <td class="num text-success">{{ s.atasata }}</td><td class="num {% if s.lipsa %}text-danger fw-semibold{% endif %}"><a class="{% if s.lipsa %}text-danger{% endif %}" href="?tip={{ s.tip.cod }}&stare=lipsa">{{ s.lipsa }}</a></td>
+  <td class="num {% if s.expirata %}text-danger{% endif %}">{{ s.expirata }}</td><td class="num text-secondary">{{ s.nu_e_necesara }}</td></tr>{% endfor %}
+</table></div></div>
+{% else %}
+<div class="card"><div class="card-header">{{ tip.denumire }} <span class="small text-secondary fw-normal">– {{ randuri|length }} obiective · responsabil implicit: {{ tip.responsabil.get_full_name|default:tip.responsabil|default:"nealocat" }}</span></div>
+<div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle tabel-filtrabil">
+<thead><tr><th>Cod</th><th>Obiectiv</th><th>Linie / divizie</th><th>Județ</th><th>Stare</th><th>Nr. / data</th><th>Valabilă până la</th><th>Documente suport</th><th>Responsabil</th></tr></thead>
+<tbody>{% for r in randuri %}{% with a=r.aut l=r.loc %}<tr class="{% if r.stare == 'lipsa' or r.stare == 'expirata' %}table-danger{% endif %}">
+  <td><a class="cod" href="{{ l.get_absolute_url }}?tab=autorizatii">{{ l.cod }}</a></td><td>{{ l.denumire }}<div class="small text-secondary">{{ l.proprietar|default:"" }}</div></td>
+  <td class="small">{{ l.linie }}{% if l.divizie %} / {{ l.divizie }}{% endif %}</td><td class="small">{{ l.judet|default:"—" }}</td>
+  <td>{% if r.stare == 'atasata' %}<span class="badge text-bg-success">atașată</span>{% elif r.stare == 'expirata' %}<span class="badge text-bg-danger">expirată</span>{% elif r.stare == 'lipsa' %}<span class="badge text-bg-danger">necesară – lipsă</span>{% else %}<span class="badge text-bg-light">nu e necesară</span>{% endif %}</td>
+  <td class="small">{% if a %}{% with d=a.scan %}{% if d %}<a href="{% url 'document' d.pk %}" title="{{ a }}">{{ a.numar }}</a>{% else %}{{ a.numar }}{% endif %}{% endwith %} · {{ a.data|date:"d.m.Y" }}{% else %}—{% endif %}</td>
+  <td class="small">{% if a %}{{ a.valabil_pana|date:"d.m.Y"|default:"nelimitată" }}{% else %}—{% endif %}</td>
+  <td class="small">{% if a and r.suport %}{% if r.suport_lipsa %}<span class="text-danger">{{ r.suport_lipsa }} din {{ r.suport|length }} lipsă</span>{% else %}<span class="text-success">complete</span>{% endif %}{% else %}—{% endif %}</td>
+  <td class="small">{{ r.responsabil.get_full_name|default:r.responsabil|default:"—" }}</td>
+</tr>{% endwith %}{% empty %}<tr><td colspan="9" class="text-center text-secondary py-4">Niciun obiectiv pentru filtrele alese.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endif %}
+{% endblock %}

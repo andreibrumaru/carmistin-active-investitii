@@ -1,0 +1,32 @@
+{% extends "platforma/base.html" %}{% load fmt %}
+{% block titlu %}Registrul investițiilor{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3 gap-2">
+  <h4 class="mb-0">Registrul investițiilor <span class="text-secondary fs-6">({{ proiecte|length }})</span></h4>
+  <a href="?{{ request.GET.urlencode }}&export=1" class="btn btn-sm btn-outline-success ms-auto"><i class="bi bi-file-earmark-excel"></i> Export Excel</a>
+  {% if poate_crea_proiect %}<a href="{% url 'raport_zero_nou' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Raport Zero nou</a>{% endif %}
+</div>
+<form class="card card-body mb-3"><div class="row g-2">
+  <div class="col-md-3"><select name="beneficiar" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Toți beneficiarii</option>{% for b in beneficiari %}<option value="{{ b.pk }}" {% if query.beneficiar == b.pk|stringformat:"s" %}selected{% endif %}>{{ b }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><input name="q" value="{{ query.q }}" class="form-control form-control-sm" placeholder="Caută cod, denumire, beneficiar…"></div>
+  <div class="col-md-2"><select name="faza" class="form-select form-select-sm"><option value="">Toate fazele</option>{% for o in nom.faza_proiect %}<option {% if query.faza == o.valoare %}selected{% endif %}>{{ o.valoare }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><select name="status" class="form-select form-select-sm"><option value="">Orice status</option>{% for o in nom.status_proiect %}<option {% if query.status == o.valoare %}selected{% endif %}>{{ o.valoare }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><select name="linie" class="form-select form-select-sm"><option value="">Toate liniile</option>{% for o in nom.linie %}<option {% if query.linie == o.valoare %}selected{% endif %}>{{ o.valoare }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><select name="divizie" class="form-select form-select-sm"><option value="">Toate diviziile</option>{% for d in divizii %}<option {% if query.divizie == d %}selected{% endif %}>{{ d }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><select name="finantare" class="form-select form-select-sm"><option value="">Orice finanțare</option>{% for o in nom.tip_finantare %}<option {% if query.finantare == o.valoare %}selected{% endif %}>{{ o.valoare }}</option>{% endfor %}</select></div>
+  <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Filtrează</button></div>
+</div></form>
+<div class="card"><div class="table-responsive"><table class="table table-hover mb-0 align-middle tabel-filtrabil">
+<thead><tr><th>Cod</th><th>Proiect</th><th>Beneficiar</th><th>PM / coordonator</th><th>Fază</th><th class="num">Buget (RON)</th><th class="num">Angajat</th><th class="num">Facturat</th><th class="num">Plătit</th><th style="width:130px">Execuție</th><th>Termen</th></tr></thead>
+<tbody>{% for p in proiecte %}{% with b=p.buget_actualizat_ron|default:p.buget_rz_ron %}
+<tr onclick="location='{{ p.get_absolute_url }}'" style="cursor:pointer">
+  <td><span class="cod">{{ p.cod }}</span></td><td>{{ p.denumire }}<div class="small text-secondary">{{ p.linie }}{% if p.divizie %} / {{ p.divizie }}{% endif %} · {{ p.finantare }}</div></td><td class="small">{{ p.beneficiar }}</td>
+  <td class="small">{{ p.pm|default:"—" }}<div class="text-secondary">{{ p.coordonator|default:"" }}</div></td>
+  <td><span class="badge text-bg-light">{{ p.faza }}</span></td>
+  <td class="num">{{ b|bani }}</td><td class="num">{{ p.angajat_ron|bani }}</td><td class="num">{{ p.facturat_ron|bani }}</td><td class="num">{{ p.platit_ron|bani }}</td>
+  <td><div class="progress" title="financiar {{ p.procent_executie }}%"><div class="progress-bar" style="width:{{ p.procent_executie|plafon }}%"></div></div>
+      <div class="progress mt-1" title="fizic {{ p.progres_fizic }}%"><div class="progress-bar bg-success" style="width:{{ p.progres_fizic }}%"></div></div>
+      <div class="small text-secondary">fin. {{ p.procent_executie }}% · fizic {{ p.progres_fizic }}%</div></td>
+  <td class="small {% if p.intarziat %}text-danger fw-semibold{% endif %}">{{ p.data_finalizare|date:"d.m.Y" }}</td>
+</tr>{% endwith %}{% empty %}<tr><td colspan="11" class="text-center text-secondary py-4">Nu aveți proiecte alocate.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}
