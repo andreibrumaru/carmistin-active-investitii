@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views as v
+from . import views_finantare as vf
 
 urlpatterns = [
     path("", v.dashboard, name="dashboard"),
@@ -26,6 +27,7 @@ urlpatterns = [
     path("active/<int:pk>/cf-din-registru/", v.cf_din_registru, name="cf_din_registru"),
     path("active/<int:pk>/preia-din-cf/", v.preia_din_cf, name="preia_din_cf"),
     path("active/<int:pk>/cf-extrase/", v.cf_extrase_multiple, name="cf_extrase_multiple"),
+    path("active/<int:pk>/cf-sterge/", v.cf_sterge, name="cf_sterge"),
     path("active/<int:pk>/drept/<int:drept_pk>/anexe/", v.drept_anexe, name="drept_anexe"),
     path("active/<int:pk>/<str:tip>/nou/", v.locatie_obiect_form, name="locatie_obiect_nou"),
     path("active/<int:pk>/<str:tip>/<int:obj_pk>/", v.locatie_obiect_form, name="locatie_obiect_editare"),
@@ -37,6 +39,10 @@ urlpatterns = [
     path("rapoarte-zero/<int:pk>/<str:actiune>/", v.raport_zero_actiune, name="raport_zero_actiune"),
     path("investitii/", v.investitii, name="investitii"),
     path("proiecte/<int:pk>/", v.proiect_detaliu, name="proiect_detaliu"),
+    path("proiecte/<int:pk>/fonduri-ue/", vf.fonduri_ue, name="fonduri_ue"),
+    path("proiecte/<int:pk>/tragere/noua/", vf.cerere_tragere_noua, name="cerere_tragere_noua"),
+    path("proiecte/<int:pk>/tragere/<int:cpk>/", vf.cerere_tragere, name="cerere_tragere"),
+    path("proiecte/<int:pk>/cu/incarca/", vf.cu_incarca, name="cu_incarca"),
     path("proiecte/<int:pk>/urmarire/", v.proiect_urmarire, name="proiect_urmarire"),
     path("proiecte/<int:pk>/buget-hg/", v.buget_hg, name="buget_hg"),
     path("proiecte/<int:pk>/buget-blocare/", v.buget_blocare, name="buget_blocare"),

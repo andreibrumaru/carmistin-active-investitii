@@ -1,0 +1,79 @@
+{% extends "platforma/base.html" %}{% load fmt %}
+{% block titlu %}Fonduri UE · {{ p.cod }}{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+  <a href="{{ p.get_absolute_url }}?tab=finantare" class="btn btn-sm btn-outline-secondary me-2"><i class="bi bi-arrow-left"></i></a>
+  <div><h4 class="mb-0"><span class="badge text-bg-primary">Fonduri UE</span> {{ p.cod }} · {{ p.denumire }}</h4>
+    <div class="small text-secondary">Bugetul proiectului împărțit în eligibil / neeligibil / cumulat · ajutor nerambursabil · RON fără TVA</div></div>
+</div>
+{% if not p.fonduri_ue %}<div class="alert alert-warning">Proiectul nu este marcat „cu fonduri UE” în Raportul Zero. Tabloul se afișează informativ.</div>{% endif %}
+{% if neincadrate %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> {{ neincadrate }} linii de buget nu sunt încă încadrate pe eligibil / neeligibil (sunt considerate integral neeligibile până la completare).</div>{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg"><div class="card kpi h-100"><div class="card-body"><div class="small text-secondary">Buget cumulat</div><div class="fs-5 fw-bold">{{ tot.cumulat|bani }}</div><div class="small text-secondary">total proiect</div></div></div></div>
+  <div class="col-6 col-lg"><div class="card kpi h-100"><div class="card-body"><div class="small text-secondary">Buget eligibil</div><div class="fs-5 fw-bold text-primary">{{ tot.eligibil|bani }}</div><div class="small text-secondary">{{ tot.eligibil|procent:tot.cumulat }}% din total</div></div></div></div>
+  <div class="col-6 col-lg"><div class="card kpi h-100"><div class="card-body"><div class="small text-secondary">Buget neeligibil</div><div class="fs-5 fw-bold">{{ tot.neeligibil|bani }}</div><div class="small text-secondary">suportat integral de beneficiar</div></div></div></div>
+  <div class="col-6 col-lg"><div class="card kpi h-100 border-primary"><div class="card-body"><div class="small text-secondary">Ajutor nerambursabil</div><div class="fs-5 fw-bold text-success">{{ ajutor|bani|default:"—" }}</div><div class="small text-secondary">{% if intensitate %}intensitate {{ intensitate }}% din eligibil{% else %}completați bugetul nerambursabil în RZ{% endif %}</div></div></div></div>
+  <div class="col-6 col-lg"><div class="card kpi h-100"><div class="card-body"><div class="small text-secondary">Contribuție proprie</div><div class="fs-5 fw-bold">{{ contributie_proprie|bani }}</div><div class="small text-secondary">cumulat − ajutor</div></div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-5"><div class="card h-100"><div class="card-header">Structura de finanțare (Raport Zero)</div><div class="card-body">{% include "platforma/_structura_finantare.html" %}</div></div></div>
+  <div class="col-lg-7"><div class="card h-100"><div class="card-header">Execuție (facturat)</div><div class="card-body">
+    <table class="table table-sm mb-2"><thead><tr><th></th><th class="num">Buget</th><th class="num">Facturat</th><th class="num">Execuție</th><th style="width:30%"></th></tr></thead><tbody>
+    <tr><td>Cumulat</td><td class="num">{{ tot.cumulat|bani }}</td><td class="num">{{ tot.facturat|bani }}</td><td class="num">{{ tot.facturat|procent:tot.cumulat }}%</td><td><div class="progress" style="height:8px"><div class="progress-bar bg-secondary" style="width:{{ tot.facturat|procent:tot.cumulat|plafon }}%"></div></div></td></tr>
+    <tr><td>Eligibil</td><td class="num">{{ tot.eligibil|bani }}</td><td class="num">{{ tot.fact_eligibil|bani }}</td><td class="num">{{ tot.fact_eligibil|procent:tot.eligibil }}%</td><td><div class="progress" style="height:8px"><div class="progress-bar" style="width:{{ tot.fact_eligibil|procent:tot.eligibil|plafon }}%"></div></div></td></tr>
+    <tr><td>Neeligibil</td><td class="num">{{ tot.neeligibil|bani }}</td><td class="num">{{ tot.fact_neeligibil|bani }}</td><td class="num">{{ tot.fact_neeligibil|procent:tot.neeligibil }}%</td><td><div class="progress" style="height:8px"><div class="progress-bar bg-dark" style="width:{{ tot.fact_neeligibil|procent:tot.neeligibil|plafon }}%"></div></div></td></tr>
+    </tbody></table>
+    <div class="small">Ajutor nerambursabil aferent cheltuielilor eligibile facturate: <b class="text-success">{{ ajutor_executie|bani }} RON</b>{% if intensitate %} ({{ intensitate }}% × eligibil facturat){% endif %}</div>
+    <div class="form-text">Facturatul pe o linie se împarte eligibil / neeligibil în proporția bugetului liniei. Încadrarea liniilor se face în vederea „Eligibil” sau „Toate”.</div>
+  </div></div></div>
+</div>
+
+<form method="post">{% csrf_token %}
+<div class="card">
+  <div class="card-header d-flex align-items-center flex-wrap gap-2"><span>Bugetul pe linii HG</span>
+    <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="vedere buget" id="vedereBuget">
+      <input type="radio" class="btn-check" name="vedere" id="v-cumulat" value="cumulat" {% if vedere == 'cumulat' %}checked{% endif %}><label class="btn btn-outline-primary" for="v-cumulat">Cumulat</label>
+      <input type="radio" class="btn-check" name="vedere" id="v-eligibil" value="eligibil" {% if vedere == 'eligibil' %}checked{% endif %}><label class="btn btn-outline-primary" for="v-eligibil">Eligibil</label>
+      <input type="radio" class="btn-check" name="vedere" id="v-neeligibil" value="neeligibil" {% if vedere == 'neeligibil' %}checked{% endif %}><label class="btn btn-outline-primary" for="v-neeligibil">Neeligibil</label>
+      <input type="radio" class="btn-check" name="vedere" id="v-toate" value="toate" {% if vedere == 'toate' %}checked{% endif %}><label class="btn btn-outline-primary" for="v-toate">Toate</label>
+    </div>
+    {% if editabil %}<button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Salvează încadrarea</button>{% endif %}</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle" id="tabelUE">
+    <thead><tr><th style="width:70px">Cap.</th><th>Denumire</th>
+      <th class="num col-v col-cumulat">Cumulat</th><th class="num col-v col-eligibil" style="width:190px">Eligibil</th><th class="num col-v col-neeligibil">Neeligibil</th>
+      <th class="num col-v col-cumulat">Facturat</th><th class="num col-v col-eligibil">Facturat eligibil</th><th class="num col-v col-neeligibil">Facturat neeligibil</th></tr></thead>
+    <tbody>{% for c in capitole %}
+      <tr class="capitol-row fw-semibold"><td>{{ c.cod }}</td><td>{{ c.denumire }}</td>
+        <td class="num col-v col-cumulat">{{ c.cumulat|bani }}</td><td class="num col-v col-eligibil">{{ c.eligibil|bani }}</td><td class="num col-v col-neeligibil">{{ c.neeligibil|bani }}</td>
+        <td class="num col-v col-cumulat">{{ c.facturat|bani }}</td><td class="num col-v col-eligibil">{{ c.fact_eligibil|bani }}</td><td class="num col-v col-neeligibil">{{ c.fact_neeligibil|bani }}</td></tr>
+      {% for r in c.linii %}<tr {% if r.neincadrat %}class="table-warning"{% endif %}><td class="text-secondary">{{ r.l.capitol }}</td><td>{{ r.l.denumire }}</td>
+        <td class="num col-v col-cumulat">{{ r.cumulat|bani2 }}</td>
+        <td class="num col-v col-eligibil">{% if editabil %}<input type="text" inputmode="decimal" name="eligibil_{{ r.l.pk }}" value="{% if r.l.valoare_eligibila is not None %}{{ r.l.valoare_eligibila|floatformat:'-2' }}{% endif %}" placeholder="neîncadrat" class="form-control form-control-sm text-end" data-total="{{ r.cumulat|stringformat:'s' }}">
+          <div class="small"><a href="#" class="tot-eligibil" title="toată linia e eligibilă">tot</a> · <a href="#" class="nimic-eligibil" title="linia e neeligibilă">0</a></div>{% else %}{{ r.eligibil|bani2 }}{% endif %}</td>
+        <td class="num col-v col-neeligibil">{{ r.neeligibil|bani2 }}</td>
+        <td class="num col-v col-cumulat">{{ r.facturat|bani2 }}</td><td class="num col-v col-eligibil">{{ r.fact_eligibil|bani2 }}</td><td class="num col-v col-neeligibil">{{ r.fact_neeligibil|bani2 }}</td></tr>{% endfor %}
+    {% empty %}<tr><td colspan="8" class="text-center text-secondary py-4">Proiectul nu are buget HG.</td></tr>{% endfor %}</tbody>
+    <tfoot><tr class="fw-bold"><td></td><td>TOTAL</td><td class="num col-v col-cumulat">{{ tot.cumulat|bani2 }}</td><td class="num col-v col-eligibil">{{ tot.eligibil|bani2 }}</td><td class="num col-v col-neeligibil">{{ tot.neeligibil|bani2 }}</td>
+      <td class="num col-v col-cumulat">{{ tot.facturat|bani2 }}</td><td class="num col-v col-eligibil">{{ tot.fact_eligibil|bani2 }}</td><td class="num col-v col-neeligibil">{{ tot.fact_neeligibil|bani2 }}</td></tr></tfoot>
+  </table></div>
+</div></form>
+<script>
+(() => {
+  const tabel = document.getElementById('tabelUE');
+  const arata = v => {
+    tabel.querySelectorAll('.col-v').forEach(c => c.classList.toggle('d-none', v !== 'toate' && !c.classList.contains('col-' + v)));
+    const u = new URL(location); u.searchParams.set('vedere', v); history.replaceState(null, '', u);
+  };
+  document.querySelectorAll('[name=vedere]').forEach(r => r.addEventListener('change', () => arata(r.value)));
+  arata(document.querySelector('[name=vedere]:checked')?.value || 'cumulat');
+  tabel.addEventListener('click', e => {
+    const a = e.target.closest('.tot-eligibil, .nimic-eligibil'); if (!a) return;
+    e.preventDefault();
+    const inp = a.closest('td').querySelector('input');
+    inp.value = a.classList.contains('tot-eligibil') ? String(inp.dataset.total).replace('.', ',') : '0';
+  });
+})();
+</script>
+{% endblock %}

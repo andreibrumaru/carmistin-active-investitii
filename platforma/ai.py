@@ -153,10 +153,12 @@ PROMPTURI = {
     "cu_avize": REGULI_COMUNE + (
         " Documentul este un certificat de urbanism din România. Extrage: "
         '{"certificat": {"numar": "", "data": "", "emitent": "", "scop": "", "valabil_pana": ""}, '
-        '"avize": [{"denumire": "", "emitent": "", "fragment": "", "pagina": ""}]}. '
-        "În 'avize' include toate avizele, acordurile, studiile și documentele cerute pentru obținerea autorizației de "
+        '"avize": [{"denumire": "", "tip": "", "emitent": "", "fragment": "", "pagina": ""}]}. '
+        "În 'avize' include avizele, acordurile, studiile și documentele cerute pentru obținerea autorizației de "
         "construire (alimentare cu apă, canalizare, energie electrică, gaze, telefonizare, salubritate, ISU, DSP, mediu/APM, "
-        "DSVSA, Apele Române, drumuri, etc.), câte unul pe element."
+        "DSVSA, Apele Române, drumuri, studiu geotehnic, studiu topografic etc.), câte unul pe element. În formularul CU avizele "
+        "sunt de obicei într-o listă cu căsuțe: include DOAR elementele bifate / marcate (X, ☒, ✓, „da”) și ignoră căsuțele goale; "
+        "dacă nu se poate distinge bifa, include elementele enumerate ca cerute. 'tip' = unul dintre: aviz, acord, studiu, autorizatie, alt."
     ),
     "contract": REGULI_COMUNE + (
         " Documentul este un contract încheiat de o societate din grupul Carmistin. 'partener' = CEALALTĂ parte: cea care "

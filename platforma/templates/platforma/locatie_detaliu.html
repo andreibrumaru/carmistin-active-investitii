@@ -135,7 +135,20 @@
       <td class="num">{% if c.suprafata_constructii_mp %}{{ c.suprafata_constructii_mp|floatformat:"0g" }}{% else %}—{% endif %}</td>
       <td class="small">{{ c.proprietar_tabular|default:"—" }}{% if c.sarcini %}<div class="text-danger">Sarcini: {{ c.sarcini|truncatechars:80 }}</div>{% endif %}</td>
       <td class="small">{% if x %}<span class="text-success"><i class="bi bi-check-circle"></i> atașat</span>{% if c.data_extras %} <span class="text-secondary">din {{ c.data_extras|date:"d.m.Y" }}</span>{% endif %}{% else %}<span class="badge text-bg-warning">fără extras</span>{% endif %}</td>
-      <td class="text-nowrap">{% if e_admin %}<a class="btn btn-sm {% if x %}btn-outline-secondary{% else %}btn-primary{% endif %} py-0" href="{% url 'locatie_obiect_editare' loc.pk 'cf' c.pk %}">{% if x %}<i class="bi bi-arrow-repeat"></i> Extras nou / editează{% else %}<i class="bi bi-paperclip"></i> Atașează extras{% endif %}</a>{% endif %}</td>
+      <td class="text-nowrap">{% if e_admin %}<a class="btn btn-sm {% if x %}btn-outline-secondary{% else %}btn-primary{% endif %} py-0" href="{% url 'locatie_obiect_editare' loc.pk 'cf' c.pk %}">{% if x %}<i class="bi bi-arrow-repeat"></i> Extras nou / editează{% else %}<i class="bi bi-paperclip"></i> Atașează extras{% endif %}</a>
+        <div class="dropdown d-inline-block">
+          <button class="btn btn-sm btn-outline-danger py-0" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Șterge (încărcat greșit)"><i class="bi bi-trash"></i></button>
+          <div class="dropdown-menu dropdown-menu-end p-2 small" style="min-width:300px">
+            <div class="text-secondary mb-2">Ștergere CF {{ c.numar }} – doar administrator</div>
+            {% if x %}<form method="post" action="{% url 'cf_sterge' loc.pk %}" class="mb-2" onsubmit="return confirm('Ștergeți extrasul atașat la CF {{ c.numar }}?{% if x.inlocuieste_id %} Versiunea anterioară redevine cea curentă.{% endif %}')">{% csrf_token %}
+              <input type="hidden" name="ce" value="extras"><input type="hidden" name="cf" value="{{ c.pk }}">
+              <button class="btn btn-sm btn-outline-danger w-100 text-start"><i class="bi bi-file-earmark-x"></i> Doar extrasul (PDF greșit)</button>
+              <div class="form-text">Cartea funciară și datele ei rămân{% if x.inlocuieste_id %}; revine extrasul anterior{% endif %}.</div></form>{% endif %}
+            <form method="post" action="{% url 'cf_sterge' loc.pk %}" onsubmit="return confirm('Ștergeți complet CF {{ c.numar }} din fișa activului (date, extrase și numărul din registru)?')">{% csrf_token %}
+              <input type="hidden" name="ce" value="cf"><input type="hidden" name="cf" value="{{ c.pk }}">
+              <button class="btn btn-sm btn-danger w-100 text-start"><i class="bi bi-trash"></i> Toată cartea funciară</button>
+              <div class="form-text">Pentru un CF care nu aparține activului.</div></form>
+          </div></div>{% endif %}</td>
     {% else %}
       <td colspan="5" class="small text-secondary">identificată în registrul Excel, încă neînregistrată</td>
       <td class="small"><span class="badge text-bg-secondary">neînregistrată</span></td>
@@ -144,6 +157,15 @@
   </tr>{% endwith %}{% empty %}<tr><td colspan="8" class="text-center text-secondary py-4">Nicio carte funciară identificată.{% if e_admin %} <a href="{% url 'locatie_obiect_nou' loc.pk 'cf' %}">Adăugați una</a>.{% endif %}</td></tr>{% endfor %}</tbody>
   {% if carti %}<tfoot><tr class="fw-bold"><td colspan="3">Total din extrasele CF</td><td class="num">{% if verif_cf.teren.cf %}{{ verif_cf.teren.cf|floatformat:"0g" }}{% else %}—{% endif %}</td><td class="num">{% if verif_cf.constructii.cf %}{{ verif_cf.constructii.cf|floatformat:"0g" }}{% else %}—{% endif %}</td><td colspan="3"></td></tr></tfoot>{% endif %}
   </table></div>
+  {% if extrase_neatasate %}<div class="card-body border-top">
+    <div class="small fw-semibold mb-1"><i class="bi bi-exclamation-triangle text-warning"></i> Extrase încărcate, dar neatașate la nicio carte funciară (numărul CF nu a putut fi citit)</div>
+    <ul class="list-unstyled small mb-0">{% for d in extrase_neatasate %}<li class="py-1 border-bottom d-flex align-items-center gap-2">
+      <a href="{% url 'document' d.pk %}" title="{{ d.titlu }}"><i class="bi bi-file-earmark-pdf text-danger"></i> {{ d.titlu }}</a>
+      <span class="text-secondary">· {{ d.incarcat_la|date:"d.m.Y" }}</span>
+      {% if e_admin %}<form method="post" action="{% url 'cf_sterge' loc.pk %}" class="ms-auto" onsubmit="return confirm('Ștergeți acest extras?')">{% csrf_token %}
+        <input type="hidden" name="ce" value="neatasat"><input type="hidden" name="document" value="{{ d.pk }}">
+        <button class="btn btn-sm btn-outline-danger py-0" title="Șterge"><i class="bi bi-trash"></i> Șterge</button></form>{% endif %}</li>{% endfor %}</ul>
+  </div>{% endif %}
   <div class="card-body border-top">
     <div class="small fw-semibold mb-2"><i class="bi bi-check2-square"></i> Verificare suprafețe: registru (dashboard) față de extrasele CF</div>
     <table class="table table-sm small mb-2" style="max-width:820px"><thead><tr><th></th><th class="num">În registru</th><th class="num">Din extrasele CF</th><th class="num">Diferență</th><th>Rezultat</th></tr></thead>

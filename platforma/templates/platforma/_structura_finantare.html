@@ -1,0 +1,9 @@
+{% load fmt %}{% with st=p.structura_finantare %}{% if st %}
+{% if compact %}{% if p.fonduri_ue %}<span class="badge text-bg-primary me-1">Fonduri UE</span>{% endif %}{% for x in st %}{% if not forloop.first %} · {% endif %}<b>{{ x.eticheta }}</b> {{ x.valoare|bani }} {{ p.moneda_rz }}{% if x.procent is not None %} ({{ x.procent|floatformat:0 }}%){% endif %}{% endfor %}{% if st|length > 1 %} <span class="badge text-bg-light">mixtă</span>{% endif %}
+{% else %}
+<div class="progress mb-2" style="height:18px" title="structura de finanțare">{% for x in st %}{% if x.procent %}<div class="progress-bar {% if x.cod == 'nerambursabil' %}bg-primary{% elif x.cod == 'bancara' %}bg-warning text-dark{% else %}bg-secondary{% endif %}" style="width:{{ x.procent|stringformat:'s' }}%">{{ x.procent|floatformat:0 }}%</div>{% endif %}{% endfor %}</div>
+<table class="table table-sm mb-0"><thead><tr><th>Formă de finanțare</th><th class="num">Sumă ({{ p.moneda_rz }})</th>{% if p.moneda_rz != 'RON' %}<th class="num">RON</th>{% endif %}<th class="num">%</th></tr></thead>
+<tbody>{% for x in st %}<tr><td><i class="bi bi-square-fill {% if x.cod == 'nerambursabil' %}text-primary{% elif x.cod == 'bancara' %}text-warning{% else %}text-secondary{% endif %}"></i> {{ x.eticheta }}</td><td class="num">{{ x.valoare|bani2|default:"—" }}</td>{% if p.moneda_rz != 'RON' %}<td class="num">{{ x.ron|bani2|default:"—" }}</td>{% endif %}<td class="num">{% if x.procent is not None %}{{ x.procent }}%{% else %}—{% endif %}</td></tr>{% endfor %}</tbody>
+<tfoot><tr class="fw-semibold"><td>Valoare Raport Zero</td><td class="num">{{ p.valoare_rz|bani2 }}</td>{% if p.moneda_rz != 'RON' %}<td class="num">{{ p.buget_rz_ron|bani2 }}</td>{% endif %}<td></td></tr></tfoot></table>
+{% endif %}
+{% else %}<span class="text-secondary">{{ p.finantare|default:"nedefinită" }}{% if not compact %} – structura de finanțare se definește în Raportul Zero.{% endif %}</span>{% endif %}{% endwith %}

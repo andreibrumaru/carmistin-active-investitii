@@ -1,0 +1,65 @@
+{% extends "platforma/base.html" %}{% load fmt %}
+{% block titlu %}Cerere de tragere nouă · {{ p.cod }}{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3">
+  <a href="{{ p.get_absolute_url }}?tab=finantare#linie-credit" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  <div><h4 class="mb-0"><i class="bi bi-bank"></i> Cerere de tragere nouă – {{ p.cod }}</h4>
+    <div class="small text-secondary">Bifați facturile pe care le solicitați băncii la finanțare. Suma pe factură se poate reduce (tragere parțială).</div></div>
+</div>
+
+<div class="row g-2 mb-3 text-center">
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-secondary">Plafon credit</div><div class="fw-bold">{{ limita|bani }} RON</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-secondary">Tras</div><div class="fw-bold text-primary">{{ tras|bani }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-secondary">Cereri în curs</div><div class="fw-bold text-warning-emphasis">{{ in_curs|bani }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-success"><div class="card-body py-2"><div class="small text-secondary">Disponibil</div><div class="fw-bold text-success" id="disponibil" data-v="{{ disponibil|stringformat:'s' }}">{{ disponibil|bani }}</div></div></div></div>
+</div>
+
+<form method="post">{% csrf_token %}
+<div class="card">
+  <div class="card-header d-flex flex-wrap align-items-center gap-3">
+    <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="includeTva" name="include_tva" value="1" {% if cu_tva %}checked{% endif %}
+      onchange="location.href='?tva=' + (this.checked ? '1' : '0')"><label class="form-check-label" for="includeTva">Solicită și TVA</label></div>
+    {% if credite %}<div class="d-flex align-items-center gap-2"><label class="small" for="finantare">Contract de credit</label>
+      <select name="finantare" id="finantare" class="form-select form-select-sm" style="width:auto">{% for f in credite %}<option value="{{ f.pk }}">{{ f.finantator|default:"credit" }} {{ f.nr_contract }}</option>{% endfor %}</select></div>{% endif %}
+    <div class="ms-auto small">Selectat: <b id="nrSel">0</b> facturi · <b id="totSel">0</b> RON <span id="pesteDisp" class="badge text-bg-danger d-none">peste disponibil</span></div>
+  </div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th style="width:36px"><input type="checkbox" class="form-check-input" id="toate" title="toate"></th><th>Furnizor</th><th>Factură</th><th>Contract</th><th>Scadență</th>
+      <th class="num">Valoare {% if cu_tva %}cu TVA{% else %}fără TVA{% endif %}</th><th class="num">Deja solicitat</th><th>Stare plată</th><th class="num" style="width:170px">Solicit acum (RON)</th></tr></thead>
+    <tbody>{% for x, deja, rest in facturi %}<tr>
+      <td><input type="checkbox" class="form-check-input bifa" name="factura" value="{{ x.pk }}" {% if x.pk|stringformat:'s' in alese %}checked{% endif %}></td>
+      <td>{{ x.furnizor }}<div class="small text-secondary">{{ x.cui_furnizor }}</div></td>
+      <td class="text-nowrap"><b>{{ x.numar }}</b><div class="small text-secondary">{{ x.data|date:"d.m.Y" }}</div></td>
+      <td class="small">{{ x.contract.numar|default:"—" }}</td>
+      <td class="small {% if x.scadenta_depasita %}text-danger{% endif %}">{{ x.scadenta|date:"d.m.Y"|default:"—" }}</td>
+      <td class="num">{{ x|baza_tragere:cu_tva|bani2 }}</td>
+      <td class="num">{% if deja %}{{ deja|bani2 }}{% else %}—{% endif %}</td>
+      <td>{% if x.stare_plata == 'achitata' %}<span class="badge text-bg-success">achitată</span>{% elif x.stare_plata == 'partiala' %}<span class="badge text-bg-warning">parțial</span>{% else %}<span class="badge text-bg-secondary">neachitată</span>{% endif %}</td>
+      <td><input type="text" inputmode="decimal" name="suma_{{ x.pk }}" class="form-control form-control-sm text-end suma" value="{{ rest|floatformat:'-2' }}" data-max="{{ rest|stringformat:'s' }}"></td>
+    </tr>{% empty %}<tr><td colspan="9" class="text-center text-secondary py-4">Nu există facturi nesolicitate la tragere. Înregistrați facturile în tabul „Contracte, facturi & plăți”.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-body border-top">
+    <label class="form-label small fw-semibold" for="observatii">Observații pentru bancă</label>
+    <textarea name="observatii" id="observatii" rows="2" class="form-control"></textarea>
+  </div>
+  <div class="card-footer d-flex gap-2"><button class="btn btn-primary" {% if not facturi %}disabled{% endif %}><i class="bi bi-file-earmark-check"></i> Emite cererea de tragere</button>
+    <a class="btn btn-outline-secondary" href="{{ p.get_absolute_url }}?tab=finantare">Renunță</a></div>
+</div></form>
+<script>
+(() => {
+  const nr = t => { t = (t || '').replace(/\s/g, ''); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); const v = parseFloat(t); return isNaN(v) ? 0 : v; };
+  const fmt = v => new Intl.NumberFormat('ro-RO', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(v);
+  const disp = parseFloat(document.getElementById('disponibil').dataset.v) || 0;
+  const recalc = () => {
+    let n = 0, tot = 0;
+    document.querySelectorAll('tbody tr').forEach(r => { const b = r.querySelector('.bifa'); if (b && b.checked) { n++; tot += nr(r.querySelector('.suma').value); } });
+    document.getElementById('nrSel').textContent = n; document.getElementById('totSel').textContent = fmt(tot);
+    document.getElementById('pesteDisp').classList.toggle('d-none', tot <= disp + 0.01);
+  };
+  document.addEventListener('input', recalc); document.addEventListener('change', recalc);
+  document.getElementById('toate').addEventListener('change', e => { document.querySelectorAll('.bifa').forEach(b => b.checked = e.target.checked); recalc(); });
+  document.querySelectorAll('.suma').forEach(i => i.addEventListener('input', () => { const b = i.closest('tr').querySelector('.bifa'); if (nr(i.value) > 0) b.checked = true; }));
+  recalc();
+})();
+</script>
+{% endblock %}

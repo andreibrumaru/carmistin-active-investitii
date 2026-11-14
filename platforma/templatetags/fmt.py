@@ -60,3 +60,18 @@ def ha(mp):
         return _fmt(float(mp) / 10000, 2)
     except (TypeError, ValueError):
         return ""
+
+
+@register.filter
+def sub(a, b):
+    """a − b (pentru totaluri în șabloane)."""
+    try:
+        return a - b
+    except TypeError:
+        return None
+
+
+@register.filter
+def baza_tragere(factura, cu_tva):
+    """Valoarea facturii care se poate solicita la tragere (cu sau fără TVA)."""
+    return factura.baza_tragere(bool(cu_tva))

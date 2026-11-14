@@ -15,6 +15,9 @@ def obiecte_proiect(p):
     return [
         ("Documente", m.Document.objects.filter(proiect=p)),
         ("Extrageri AI", m.ExtragereAI.objects.filter(document__proiect=p)),
+        ("Facturi în cereri de tragere", m.CerereTragereFactura.objects.filter(cerere__proiect=p)),
+        ("Cereri de tragere", m.CerereTragere.objects.filter(proiect=p)),
+        ("Rapoarte de progres (bancă)", m.RaportProgres.objects.filter(proiect=p)),
         ("Plăți", m.Plata.objects.filter(factura__proiect=p)),
         ("Alocări facturi", m.FacturaAlocare.objects.filter(factura__proiect=p)),
         ("Facturi", m.Factura.objects.filter(proiect=p)),

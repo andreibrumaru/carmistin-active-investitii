@@ -51,7 +51,7 @@
     <tr><th>Descriere lucrări</th><td>{{ p.descriere_lucrari|linebreaksbr }}</td></tr>
     <tr><th>Necesar achiziții</th><td>{{ p.necesar_achizitii|linebreaksbr }}</td></tr>
     <tr><th>Valoare ofertă / buget</th><td><b>{{ p.valoare_rz|bani }} {{ p.moneda_rz }}</b>{% if p.moneda_rz == 'EUR' %} <span class="text-secondary small">(≈ {{ p.buget_rz_ron|bani }} RON la cursul {{ p.curs_rz }})</span>{% endif %}</td></tr>
-    <tr><th>Finanțare</th><td>{{ p.finantare }}</td></tr>
+    <tr><th>Structura de finanțare</th><td>{% include "platforma/_structura_finantare.html" with compact=1 %}</td></tr>
     <tr><th>Prioritate</th><td>{{ p.get_prioritate_display }}</td></tr>
     <tr><th>Data demarare</th><td>{{ p.data_demarare|date:"d.m.Y" }}</td></tr>
     <tr><th>Data finalizare</th><td>{{ p.data_finalizare|date:"d.m.Y" }}</td></tr>

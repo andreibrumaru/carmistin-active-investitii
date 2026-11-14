@@ -707,6 +707,15 @@ class Proiect(models.Model):
     moneda_rz = models.CharField(max_length=3, choices=MONEDE, default="EUR")
     curs_rz = models.DecimalField("curs EUR la data RZ", max_digits=10, decimal_places=4, null=True, blank=True)
     finantare = models.CharField("finanțare", max_length=80, blank=True)
+    # Structura de finanțare (definită în Raportul Zero; sume în moneda RZ)
+    fonduri_ue = models.BooleanField("proiect cu fonduri UE", default=False,
+                                     help_text="Bifat: proiectul are tabloul de bord separat pentru fonduri UE (buget eligibil / neeligibil, ajutor nerambursabil).")
+    fin_nerambursabil = models.BooleanField("finanțare din fonduri nerambursabile", default=False)
+    fin_bancara = models.BooleanField("finanțare bancară", default=False)
+    fin_proprii = models.BooleanField("fonduri proprii", default=False)
+    val_nerambursabil = models.DecimalField("buget nerambursabil (ajutor)", max_digits=16, decimal_places=2, null=True, blank=True)
+    val_bancara = models.DecimalField("finanțare bancară (credit)", max_digits=16, decimal_places=2, null=True, blank=True)
+    val_proprii = models.DecimalField("fonduri proprii", max_digits=16, decimal_places=2, null=True, blank=True)
     prioritate = models.CharField(max_length=10, choices=PRIORITATE, default="medie")
     data_demarare = models.DateField(null=True, blank=True)
     data_finalizare = models.DateField(null=True, blank=True)
@@ -753,6 +762,7 @@ class Proiect(models.Model):
     CAMPURI_RZ = [
         "denumire", "departament", "linie", "beneficiar_id", "solicitant", "responsabil_tehnic", "responsabil_implementare",
         "obiectiv", "cladire", "descriere_lucrari", "necesar_achizitii", "valoare_rz", "moneda_rz", "finantare",
+        "fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "val_nerambursabil", "val_bancara", "val_proprii",
         "prioritate", "data_demarare", "data_finalizare", "intocmit_de", "avizat_de",
     ]
 
@@ -790,6 +800,74 @@ class Proiect(models.Model):
         if self.moneda_rz == "RON":
             return self.valoare_rz
         return (self.valoare_rz * (self.curs_rz or self.curs)).quantize(Decimal("0.01"))
+
+    def _rz_in_ron(self, v):
+        if v is None:
+            return None
+        return v if self.moneda_rz == "RON" else (v * (self.curs_rz or self.curs or 1)).quantize(Decimal("0.01"))
+
+    FORME_FINANTARE = [("nerambursabil", "Fonduri nerambursabile"), ("bancara", "Finanțare bancară"), ("proprii", "Fonduri proprii")]
+
+    @property
+    def structura_finantare(self):
+        """Formele de finanțare bifate în Raportul Zero: [{cod, eticheta, valoare (moneda RZ), ron, procent}]."""
+        total = self.valoare_rz or Decimal(0)
+        rez = []
+        for cod, et in self.FORME_FINANTARE:
+            if getattr(self, f"fin_{cod}"):
+                v = getattr(self, f"val_{cod}")
+                rez.append({"cod": cod, "eticheta": et, "valoare": v, "ron": self._rz_in_ron(v),
+                            "procent": round(float(v) / float(total) * 100, 1) if v and total else None})
+        return rez
+
+    @property
+    def are_structura_finantare(self):
+        return self.fin_nerambursabil or self.fin_bancara or self.fin_proprii
+
+    ETICHETE_NOMENCLATOR = {"nerambursabil": "Fonduri Nerambursabile", "bancara": "Bancara", "proprii": "Fonduri Proprii"}
+
+    def actualizeaza_structura_finantare(self):
+        """După salvarea RZ: fondurile proprii = restul până la valoarea RZ; textul „finanțare” (filtre, liste) se
+        sincronizează cu bifele. Întoarce un avertisment (text) dacă structura nu acoperă exact valoarea RZ."""
+        total = self.valoare_rz or Decimal(0)
+        if self.fonduri_ue:
+            self.fin_nerambursabil = True
+        for cod, _ in self.FORME_FINANTARE:
+            if not getattr(self, f"fin_{cod}"):
+                setattr(self, f"val_{cod}", None)
+        alte = (self.val_nerambursabil or 0) + (self.val_bancara or 0)
+        avert = ""
+        if self.fin_proprii:
+            self.val_proprii = max(total - alte, Decimal(0))
+            if alte > total:
+                avert = f"Finanțarea nerambursabilă + bancară ({alte:,.2f}) depășește valoarea RZ ({total:,.2f} {self.moneda_rz})."
+        elif self.are_structura_finantare and abs(alte - total) > Decimal("1"):
+            avert = (f"Structura de finanțare ({alte:,.2f}) nu acoperă valoarea RZ ({total:,.2f} {self.moneda_rz}). "
+                     "Bifați „Fonduri proprii” pentru diferență sau corectați sumele.")
+        self.finantare = " + ".join(self.ETICHETE_NOMENCLATOR[c] for c, _ in self.FORME_FINANTARE if getattr(self, f"fin_{c}"))[:80]
+        Proiect.objects.filter(pk=self.pk).update(
+            fin_nerambursabil=self.fin_nerambursabil, val_nerambursabil=self.val_nerambursabil, val_bancara=self.val_bancara,
+            val_proprii=self.val_proprii, finantare=self.finantare)
+        return avert.replace(",", " ") if avert else ""
+
+    # --- linia de credit (finanțare bancară) ---
+    @property
+    def limita_credit_ron(self):
+        """Plafonul creditului: valoarea contractului de credit (surse de finanțare „Bancară”), altfel suma din Raportul Zero."""
+        contractat = suma(self.finantari.filter(tip="bancara"), "valoare_ron")
+        return contractat or self._rz_in_ron(self.val_bancara) or Decimal(0)
+
+    @property
+    def credit_tras_ron(self):
+        return sum((c.suma_trasa for c in self.cereri_tragere.filter(status="aprobata")), Decimal(0))
+
+    @property
+    def credit_in_curs_ron(self):
+        return sum((c.total_solicitat for c in self.cereri_tragere.filter(status__in=["ciorna", "transmisa"])), Decimal(0))
+
+    @property
+    def credit_disponibil_ron(self):
+        return self.limita_credit_ron - self.credit_tras_ron - self.credit_in_curs_ron
 
     @property
     def buget_aprobat_ron(self):
@@ -917,6 +995,8 @@ class LinieBuget(models.Model):
     capitol = models.CharField("cod capitol HG", max_length=10)
     denumire = models.CharField(max_length=300)
     valoare_aprobata = models.DecimalField("buget aprobat (RON, fără TVA)", max_digits=16, decimal_places=2, default=0)
+    valoare_eligibila = models.DecimalField("buget eligibil (RON, fără TVA)", max_digits=16, decimal_places=2, null=True, blank=True,
+                                            help_text="Doar la proiectele cu fonduri UE. Gol = neîncadrat încă; neeligibil = total − eligibil.")
     observatii = models.CharField(max_length=300, blank=True)
 
     class Meta:
@@ -961,6 +1041,18 @@ class LinieBuget(models.Model):
     @property
     def disponibil(self):
         return self.valoare_curenta - self.angajat
+
+    @property
+    def eligibil(self):
+        return min(self.valoare_eligibila or Decimal(0), self.valoare_curenta) if self.valoare_curenta > 0 else (self.valoare_eligibila or Decimal(0))
+
+    @property
+    def neeligibil(self):
+        return self.valoare_curenta - self.eligibil
+
+    @property
+    def cota_eligibila(self):
+        return (self.eligibil / self.valoare_curenta) if self.valoare_curenta else Decimal(0)
 
     @property
     def depasit(self):
@@ -1036,6 +1128,10 @@ class Contract(models.Model):
     @property
     def rest_de_facturat(self):
         return self.valoare_totala_ron - self.facturat_ron
+
+    @property
+    def platit_ron(self):
+        return sum((x.platit_ron for x in self.facturi.all()), Decimal(0))
 
     @property
     def alocat_ron(self):
@@ -1273,6 +1369,29 @@ class Factura(models.Model):
     def achitata(self):
         return self.valoare_ron > 0 and self.platit_ron >= self.valoare_ron
 
+    @property
+    def stare_plata(self):
+        """achitata / partiala / neachitata."""
+        if self.achitata:
+            return "achitata"
+        return "partiala" if self.platit_ron > 0 else "neachitata"
+
+    @property
+    def scadenta_depasita(self):
+        return bool(self.scadenta and not self.achitata and self.scadenta < timezone.localdate())
+
+    @property
+    def tva_ron(self):
+        return ((self.tva or 0) * (self.curs if self.moneda == "EUR" and self.curs else 1)).quantize(Decimal("0.01"))
+
+    def baza_tragere(self, cu_tva=False):
+        return self.valoare_ron + (self.tva_ron if cu_tva else 0)
+
+    @property
+    def solicitat_tragere_ron(self):
+        """Sumele cerute deja la tragere din credit (cereri nerespinse)."""
+        return suma(self.trageri.exclude(cerere__status="respinsa"), "suma_ron")
+
 
 class FacturaAlocare(models.Model):
     """Repartizarea unei facturi pe linii de buget (o factură = un proiect, mai multe linii)."""
@@ -1355,8 +1474,13 @@ class Aviz(models.Model):
         ("necesar", "Necesar"), ("in_pregatire", "În pregătire"), ("depus", "Depus"),
         ("obtinut", "Obținut"), ("respins", "Respins"), ("nu_e_cazul", "Nu e cazul"),
     ]
+    TIP = [("aviz", "Aviz"), ("acord", "Acord"), ("studiu", "Studiu"), ("autorizatie", "Autorizație"), ("alt", "Alt document")]
+    ORIGINE = [("cu", "Cerut prin CU"), ("intermediar", "Intermediar"), ("suplimentar", "Suplimentar")]
     proiect = models.ForeignKey(Proiect, on_delete=models.CASCADE, related_name="avize")
     certificat = models.ForeignKey(CertificatUrbanism, null=True, blank=True, on_delete=models.SET_NULL, related_name="avize")
+    tip = models.CharField(max_length=20, choices=TIP, default="aviz")
+    origine = models.CharField("origine", max_length=20, choices=ORIGINE, default="cu",
+                               help_text="Cerut prin CU, sau aviz / studiu intermediar ori suplimentar (cerut ulterior).")
     denumire = models.CharField(max_length=255)
     emitent = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=20, choices=STATUS, default="necesar")
@@ -1381,6 +1505,18 @@ class Aviz(models.Model):
     @property
     def expira_curand(self):
         return bool(self.valabil_pana and (self.valabil_pana - timezone.localdate()).days <= 30)
+
+    @property
+    def zile_ramase(self):
+        return (self.valabil_pana - timezone.localdate()).days if self.valabil_pana else None
+
+    @property
+    def stare_valabilitate(self):
+        """expirat / expira (≤ 30 zile) / valabil / nedefinit (fără dată de valabilitate)."""
+        z = self.zile_ramase
+        if z is None:
+            return "nedefinit"
+        return "expirat" if z < 0 else "expira" if z <= 30 else "valabil"
 
 
 # ---------------------------------------------------------------------------
@@ -1431,6 +1567,79 @@ class Obligatie(models.Model):
         return self.descriere[:80]
 
 
+class RaportProgres(models.Model):
+    """Raport de progres pentru bancă, întocmit de raportor (monitorul / expertul tehnic al băncii sau intern)."""
+    STATUS = [("ciorna", "Ciornă"), ("transmis", "Transmis băncii"), ("acceptat", "Acceptat de bancă"), ("observatii", "Cu observații de la bancă")]
+    proiect = models.ForeignKey(Proiect, on_delete=models.CASCADE, related_name="rapoarte_progres")
+    finantare = models.ForeignKey(Finantare, null=True, blank=True, on_delete=models.SET_NULL, related_name="rapoarte_progres",
+                                  verbose_name="contract de credit")
+    numar = models.CharField("nr. raport", max_length=40)
+    data = models.DateField("data raportului", default=timezone.localdate)
+    perioada_de_la = models.DateField("perioada raportată – de la", null=True, blank=True)
+    perioada_pana = models.DateField("perioada raportată – până la", null=True, blank=True)
+    raportor = models.CharField("raportor", max_length=200, help_text="Cine a întocmit raportul (monitor bancar, expert tehnic, PM).")
+    progres_fizic = models.PositiveIntegerField("progres fizic constatat (%)", null=True, blank=True)
+    valoare_executata_ron = models.DecimalField("valoare lucrări executate (RON)", max_digits=16, decimal_places=2, null=True, blank=True)
+    constatari = models.TextField("constatări", blank=True)
+    recomandari = models.TextField("recomandări / observații bancă", blank=True)
+    status = models.CharField(max_length=20, choices=STATUS, default="ciorna")
+    data_transmitere = models.DateField("data transmiterii la bancă", null=True, blank=True)
+
+    class Meta:
+        ordering = ["-data", "-pk"]
+        verbose_name = "raport de progres (bancă)"
+        verbose_name_plural = "rapoarte de progres (bancă)"
+
+    def __str__(self):
+        return f"Raport progres {self.numar} / {self.data:%d.%m.%Y}"
+
+
+class CerereTragere(models.Model):
+    """Cerere de tragere din creditul bancar: facturile bifate se solicită la finanțare."""
+    STATUS = [("ciorna", "Ciornă"), ("transmisa", "Transmisă băncii"), ("aprobata", "Aprobată / trasă"), ("respinsa", "Respinsă")]
+    proiect = models.ForeignKey(Proiect, on_delete=models.PROTECT, related_name="cereri_tragere")
+    finantare = models.ForeignKey(Finantare, null=True, blank=True, on_delete=models.SET_NULL, related_name="cereri_tragere",
+                                  verbose_name="contract de credit")
+    numar = models.CharField("nr. cerere", max_length=40)
+    data = models.DateField(default=timezone.localdate)
+    include_tva = models.BooleanField("solicită și TVA", default=False)
+    status = models.CharField(max_length=20, choices=STATUS, default="ciorna")
+    suma_aprobata = models.DecimalField("sumă trasă efectiv (RON)", max_digits=16, decimal_places=2, null=True, blank=True)
+    data_tragere = models.DateField("data tragerii", null=True, blank=True)
+    observatii = models.TextField(blank=True)
+    creat_de = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="+")
+    creat_la = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-data", "-pk"]
+        verbose_name = "cerere de tragere"
+        verbose_name_plural = "cereri de tragere"
+
+    def __str__(self):
+        return f"Cererea de tragere {self.numar} / {self.data:%d.%m.%Y}"
+
+    @property
+    def total_solicitat(self):
+        return suma(self.pozitii.all(), "suma_ron")
+
+    @property
+    def suma_trasa(self):
+        if self.status != "aprobata":
+            return Decimal(0)
+        return self.suma_aprobata if self.suma_aprobata is not None else self.total_solicitat
+
+
+class CerereTragereFactura(models.Model):
+    cerere = models.ForeignKey(CerereTragere, on_delete=models.CASCADE, related_name="pozitii")
+    factura = models.ForeignKey(Factura, on_delete=models.PROTECT, related_name="trageri")
+    suma_ron = models.DecimalField("sumă solicitată (RON)", max_digits=16, decimal_places=2)
+
+    class Meta:
+        unique_together = [("cerere", "factura")]
+        verbose_name = "factură în cererea de tragere"
+        verbose_name_plural = "facturi în cererile de tragere"
+
+
 # ---------------------------------------------------------------------------
 # Grafic Gantt
 # ---------------------------------------------------------------------------
@@ -1475,7 +1684,7 @@ class Document(models.Model):
         ("autorizatie", "Autorizație de construire"), ("contract", "Contract"), ("act_aditional", "Act adițional"),
         ("factura", "Factură"), ("plata", "Document plată"), ("finantare", "Contract finanțare"),
         ("proces_verbal", "Proces-verbal / recepție"), ("deviz", "Deviz / buget"), ("grafic", "Grafic execuție"),
-        ("raport_progres", "Raport de progres"), ("cf", "Extras de carte funciară"), ("foto", "Fotografie"),
+        ("raport_progres", "Raport de progres"), ("cerere_tragere", "Cerere de tragere"), ("studiu", "Studiu"), ("cf", "Extras de carte funciară"), ("foto", "Fotografie"),
         ("folosinta", "Act / contract privind dreptul de folosință"), ("anexa_autoriz", "Document suport autorizație"),
         ("standard", "Certificat standard (ISO, IFS…)"), ("anexa_drept", "Anexă la actul de folosință"),
         ("cadastru", "Documentație cadastrală"), ("plan_topo", "Plan topografic"), ("anexa", "Anexă"),
@@ -1505,6 +1714,8 @@ class Document(models.Model):
     standard = models.ForeignKey(StandardCertificat, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
     autorizatie = models.ForeignKey(AutorizatieFunctionare, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
     control = models.ForeignKey(ControlAutoritate, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
+    raport_progres = models.ForeignKey(RaportProgres, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
+    cerere_tragere = models.ForeignKey(CerereTragere, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
     incarcat_de = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="+")
     incarcat_la = models.DateTimeField(auto_now_add=True)
     text_extras = models.TextField(blank=True, editable=False)

@@ -118,3 +118,9 @@ tr.linie-depasita-simpla > td { background-color: #fde8e6; }
 .registru-tabel .col-utilizator { min-width: 160px; max-width: 240px; font-weight: 600; }
 .registru-tabel a.cod { text-decoration: none; }
 @media (max-width: 768px) { .registru-tabel { max-height: none; } .bara-filtre select { max-width: none; flex: 1 1 45%; } }
+
+/* Contracte → facturi (rând extensibil) */
+.rand-contract { cursor: pointer; }
+.chevron-contract { display: inline-block; transition: transform .15s; }
+.rand-contract[aria-expanded="true"] .chevron-contract { transform: rotate(90deg); }
+.rand-facturi > td { border-left: 3px solid var(--bs-primary); }

@@ -1,0 +1,50 @@
+{% extends "platforma/base.html" %}{% load fmt %}
+{% block titlu %}{{ c.numar }}{% endblock %}
+{% block continut %}
+<style>
+@media print {
+  .navbar, .sidebar, .no-print, .alert, nav, aside { display: none !important; }
+  .document-cerere { border: none !important; box-shadow: none !important; }
+  body, main { background: #fff !important; }
+}
+</style>
+<div class="d-flex align-items-center mb-3 flex-wrap gap-2 no-print">
+  <a href="{{ p.get_absolute_url }}?tab=finantare#linie-credit" class="btn btn-sm btn-outline-secondary me-2"><i class="bi bi-arrow-left"></i></a>
+  <h4 class="mb-0 me-2">{{ c }}</h4>
+  <span class="badge {% if c.status == 'aprobata' %}text-bg-success{% elif c.status == 'respinsa' %}text-bg-danger{% elif c.status == 'transmisa' %}text-bg-warning{% else %}text-bg-light{% endif %}">{{ c.get_status_display }}</span>
+  <div class="ms-auto d-flex gap-2">
+    <button class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Tipărește / PDF</button>
+    <a class="btn btn-sm btn-outline-success" href="?format=xlsx"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+  </div>
+</div>
+
+{% if editabil_fin and c.status != 'aprobata' and c.status != 'respinsa' %}<div class="card mb-3 no-print"><div class="card-body d-flex flex-wrap gap-2 align-items-end">
+  {% if c.status == 'ciorna' %}<form method="post">{% csrf_token %}<input type="hidden" name="actiune" value="transmite"><button class="btn btn-sm btn-primary"><i class="bi bi-send"></i> Marchează transmisă băncii</button></form>{% endif %}
+  <form method="post" class="d-flex gap-2 align-items-end" onsubmit="return confirm('Înregistrați tragerea? Suma se scade din disponibilul liniei de credit.')">{% csrf_token %}<input type="hidden" name="actiune" value="aproba">
+    <div><label class="form-label small mb-0">Sumă trasă (RON)</label><input type="text" inputmode="decimal" name="suma_aprobata" class="form-control form-control-sm text-end" value="{{ c.total_solicitat|floatformat:'-2' }}" style="width:160px"></div>
+    <div><label class="form-label small mb-0">Data tragerii</label><input type="date" name="data_tragere" class="form-control form-control-sm" value="{{ azi|date:'Y-m-d' }}"></div>
+    <button class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i> Aprobată / trasă</button></form>
+  <form method="post" onsubmit="const m=prompt('Motivul respingerii:'); if(m===null) return false; this.motiv.value=m;">{% csrf_token %}<input type="hidden" name="actiune" value="respinge"><input type="hidden" name="motiv"><button class="btn btn-sm btn-outline-danger">Respinsă</button></form>
+  {% if c.status == 'ciorna' %}<form method="post" class="ms-auto" onsubmit="return confirm('Ștergeți ciorna cererii?')">{% csrf_token %}<input type="hidden" name="actiune" value="sterge"><button class="btn btn-sm btn-link text-danger"><i class="bi bi-trash"></i> Șterge ciorna</button></form>{% endif %}
+</div></div>{% endif %}
+
+<div class="card document-cerere"><div class="card-body p-4">
+  <div class="d-flex justify-content-between mb-3"><div><div class="fw-bold fs-5">{{ p.beneficiar }}</div><div class="small text-secondary">{% if p.beneficiar.cui %}CUI {{ p.beneficiar.cui }}{% endif %}</div></div>
+    <div class="text-end small">Nr. {{ c.numar }}<br>Data: {{ c.data|date:"d.m.Y" }}</div></div>
+  <div class="mb-3">Către: <b>{% if c.finantare %}{{ c.finantare.finantator|default:"Banca finanțatoare" }}{% else %}Banca finanțatoare{% endif %}</b></div>
+  <h5 class="text-center mb-3">CERERE DE TRAGERE</h5>
+  <p>În baza contractului de credit {% if c.finantare and c.finantare.nr_contract %}nr. <b>{{ c.finantare.nr_contract }}</b>{% if c.finantare.data_contract %} din {{ c.finantare.data_contract|date:"d.m.Y" }}{% endif %}{% else %}<b>[nr. contract credit]</b>{% endif %},
+    pentru proiectul de investiții <b>{{ p.cod }} – {{ p.denumire }}</b>, vă rugăm să aprobați tragerea sumei de <b>{{ c.total_solicitat|bani2 }} RON</b>
+    pentru plata facturilor de mai jos{% if c.include_tva %} (valori cu TVA){% else %} (valori fără TVA){% endif %}.</p>
+  <div class="table-responsive"><table class="table table-sm table-bordered small align-middle">
+    <thead class="table-light"><tr><th>Nr.</th><th>Furnizor</th><th>Factură / data</th><th>Contract</th><th>Scadență</th><th class="num">Fără TVA</th><th class="num">TVA</th><th class="num">Plătit</th><th class="num">Solicitat</th></tr></thead>
+    <tbody>{% for t in pozitii %}{% with x=t.factura %}<tr><td>{{ forloop.counter }}</td><td>{{ x.furnizor }}<div class="text-secondary">{{ x.cui_furnizor }}</div></td><td>{{ x.numar }} / {{ x.data|date:"d.m.Y" }}</td>
+      <td>{{ x.contract.numar|default:"—" }}</td><td>{{ x.scadenta|date:"d.m.Y"|default:"—" }}</td><td class="num">{{ x.valoare_ron|bani2 }}</td><td class="num">{{ x.tva_ron|bani2 }}</td><td class="num">{{ x.platit_ron|bani2 }}</td><td class="num fw-semibold">{{ t.suma_ron|bani2 }}</td></tr>{% endwith %}{% endfor %}</tbody>
+    <tfoot><tr class="fw-bold"><td colspan="8" class="text-end">TOTAL SOLICITAT</td><td class="num">{{ c.total_solicitat|bani2 }}</td></tr></tfoot>
+  </table></div>
+  {% if c.observatii %}<p class="small"><b>Observații:</b> {{ c.observatii|linebreaksbr }}</p>{% endif %}
+  <div class="small text-secondary mb-4">Situația liniei de credit la emitere: plafon {{ limita|bani }} RON · tras {{ tras|bani }} RON · disponibil {{ disponibil|bani }} RON.</div>
+  <div class="row mt-5"><div class="col text-center">Întocmit,<br><br>{{ c.creat_de.get_full_name|default:c.creat_de }}</div><div class="col text-center">Administrator / reprezentant legal,<br><br>_______________________</div></div>
+  {% if c.status == 'aprobata' %}<div class="alert alert-success mt-4 mb-0 no-print">Tras efectiv: <b>{{ c.suma_trasa|bani2 }} RON</b> la {{ c.data_tragere|date:"d.m.Y" }}.</div>{% endif %}
+</div></div>
+{% endblock %}

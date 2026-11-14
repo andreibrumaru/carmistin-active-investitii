@@ -13,7 +13,7 @@
 <form method="post" {% if multipart or form.is_multipart %}enctype="multipart/form-data"{% endif %}>{% csrf_token %}
   {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
   <div class="row g-3">
-  {% for field in form %}
+  {% for field in form %}{% if field.name not in campuri_in_bloc %}
     <div class="{% if field.field.widget.input_type == 'textarea' or field.name in 'descriere_lucrari necesar_achizitii obiect observatii motiv descriere conditii scop fragment_sursa' %}col-12{% else %}col-md-6 col-lg-4{% endif %}">
       {% if field.field.widget.input_type == 'checkbox' %}
         <div class="form-check mt-4">{{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
@@ -24,7 +24,7 @@
       {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
       {% for e in field.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
     </div>
-  {% endfor %}
+  {% endif %}{% endfor %}
   </div>
   {% if document_temp %}<input type="hidden" name="document_temp" value="{{ document_temp.pk }}">{% endif %}
   {% block in_form %}{% endblock %}

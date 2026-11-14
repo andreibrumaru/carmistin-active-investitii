@@ -4,6 +4,7 @@ import re
 import unicodedata
 import xml.etree.ElementTree as ET
 from decimal import Decimal
+from pathlib import Path
 
 import openpyxl
 from django.conf import settings
@@ -570,9 +571,10 @@ def locatie_detaliu(request, pk):
         "utilizatori": User.objects.filter(is_active=True).order_by("first_name", "username"),
         "ctrl_deschise": [c for c in controale if c.status == "deschis"],
         "documente": loc.documente.filter(arhivat=False, raport_evaluare__isnull=True, autorizatie__isnull=True, control__isnull=True,
-                                          carte_funciara__isnull=True).exclude(categorie__in=CATEGORII_ANEXE + ("foto",)),
+                                          carte_funciara__isnull=True).exclude(categorie__in=CATEGORII_ANEXE + ("foto", "cf")),
         "carti": loc.carti.prefetch_related("documente"),
         "randuri_cf": _randuri_cf(loc),
+        "extrase_neatasate": loc.documente.filter(categorie="cf", carte_funciara__isnull=True, arhivat=False),
         "verif_cf": (vc := _verificare_cf(loc)),
         "verif_cf_randuri": [("Teren", vc["teren"]), ("Construcții", vc["constructii"])],
         "contracte_folosinta": sorted(loc.contracte_folosinta.prefetch_related("documente"), key=lambda k: (not k.activ, -k.data.toordinal())),
@@ -918,6 +920,88 @@ def poze_sterge(request, pk):
     if n:
         messages.success(request, f"{n} fotografi{'i' if n != 1 else 'e'} ștears{'e' if n != 1 else 'ă'} definitiv.")
     return redirect(f"{loc.get_absolute_url()}?tab=poze")
+
+
+def _arhiveaza_si_sterge_documente(docs, loc, eticheta):
+    """Șterge documentele din aplicație; fișierele NU se pierd: se mută în date/arhiva_stergeri/<cod activ>_<eticheta>_<data-ora>/
+    (de unde pot fi recuperate). Ștergerea rămâne în jurnalul de audit. Întoarce numărul de documente șterse."""
+    import shutil
+    docs = list(docs)
+    if not docs:
+        return 0
+    dest = Path(settings.MEDIA_ROOT).parent / "arhiva_stergeri" / f"{(loc.cod or f'activ{loc.pk}').replace('.', '_')}_{eticheta}_{timezone.now():%Y%m%d-%H%M%S}"
+    dest.mkdir(parents=True, exist_ok=True)
+    ids = [d.pk for d in docs]
+    m.Document.objects.filter(inlocuieste_id__in=ids).update(inlocuieste=None)  # lanțul de versiuni nu blochează ștergerea
+    for d in docs:
+        if d.fisier and d.fisier.storage.exists(d.fisier.name):
+            sursa = d.fisier.path
+            shutil.move(sursa, dest / f"{d.pk}_{d.fisier.name.rsplit('/', 1)[-1]}")
+        m.Document.objects.filter(pk=d.pk).delete()  # ocolește blocajul general de ștergere al documentelor
+    return len(docs)
+
+
+def _scoate_cf_din_registru(loc, numar):
+    """Elimină numărul CF din câmpul text „cărți funciare” al registrului (ex. „CF 76379, 76381” → „CF 76381”)."""
+    text = loc.carti_funciare or ""
+    sep = r"\s*(?:,|;|\bsi\b|\bși\b)\s*"
+    nr = rf"(?<![\d-]){re.escape(numar)}(?![\d-])"
+    nou = re.sub(sep + nr, "", text, count=1, flags=re.I)          # „…, 222222” – cu separatorul dinainte
+    if nou == text:
+        nou = re.sub(nr + f"(?:{sep})?", "", text, count=1, flags=re.I)  # „222222, …” – cu separatorul de după
+    if nou == text:
+        return False
+    nou = re.sub(r"\s{2,}", " ", nou).strip(" ,;")
+    if not re.search(r"\d", nou):
+        nou = ""
+    loc.carti_funciare = nou
+    loc.save(update_fields=["carti_funciare", "modificat_la"])
+    return True
+
+
+@login_required
+@require_POST
+def cf_sterge(request, pk):
+    """Ștergerea unui extras CF încărcat greșit (doar administratorul):
+    - ce=extras: șterge extrasul curent al cărții funciare; versiunea anterioară (dacă există) redevine cea curentă;
+    - ce=cf: șterge cartea funciară cu toate extrasele ei și numărul ei din registru;
+    - ce=neatasat: șterge un extras care nu a putut fi citit (nu e legat de nicio carte funciară).
+    Fișierele se mută în date/arhiva_stergeri/, iar operația rămâne în jurnalul de audit."""
+    if not e_admin(request.user):
+        raise PermissionDenied("Doar administratorul poate șterge extrase CF.")
+    loc = get_object_or_404(m.Locatie, pk=pk)
+    ce = request.POST.get("ce")
+    inapoi = redirect(f"{loc.get_absolute_url()}?tab=prezentare#carti-funciare")
+    with transaction.atomic():
+        if ce == "neatasat":
+            d = get_object_or_404(m.Document, pk=request.POST.get("document"), locatie=loc, categorie="cf", carte_funciara__isnull=True)
+            titlu = d.titlu
+            _arhiveaza_si_sterge_documente([d], loc, "extras_cf")
+            messages.success(request, f"Extrasul „{titlu}” a fost șters.")
+            return inapoi
+        cf = get_object_or_404(m.CarteFunciara, pk=request.POST.get("cf"), locatie=loc)
+        if ce == "extras":
+            curent = cf.documente.filter(arhivat=False).first()
+            if not curent:
+                messages.warning(request, f"{cf} nu are extras atașat.")
+                return inapoi
+            anterior = curent.inlocuieste
+            _arhiveaza_si_sterge_documente([curent], loc, f"extras_cf_{cf.numar}")
+            if anterior:
+                m.Document.objects.filter(pk=anterior.pk).update(arhivat=False)
+                messages.success(request, f"Extrasul {cf} a fost șters; versiunea anterioară (v{anterior.versiune}) a redevenit cea curentă.")
+            else:
+                messages.success(request, f"Extrasul {cf} a fost șters. Datele cărții funciare au rămas – verificați-le sau atașați extrasul corect.")
+            return inapoi
+        if ce == "cf":
+            numar, eticheta = cf.numar, str(cf)
+            _arhiveaza_si_sterge_documente(cf.documente.all(), loc, f"cf_{numar}")
+            cf.delete()
+            _scoate_cf_din_registru(loc, numar)
+            messages.success(request, f"{eticheta} a fost ștearsă din fișa activului, împreună cu extrasele ei. "
+                                      "Dacă suprafețele activului fuseseră preluate din ea, verificați-le în tabelul de mai jos.")
+            return inapoi
+    raise PermissionDenied
 
 
 def _cf_din_text(text):
@@ -1338,6 +1422,10 @@ def raport_zero_form(request, pk=None):
             erori = _salveaza_buget_rz(obj, post)
             avert_ech = _salveaza_echipamente_rz(obj, ech_randuri)
             _valoare_rz_din_buget(obj)
+            obj.refresh_from_db()
+            avert_fin = obj.actualizeaza_structura_finantare()
+        if avert_fin:
+            messages.warning(request, avert_fin)
         for a in avert_ech:
             messages.warning(request, a)
         for problema in _verifica_echipamente_rz(obj):
@@ -1359,6 +1447,7 @@ def raport_zero_form(request, pk=None):
         "capitole_buget": capitole_buget, "total_buget": total_buget, "curs_rz": curs_rz,
         "echipamente_rz": echipamente_rz, "linii_echipamente": [(c, dict(SUBCAPITOLE)[c]) for c in LINII_ECHIPAMENTE],
         "form": form, "titlu": f"Raport Zero {p.cod}" if p else "Raport Zero nou",
+        "campuri_in_bloc": f.RaportZeroForm.CAMPURI_FINANTARE,
         "subtitlu": "Codul proiectului și numărul de înregistrare se generează automat la salvare." if not p else "",
         "inapoi": f"/rapoarte-zero/{p.pk}/" if p else "/rapoarte-zero/",
     })
@@ -1462,9 +1551,13 @@ def investitii(request):
     g = request.GET
     if g.get("q"):
         qs = qs.filter(Q(cod__icontains=g["q"]) | Q(denumire__icontains=g["q"]) | Q(beneficiar__denumire__icontains=g["q"]))
-    for camp in ("faza", "status", "linie", "divizie", "finantare"):
+    for camp in ("faza", "status", "linie", "divizie"):
         if g.get(camp):
             qs = qs.filter(**{camp: g[camp]})
+    if g.get("finantare"):  # proiectele cu finanțare mixtă apar la fiecare formă bifată
+        fin = g["finantare"].lower()
+        cod = "nerambursabil" if "nerambursabil" in fin else "bancara" if "banc" in fin else "proprii" if "propri" in fin else None
+        qs = qs.filter(**{f"fin_{cod}": True}) if cod else qs.filter(finantare=g["finantare"])
     if g.get("pm"):
         qs = qs.filter(pm_id=g["pm"])
     if g.get("beneficiar"):
@@ -1530,6 +1623,9 @@ def proiect_detaliu(request, pk):
         "certificate": p.certificate_urbanism.prefetch_related("documente"),
         "avize": p.avize.select_related("responsabil", "certificat").prefetch_related("documente"),
         "finantari": p.finantari.prefetch_related("obligatii", "documente"),
+        "rapoarte_progres": p.rapoarte_progres.select_related("finantare").prefetch_related("documente"),
+        "cereri_tragere": list(p.cereri_tragere.prefetch_related("pozitii")),
+        "avize_expira": sum(1 for a in p.avize.all() if a.stare_valabilitate in ("expirat", "expira") and a.status == "obtinut"),
         "obligatii": p.obligatii.select_related("finantare", "contract", "responsabil"),
         "activitati": p.activitati.all(),
         "documente": p.documente.filter(arhivat=False).select_related("incarcat_de"),
@@ -1543,7 +1639,7 @@ def proiect_detaliu(request, pk):
         "plan_ani": [(an, plan.get(an, Decimal(0)), _realizat_an(p, an)) for an in ani],
         "form_doc": f.DocumentForm(proiect=p),
         "form_gantt": f.ImportGanttForm(),
-        "tab": request.GET.get("tab", "prezentare"), "azi": timezone.localdate(),
+        "tab": {"financiar": "contracte"}.get(request.GET.get("tab"), request.GET.get("tab", "prezentare")), "azi": timezone.localdate(),
         "stare_ai": ai.stare_ai(),
         "avize_stat": {e: p.avize.filter(status=s).count() for s, e in m.Aviz.STATUS},
         "facturi_nealocate": sum(1 for x in facturi if x.nealocat_ron != 0),
@@ -1749,10 +1845,10 @@ def buget_blocare(request, pk):
 
 TAB_PENTRU = {
     "linie_buget": "buget", "rectificare": "buget", "contract": "contracte", "act_aditional": "contracte", "conditie": "contracte",
-    "factura": "financiar", "plata": "financiar", "alocare": "financiar", "alocare_contract": "contracte", "echipament": "echipamente", "certificat": "avize", "aviz": "avize",
-    "finantare": "finantare", "obligatie": "finantare", "activitate": "gantt", "acces": "acces", "document": "documente",
+    "factura": "contracte", "plata": "contracte", "alocare": "contracte", "alocare_contract": "contracte", "echipament": "echipamente", "certificat": "avize", "aviz": "avize",
+    "finantare": "finantare", "obligatie": "finantare", "raport_progres": "finantare", "activitate": "gantt", "acces": "acces", "document": "documente",
 }
-STERGERE_PERMISA = {"linie_buget", "conditie", "aviz", "obligatie", "activitate", "acces", "certificat", "alocare", "alocare_contract"}
+STERGERE_PERMISA = {"linie_buget", "conditie", "aviz", "obligatie", "raport_progres", "activitate", "acces", "certificat", "alocare", "alocare_contract"}
 TIPURI_FINANCIARE = {"factura", "plata", "alocare"}
 
 
@@ -2094,11 +2190,22 @@ def _salveaza_scan(request, form, p, o):
     fisier = form.cleaned_data.get("scan") if hasattr(form, "cleaned_data") else None
     if not fisier:
         return
-    legaturi = {"contract": o} if isinstance(o, m.Contract) else {"act_aditional": o, "contract": o.contract}
-    categorie = "contract" if isinstance(o, m.Contract) else "act_aditional"
-    titlu = f"Contract {o.numar}/{o.data:%d.%m.%Y} – {o.partener}" if isinstance(o, m.Contract) else f"Act adițional {o.numar} la {o.contract.numar}"
-    anterior = m.Document.objects.filter(categorie=categorie, arhivat=False, **{categorie: o}).first()
-    m.Document.objects.create(proiect=p, categorie=categorie, titlu=titlu, fisier=fisier, incarcat_de=request.user, inlocuieste=anterior, **legaturi)
+    if isinstance(o, m.Aviz):
+        legaturi, categorie, cheie = {"aviz": o}, ("studiu" if o.tip == "studiu" else "aviz"), "aviz"
+        titlu = f"{o.denumire}" + (f" nr. {o.numar_aviz}" if o.numar_aviz else "")
+    elif isinstance(o, m.RaportProgres):
+        legaturi, categorie, cheie = {"raport_progres": o}, "raport_progres", "raport_progres"
+        titlu = str(o)
+    elif isinstance(o, m.Contract):
+        legaturi, categorie, cheie = {"contract": o}, "contract", "contract"
+        titlu = f"Contract {o.numar}/{o.data:%d.%m.%Y} – {o.partener}"
+    else:
+        legaturi, categorie, cheie = {"act_aditional": o, "contract": o.contract}, "act_aditional", "act_aditional"
+        titlu = f"Act adițional {o.numar} la {o.contract.numar}"
+    anterior = m.Document.objects.filter(arhivat=False, **{cheie: o}).first()
+    if anterior and hasattr(anterior, "inlocuit_de"):
+        anterior = None
+    m.Document.objects.create(proiect=p, categorie=categorie, titlu=titlu[:255], fisier=fisier, incarcat_de=request.user, inlocuieste=anterior, **legaturi)
 
 
 def _avertismente(o):
@@ -2291,8 +2398,13 @@ def ai_validare(request, pk):
     antet = ex.rezultat.get(antet_cheie, {}) or {}
     if request.method == "POST" and ex.status == "propus":
         alese = {int(i) for i in request.POST.getlist("element")}
+        selectie = [e for i, e in enumerate(elemente) if i in alese]
+        if ex.tip == "cu_avize":  # avize / studii adăugate manual pe pagina de validare (intermediare sau suplimentare)
+            for den, tip_a, orig in zip(request.POST.getlist("extra_denumire"), request.POST.getlist("extra_tip"), request.POST.getlist("extra_origine")):
+                if den.strip():
+                    selectie.append({"denumire": den.strip(), "tip": tip_a, "origine": orig, "manual": True})
         with transaction.atomic():
-            n = _aplica_extragere(request, ex, p, antet, [e for i, e in enumerate(elemente) if i in alese])
+            n = _aplica_extragere(request, ex, p, antet, selectie)
             ex.status, ex.validat_de, ex.validat_la = "validat", request.user, timezone.now()
             ex.save()
         messages.success(request, f"Validat: {n} elemente au fost adăugate în proiect.")
@@ -2301,7 +2413,8 @@ def ai_validare(request, pk):
         ex.status = "respins"
         ex.save()
         return redirect(f"{p.get_absolute_url()}?tab=documente")
-    return render(request, "platforma/ai_validare.html", {"ex": ex, "p": p, "elemente": elemente, "antet": antet})
+    return render(request, "platforma/ai_validare.html", {"ex": ex, "p": p, "elemente": elemente, "antet": antet,
+                                                         "tipuri_aviz": m.Aviz.TIP, "origini_aviz": m.Aviz.ORIGINE})
 
 
 def _data_sau_none(s):
@@ -2323,8 +2436,10 @@ def _aplica_extragere(request, ex, p, antet, elemente):
             )
             m.Document.objects.filter(pk=d.pk).update(certificat=cu)
         for e in elemente:
+            tip_a = e.get("tip") if e.get("tip") in dict(m.Aviz.TIP) else ("studiu" if "studiu" in e.get("denumire", "").lower() else "aviz")
+            origine = e.get("origine") if e.get("origine") in dict(m.Aviz.ORIGINE) else "cu"
             m.Aviz.objects.create(proiect=p, certificat=cu, denumire=e.get("denumire", "")[:255], emitent=e.get("emitent", "")[:200],
-                                  fragment_sursa=e.get("fragment", ""), extras_ai=True)
+                                  tip=tip_a, origine=origine, fragment_sursa=e.get("fragment", ""), extras_ai=not e.get("manual"))
     elif ex.tip == "contract":
         c = d.contract
         if not c:

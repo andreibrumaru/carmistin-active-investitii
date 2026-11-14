@@ -1,5 +1,39 @@
 {% extends "platforma/form.html" %}
 {% block in_form %}
+{% with ff=form %}
+<div class="mt-4" id="structura-finantare">
+  <h5 class="mb-1"><i class="bi bi-bank"></i> Structura de finanțare <span class="text-danger">*</span></h5>
+  <div class="d-flex flex-wrap align-items-center gap-2 border rounded p-2 {% if ff.errors.val_nerambursabil or ff.errors.val_bancara or ff.non_field_errors %}border-danger{% endif %}">
+    <div id="finSumar" class="small flex-grow-1">—</div>
+    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#fereastraFinantare"><i class="bi bi-ui-checks"></i> Alege formele de finanțare</button>
+  </div>
+  {% if ff.errors.val_nerambursabil %}<div class="text-danger small">Buget nerambursabil: {{ ff.errors.val_nerambursabil.0 }}</div>{% endif %}
+  {% if ff.errors.val_bancara %}<div class="text-danger small">Finanțare bancară: {{ ff.errors.val_bancara.0 }}</div>{% endif %}
+</div>
+
+<div class="modal fade" id="fereastraFinantare" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title"><i class="bi bi-bank"></i> Structura de finanțare a investiției</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <p class="small text-secondary">Bifați una sau mai multe forme (finanțare mixtă). Sumele sunt în moneda Raportului Zero (<span class="moneda-rz">RON</span>); fondurile proprii acoperă automat diferența până la valoarea RZ.</p>
+    <div class="form-check form-switch mb-3 p-2 ps-5 border rounded bg-body-tertiary">{{ ff.fonduri_ue }} <label class="form-check-label fw-semibold" for="{{ ff.fonduri_ue.id_for_label }}">Proiect cu fonduri UE</label>
+      <div class="form-text">Proiectul primește tabloul de bord „Fonduri UE”: buget eligibil / neeligibil / cumulat și ajutorul nerambursabil. Implică finanțare nerambursabilă.</div></div>
+    <table class="table table-sm align-middle mb-2">
+      <thead><tr><th style="width:40px"></th><th>Formă de finanțare</th><th class="num" style="width:220px">Sumă (<span class="moneda-rz">RON</span>)</th><th class="num" style="width:80px">%</th></tr></thead>
+      <tbody>
+      <tr><td>{{ ff.fin_nerambursabil }}</td><td><label for="{{ ff.fin_nerambursabil.id_for_label }}" class="fw-semibold">Fonduri nerambursabile</label><div class="small text-secondary">bugetul nerambursabil (ajutorul acordat)</div></td>
+        <td>{{ ff.val_nerambursabil }}{% for e in ff.val_nerambursabil.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td><td class="num" data-proc="nerambursabil">—</td></tr>
+      <tr><td>{{ ff.fin_bancara }}</td><td><label for="{{ ff.fin_bancara.id_for_label }}" class="fw-semibold">Finanțare bancară</label><div class="small text-secondary">credit de investiții – plafonul liniei de credit</div></td>
+        <td>{{ ff.val_bancara }}{% for e in ff.val_bancara.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td><td class="num" data-proc="bancara">—</td></tr>
+      <tr><td>{{ ff.fin_proprii }}</td><td><label for="{{ ff.fin_proprii.id_for_label }}" class="fw-semibold">Fonduri proprii</label><div class="small text-secondary">calculat: valoarea RZ − celelalte surse</div></td>
+        <td class="num fw-semibold" id="finProprii">—</td><td class="num" data-proc="proprii">—</td></tr>
+      </tbody>
+      <tfoot><tr class="fw-bold"><td></td><td>Valoare RZ</td><td class="num" id="finTotal">—</td><td></td></tr></tfoot>
+    </table>
+    <div id="finAvert" class="alert alert-warning small py-2 d-none mb-0"></div>
+  </div>
+  <div class="modal-footer"><button type="button" class="btn btn-primary" data-bs-dismiss="modal"><i class="bi bi-check2"></i> Gata</button></div>
+</div></div></div>
+{% endwith %}
 <div class="mt-4" id="buget-rz">
   <h5 class="mb-1"><i class="bi bi-calculator"></i> Bugetul investiției – structura devizului general (HG 907/2016)</h5>
   <p class="small text-secondary mb-2">Sume în RON, fără TVA. Bugetul face parte din Raportul Zero: după avizare rămâne fixat și se poate modifica doar printr-o revizie a Raportului Zero, aprobată de administrator.</p>
@@ -152,6 +186,40 @@
   });
   liniiEch.forEach(cod => document.querySelector(`[name="buget_${cod}"]`)?.addEventListener('input', recalcEch));
   recalcEch();
+
+  // Structura de finanțare: fondurile proprii = valoarea RZ − (nerambursabil + bancară)
+  // Fereastra se mută direct în <body> (altfel rămâne sub conținutul paginii); câmpurile ei rămân legate de formular prin atributul „form”.
+  const fereastra = document.getElementById('fereastraFinantare'), formRZ = fereastra.closest('form');
+  formRZ.id = formRZ.id || 'formRZ';
+  fereastra.querySelectorAll('input, select, textarea').forEach(i => i.setAttribute('form', formRZ.id));
+  document.body.appendChild(fereastra);
+  const fin = id => document.getElementById('id_' + id);
+  const recalcFin = () => {
+    const total = nr(fin('valoare_rz')?.value), mon = fin('moneda_rz')?.value || 'RON';
+    document.querySelectorAll('.moneda-rz').forEach(e => e.textContent = mon);
+    if (fin('fonduri_ue').checked) fin('fin_nerambursabil').checked = true;
+    fin('fin_nerambursabil').disabled = fin('fonduri_ue').checked;
+    const v = {};
+    ['nerambursabil', 'bancara'].forEach(c => { const b = fin('fin_' + c).checked; fin('val_' + c).disabled = !b; v[c] = b ? nr(fin('val_' + c).value) : 0; });
+    const rest = total - v.nerambursabil - v.bancara;
+    v.proprii = fin('fin_proprii').checked ? Math.max(rest, 0) : 0;
+    document.getElementById('finProprii').textContent = fin('fin_proprii').checked ? fmt(v.proprii) : '—';
+    document.getElementById('finTotal').textContent = fmt(total);
+    ['nerambursabil', 'bancara', 'proprii'].forEach(c => document.querySelector(`[data-proc="${c}"]`).textContent = (fin('fin_' + c).checked && total) ? (v[c] / total * 100).toFixed(1) + '%' : '—');
+    const et = {nerambursabil: 'Nerambursabil', bancara: 'Bancar', proprii: 'Proprii'};
+    const alese = ['nerambursabil', 'bancara', 'proprii'].filter(c => fin('fin_' + c).checked);
+    document.getElementById('finSumar').innerHTML = (fin('fonduri_ue').checked ? '<span class="badge text-bg-primary me-1">Fonduri UE</span>' : '') +
+      (alese.length ? alese.map(c => `<b>${et[c]}</b> ${fmt(v[c])} ${mon}${total ? ' (' + (v[c] / total * 100).toFixed(0) + '%)' : ''}`).join(' · ') + (alese.length > 1 ? ' <span class="badge text-bg-light">mixtă</span>' : '')
+        : '<span class="text-danger">Nicio formă de finanțare aleasă</span>');
+    const a = document.getElementById('finAvert');
+    const msg = rest < -0.5 ? 'Nerambursabil + bancar depășesc valoarea RZ.' : (!fin('fin_proprii').checked && alese.length && Math.abs(rest) > 0.5) ? `Rămân neacoperiți ${fmt(rest)} ${mon}: bifați „Fonduri proprii” sau corectați sumele.` : '';
+    a.textContent = msg; a.classList.toggle('d-none', !msg);
+  };
+  ['fonduri_ue', 'fin_nerambursabil', 'fin_bancara', 'fin_proprii', 'val_nerambursabil', 'val_bancara', 'valoare_rz', 'moneda_rz'].forEach(id => { fin(id)?.addEventListener('input', recalcFin); fin(id)?.addEventListener('change', recalcFin); });
+  celule.forEach(c => c.addEventListener('input', () => setTimeout(recalcFin)));
+  formRZ.addEventListener('submit', () => { fin('fin_nerambursabil').disabled = false; });
+  recalcFin();
+  {% if form.errors.val_nerambursabil or form.errors.val_bancara %}new bootstrap.Modal('#fereastraFinantare').show();{% endif %}
 })();
 </script>
 {% endblock %}

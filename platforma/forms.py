@@ -191,9 +191,12 @@ class RaportZeroForm(Baza):
         fields = [
             "beneficiar", "locatie", "denumire", "departament", "linie", "divizie", "solicitant", "responsabil_tehnic",
             "responsabil_implementare", "obiectiv", "cladire", "descriere_lucrari", "necesar_achizitii", "valoare_rz",
-            "moneda_rz", "finantare", "prioritate", "data_demarare", "data_finalizare", "intocmit_de", "avizat_de",
+            "moneda_rz", "prioritate", "data_demarare", "data_finalizare", "intocmit_de", "avizat_de",
             "coordonator", "pm",
+            "fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "val_nerambursabil", "val_bancara",
         ]
+
+    CAMPURI_FINANTARE = ["fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "val_nerambursabil", "val_bancara"]
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -207,7 +210,7 @@ class RaportZeroForm(Baza):
             self.fields["locatie"].disabled = True
             self.fields["beneficiar"].disabled = True
         campuri_linie_divizie(self)
-        for camp, tip in (("departament", "departament"), ("finantare", "tip_finantare")):
+        for camp, tip in (("departament", "departament"),):
             opt = [("", "—")] + [(o.valoare, o.valoare) for o in m.Nomenclator.optiuni(tip)]
             val = self.initial.get(camp) or getattr(self.instance, camp, "")
             if val and val not in dict(opt):
@@ -236,6 +239,13 @@ class RaportZeroForm(Baza):
 
     def clean(self):
         date = super().clean()
+        if date.get("fonduri_ue"):
+            date["fin_nerambursabil"] = True
+        if not (date.get("fin_nerambursabil") or date.get("fin_bancara") or date.get("fin_proprii")):
+            self.add_error(None, "Structura de finanțare: bifați cel puțin o formă de finanțare (nerambursabilă, bancară, fonduri proprii).")
+        for cod, eticheta in (("nerambursabil", "bugetul nerambursabil"), ("bancara", "valoarea finanțării bancare")):
+            if date.get(f"fin_{cod}") and not date.get(f"val_{cod}"):
+                self.add_error(f"val_{cod}", f"Completați {eticheta}.")
         ben, loc = date.get("beneficiar"), date.get("locatie")
         if ben and loc and loc.proprietar_id != ben.pk:
             self.add_error("locatie", f"Locația {loc.cod} aparține societății {loc.proprietar}, nu beneficiarului ales.")
@@ -344,8 +354,24 @@ class SetariProiectForm(Baza):
                 self.fields[c].disabled = True
                 self.fields[c].help_text = "Blocat odată cu bugetul (modificabil doar de administrator)."
 CertificatForm = fabrica(m.CertificatUrbanism)
-AvizForm = fabrica(m.Aviz, ["certificat", "denumire", "emitent", "status", "responsabil", "data_depunere", "termen_estimat",
-                            "numar_aviz", "data_aviz", "valabil_pana", "cost_ron", "conditii"])
+class ScanSimplu:
+    """Câmp pentru documentul scanat (fără citire AI); vederea îl salvează ca Document legat de obiect, versionat."""
+    eticheta_scan = "Document scanat (PDF)"
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields["scan"] = forms.FileField(
+            required=False, label=self.eticheta_scan,
+            widget=forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".pdf,image/*"}),
+            help_text="O încărcare nouă devine versiune nouă; cea veche rămâne în istoric.")
+
+
+AvizForm = type("AvizForm", (ScanSimplu, fabrica(m.Aviz, [
+    "certificat", "tip", "origine", "denumire", "emitent", "status", "responsabil", "data_depunere", "termen_estimat",
+    "numar_aviz", "data_aviz", "valabil_pana", "cost_ron", "conditii"])), {"eticheta_scan": "Avizul / studiul obținut (PDF)"})
+RaportProgresForm = type("RaportProgresForm", (ScanSimplu, fabrica(m.RaportProgres, [
+    "finantare", "numar", "data", "perioada_de_la", "perioada_pana", "raportor", "progres_fizic", "valoare_executata_ron",
+    "status", "data_transmitere", "constatari", "recomandari"])), {"eticheta_scan": "Raportul de progres (PDF)"})
 FinantareForm = fabrica(m.Finantare)
 ObligatieForm = fabrica(m.Obligatie, ["finantare", "contract", "descriere", "termen", "recurenta", "responsabil", "status"])
 ActivitateForm = fabrica(m.Activitate, ["ordine", "denumire", "start", "sfarsit", "progres", "depinde_de", "responsabil"])
@@ -447,6 +473,7 @@ FORMULARE = {
     "aviz": (AvizForm, "Aviz"),
     "finantare": (FinantareForm, "Sursă de finanțare"),
     "obligatie": (ObligatieForm, "Obligație / termen"),
+    "raport_progres": (RaportProgresForm, "Raport de progres pentru bancă"),
     "activitate": (ActivitateForm, "Activitate grafic"),
     "acces": (AccesForm, "Acces utilizator"),
     "document": (DocumentForm, "Document"),

@@ -24,11 +24,10 @@
   {% with t=tab %}
   <li class="nav-item"><button class="nav-link {% if t == 'prezentare' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-prezentare">Prezentare</button></li>
   <li class="nav-item"><button class="nav-link {% if t == 'buget' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-buget">Buget HG{% if depasiri %} <span class="badge text-bg-danger" title="linii bugetare depășite – necesită revizuirea bugetului">{{ depasiri|length }}</span>{% endif %}</button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'contracte' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-contracte">Contracte <span class="badge text-bg-light">{{ contracte|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'contracte' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-contracte">Contracte, facturi & plăți <span class="badge text-bg-light">{{ contracte|length }}</span></button></li>
   <li class="nav-item"><button class="nav-link {% if t == 'echipamente' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-echipamente">Echipamente <span class="badge text-bg-light">{{ echipamente|length }}</span></button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'financiar' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-financiar">Facturi & plăți</button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'avize' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-avize">CU & avize <span class="badge text-bg-light">{{ avize_stat|get:"Obținut" }}/{{ avize|length }}</span></button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'finantare' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-finantare">Finanțare & obligații</button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'avize' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-avize">CU & avize <span class="badge text-bg-light">{{ avize_stat|get:"Obținut" }}/{{ avize|length }}</span>{% if avize_expira %} <span class="badge text-bg-danger" title="avize expirate sau care expiră în 30 de zile">{{ avize_expira }}</span>{% endif %}</button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'finantare' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-finantare">Finanțare{% if p.fonduri_ue %} <span class="badge text-bg-primary">UE</span>{% endif %}</button></li>
   <li class="nav-item"><button class="nav-link {% if t == 'gantt' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-gantt" id="buton-gantt">Grafic Gantt</button></li>
   <li class="nav-item"><button class="nav-link {% if t == 'documente' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-documente">Documente <span class="badge text-bg-light">{{ documente|length }}</span></button></li>
   <li class="nav-item"><button class="nav-link {% if t == 'acces' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-acces">Acces</button></li>
@@ -46,7 +45,8 @@
     <tr><th>Solicitant / resp. tehnic / resp. implementare</th><td>{{ p.solicitant }} / {{ p.responsabil_tehnic }} / {{ p.responsabil_implementare }}</td></tr>
     <tr><th>Obiectiv / clădire</th><td>{{ p.obiectiv }} / {{ p.cladire }}</td></tr>
     <tr><th>Descriere lucrări</th><td>{{ p.descriere_lucrari|linebreaksbr }}</td></tr>
-    <tr><th>Finanțare / prioritate</th><td>{{ p.finantare }} / {{ p.get_prioritate_display }}</td></tr>
+    <tr><th>Finanțare</th><td>{% include "platforma/_structura_finantare.html" with compact=1 %}</td></tr>
+    <tr><th>Prioritate</th><td>{{ p.get_prioritate_display }}</td></tr>
     <tr><th>Perioadă planificată</th><td>{{ p.data_demarare|date:"d.m.Y" }} – {{ p.data_finalizare|date:"d.m.Y" }} {% if p.intarziat %}<span class="badge text-bg-danger">depășit</span>{% endif %}</td></tr>
   </table></div></div>
   <div class="col-lg-5"><div class="card"><div class="card-header">Urmărire</div><div class="card-body">
@@ -96,21 +96,38 @@
     {% if editabil %}<div class="ms-auto d-flex gap-2"><a class="btn btn-sm btn-primary" href="{% url 'contract_din_scan' p.pk %}"><i class="bi bi-stars"></i> Încarcă contract (citire AI)</a><a class="btn btn-sm btn-outline-secondary" href="{% url 'obiect_nou' p.pk 'contract' %}">Introducere manuală</a></div>{% endif %}</div>
   <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle tabel-filtrabil">
   <thead><tr><th>Contract</th><th>Partener / obiect</th><th class="num">Valoare inițială</th><th class="num">Actualizată (RON)</th><th>Alocare pe linii</th><th class="num">Facturat</th><th class="num">Rest</th><th>Termen / status</th><th></th></tr></thead>
-  <tbody>{% for c in contracte %}<tr>
-    <td class="text-nowrap"><b>{{ c.numar }}</b> {% with d=c.document_scanat %}{% if d %}<a href="{% url 'document' d.pk %}" target="_blank" title="contract scanat: {{ d.titlu }} (v{{ d.versiune }})"><i class="bi bi-file-earmark-pdf text-danger"></i></a>{% else %}<span class="badge text-bg-warning" title="contractul scanat nu a fost încărcat">fără scan</span>{% endif %}{% endwith %}<div class="small text-secondary">{{ c.data|date:"d.m.Y" }} · {{ c.get_tip_display }}</div></td>
+  <tbody>{% for c in contracte %}<tr class="rand-contract" data-bs-toggle="collapse" data-bs-target="#fc-{{ c.pk }}" role="button" title="clic: facturile emise pe acest contract">
+    <td class="text-nowrap"><i class="bi bi-chevron-right text-secondary chevron-contract"></i> <b>{{ c.numar }}</b> {% with d=c.document_scanat %}{% if d %}<a href="{% url 'document' d.pk %}" target="_blank" title="contract scanat: {{ d.titlu }} (v{{ d.versiune }})"><i class="bi bi-file-earmark-pdf text-danger"></i></a>{% else %}<span class="badge text-bg-warning" title="contractul scanat nu a fost încărcat">fără scan</span>{% endif %}{% endwith %}<div class="small text-secondary">{{ c.data|date:"d.m.Y" }} · {{ c.get_tip_display }}</div></td>
     <td style="min-width:180px">{% with ne=c.echipamente.count %}{% if ne %}<a class="badge text-bg-light float-end text-decoration-none" href="{% if editabil %}{% url 'contract_echipamente' p.pk c.pk %}{% else %}?tab=echipamente{% endif %}" title="echipamente din lista RZ achiziționate prin acest contract">{{ ne }} echip.</a>{% elif c.tip == 'furnizare' and editabil %}<a class="badge text-bg-warning float-end text-decoration-none" href="{% url 'contract_echipamente' p.pk c.pk %}" title="contract de furnizare fără echipamente bifate">bifează echipamentele</a>{% endif %}{% endwith %}{{ c.partener }}{% if c.cui_partener %} <span class="small text-secondary">{{ c.cui_partener }}</span>{% endif %}<div class="small text-secondary" title="{{ c.obiect }}">{{ c.obiect|truncatechars:60 }}</div></td>
     <td class="num">{{ c.valoare|bani2 }} {{ c.moneda }}{% if c.moneda == 'EUR' %}<div class="small text-secondary">@ {{ c.curs }}</div>{% endif %}</td>
     <td class="num">{{ c.valoare_totala_ron|bani2 }}{% with n=c.acte_aditionale.all|length %}{% if n %}<div class="small text-secondary">{{ n }} act{{ n|pluralize:"e" }} adițional{{ n|pluralize:"e" }}</div>{% endif %}{% endwith %}</td>
     <td class="small text-nowrap">{% for a in c.alocari.all %}<div>cap. {{ a.linie_buget.capitol }}: {{ a.valoare_ron|bani2 }}{% if editabil %} <a href="{% url 'obiect_editare' p.pk 'alocare_contract' a.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}</div>{% endfor %}
       {% if c.nealocat_ron %}<div class="text-danger">nealocat {{ c.nealocat_ron|bani2 }}{% if editabil %} <a href="{% url 'obiect_nou' p.pk 'alocare_contract' %}?contract={{ c.pk }}&valoare_ron={{ c.nealocat_ron }}">+ alocă</a>{% endif %}</div>{% endif %}</td>
-    <td class="num">{{ c.facturat_ron|bani2 }}<div class="small text-secondary">{{ c.facturi.all|length }} facturi · {{ c.facturat_ron|procent:c.valoare_totala_ron }}%</div></td>
+    <td class="num">{{ c.facturat_ron|bani2 }}<div class="small text-secondary">{{ c.facturi.all|length }} facturi · {{ c.facturat_ron|procent:c.valoare_totala_ron }}%</div>{% if c.facturi.all %}<div class="small {% if c.platit_ron >= c.facturat_ron %}text-success{% else %}text-warning-emphasis{% endif %}">plătit {{ c.platit_ron|bani }}</div>{% endif %}</td>
     <td class="num {% if c.rest_de_facturat < 0 %}depasit{% endif %}">{{ c.rest_de_facturat|bani2 }}</td>
     <td class="small text-nowrap">{{ c.termen_executie|date:"d.m.Y"|default:"—" }}<div><span class="badge text-bg-light">{{ c.get_status_display }}</span></div></td>
     <td class="text-nowrap small">{% if editabil %}<a href="{% url 'obiect_editare' p.pk 'contract' c.pk %}" title="editează / încarcă scan nou"><i class="bi bi-pencil"></i></a>
       <a href="{% url 'obiect_nou' p.pk 'act_aditional' %}?contract={{ c.pk }}" title="act adițional"><i class="bi bi-file-earmark-plus"></i></a>
       <a href="{% url 'obiect_nou' p.pk 'conditie' %}?contract={{ c.pk }}" title="condiție contractuală"><i class="bi bi-list-check"></i></a>
       <a href="{% url 'contract_echipamente' p.pk c.pk %}" title="bifează echipamentele din lista RZ achiziționate prin acest contract"><i class="bi bi-cpu"></i></a>{% endif %}</td>
-  </tr>{% empty %}<tr><td colspan="9" class="text-center text-secondary py-4">Niciun contract încărcat.</td></tr>{% endfor %}</tbody>
+  </tr>
+  <tr class="collapse rand-facturi" id="fc-{{ c.pk }}"><td colspan="9" class="bg-body-tertiary p-2">
+    <div class="d-flex align-items-center mb-1"><span class="small fw-semibold"><i class="bi bi-receipt"></i> Facturi emise pe contractul {{ c.numar }}</span>
+      {% if editabil_fin %}<a class="btn btn-sm btn-outline-primary py-0 ms-auto" href="{% url 'obiect_nou' p.pk 'factura' %}?contract={{ c.pk }}&furnizor={{ c.partener|urlencode }}&cui_furnizor={{ c.cui_partener|urlencode }}"><i class="bi bi-plus-lg"></i> Factură pe acest contract</a>{% endif %}</div>
+    <table class="table table-sm small mb-0 bg-body"><thead><tr><th>Factură</th><th>Data</th><th>Scadență</th><th class="num">Fără TVA (RON)</th><th class="num">TVA</th><th class="num">Plătit</th><th class="num">Rest de plată</th><th>Stare plată</th><th>Tragere credit</th><th></th></tr></thead>
+    <tbody>{% for x in c.facturi.all %}<tr>
+      <td class="fw-semibold">{{ x.numar }}{% for d in x.documente.all %} <a href="{% url 'document' d.pk %}" target="_blank" title="{{ d.titlu }}"><i class="bi bi-paperclip"></i></a>{% endfor %}</td>
+      <td>{{ x.data|date:"d.m.Y" }}</td>
+      <td class="{% if x.scadenta_depasita %}text-danger fw-semibold{% endif %}">{{ x.scadenta|date:"d.m.Y"|default:"—" }}{% if x.scadenta_depasita %} <i class="bi bi-exclamation-triangle" title="scadență depășită"></i>{% endif %}</td>
+      <td class="num">{{ x.valoare_ron|bani2 }}</td><td class="num">{{ x.tva_ron|bani2 }}</td><td class="num">{{ x.platit_ron|bani2 }}</td>
+      <td class="num {% if x.rest_de_plata > 0 %}text-warning-emphasis{% endif %}">{{ x.rest_de_plata|bani2 }}</td>
+      <td>{% if x.stare_plata == 'achitata' %}<span class="badge text-bg-success">Achitată total</span>{% elif x.stare_plata == 'partiala' %}<span class="badge text-bg-warning">Achitată parțial ({{ x.platit_ron|procent:x.valoare_ron }}%)</span>{% else %}<span class="badge {% if x.scadenta_depasita %}text-bg-danger{% else %}text-bg-secondary{% endif %}">Neachitată</span>{% endif %}</td>
+      <td>{% with t=x.solicitat_tragere_ron %}{% if t %}<span class="badge text-bg-info">{{ t|bani }} RON</span>{% else %}<span class="text-secondary">—</span>{% endif %}{% endwith %}</td>
+      <td class="text-nowrap">{% if editabil_fin %}{% if not x.lot_export %}<a href="{% url 'obiect_editare' p.pk 'factura' x.pk %}" title="editează"><i class="bi bi-pencil"></i></a>{% endif %}
+        {% if not x.nealocat_ron and x.rest_de_plata > x.in_aprobare_ron %} <a href="{% url 'obiect_nou' p.pk 'plata' %}?factura={{ x.pk }}" title="propune plată"><i class="bi bi-cash"></i></a>{% endif %}{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="10" class="text-secondary text-center py-2">Nicio factură emisă pe acest contract.</td></tr>{% endfor %}</tbody>
+    {% if c.facturi.all %}<tfoot><tr class="fw-semibold"><td colspan="3">Total contract</td><td class="num">{{ c.facturat_ron|bani2 }}</td><td></td><td class="num">{{ c.platit_ron|bani2 }}</td><td class="num">{{ c.facturat_ron|sub:c.platit_ron|bani2 }}</td><td colspan="3" class="text-secondary">rest de facturat din contract: {{ c.rest_de_facturat|bani2 }}</td></tr></tfoot>{% endif %}
+    </table></td></tr>{% empty %}<tr><td colspan="9" class="text-center text-secondary py-4">Niciun contract încărcat.</td></tr>{% endfor %}</tbody>
   {% if contracte %}<tfoot><tr class="fw-bold"><td colspan="3">Total contractat</td><td class="num">{{ p.angajat_ron|bani2 }}</td><td></td><td class="num">{{ total_facturat_contracte|bani2 }}</td><td colspan="3"></td></tr></tfoot>{% endif %}
   </table></div>
   {% if facturi_fara_contract %}<div class="card-footer small">Facturi fără contract (taxe, avize, autorizații): <b>{{ facturi_fara_contract|length }}</b> · {{ total_fara_contract|bani2 }} RON — vezi tabul Facturi și plăți.</div>{% endif %}
@@ -119,7 +136,46 @@
     {% if c.acte_aditionale.all %}<h6 class="small fw-bold">Acte adiționale</h6><table class="table table-sm small mb-2">{% for a in c.acte_aditionale.all %}<tr><td>AA {{ a.numar }}/{{ a.data|date:"d.m.Y" }}</td><td>{{ a.obiect }}</td><td class="num">{{ a.diferenta_ron|bani }} RON</td><td>{% if a.linie_buget %}cap. {{ a.linie_buget.capitol }}{% else %}<span class="text-secondary">proporțional</span>{% endif %}</td><td>{{ a.termen_nou|date:"d.m.Y" }}</td><td>{% for d in a.documente.all %}{% if not d.arhivat %}<a href="{% url 'document' d.pk %}" target="_blank"><i class="bi bi-file-earmark-pdf text-danger"></i></a>{% endif %}{% endfor %}</td>{% if editabil %}<td><a href="{% url 'obiect_editare' p.pk 'act_aditional' a.pk %}"><i class="bi bi-pencil"></i></a></td>{% endif %}</tr>{% endfor %}</table>{% endif %}
     {% if c.conditii.all %}<h6 class="small fw-bold">Condiții contractuale</h6><table class="table table-sm small mb-0">{% for x in c.conditii.all %}<tr><td style="width:150px"><span class="badge text-bg-light">{{ x.get_tip_display }}</span>{% if x.extras_ai %} <i class="bi bi-stars text-primary" title="extras de AI, validat de {{ x.validat_de }}"></i>{% endif %}</td><td>{{ x.descriere }}{% if x.fragment_sursa %}<div class="fragment">„{{ x.fragment_sursa|truncatechars:250 }}” {% if x.pagina %}(pag. {{ x.pagina }}){% endif %}</div>{% endif %}</td><td>{{ x.valoare }}</td><td>{{ x.termen|date:"d.m.Y" }}</td>{% if editabil %}<td><a href="{% url 'obiect_editare' p.pk 'conditie' x.pk %}"><i class="bi bi-pencil"></i></a></td>{% endif %}</tr>{% endfor %}</table>{% endif %}
  </div></div>{% endif %}{% endfor %}
- <p class="small text-secondary"><i class="bi bi-stars"></i> Condițiile se pot extrage automat cu AI din contractul scanat: tabul Documente → „Extrage condiții”.</p>
+ <p class="small text-secondary"><i class="bi bi-stars"></i> Condițiile se pot extrage automat cu AI din contractul scanat: tabul Documente → „Extrage condiții”. Apăsați pe un contract pentru facturile lui.</p>
+ <div id="facturi-plati">
+ <div class="card mb-3">
+  <div class="card-header d-flex align-items-center">Toate facturile proiectului (contract → factură → repartizare pe linii de buget)
+    {% if facturi_nealocate %}<span class="badge text-bg-danger ms-2">{{ facturi_nealocate }} nerepartizate integral</span>{% endif %}
+    {% if editabil_fin %}<a class="btn btn-sm btn-primary ms-auto" href="{% url 'obiect_nou' p.pk 'factura' %}">+ Factură</a>{% endif %}</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle tabel-filtrabil">
+  <thead><tr><th>Plătită</th><th>Factură</th><th>Furnizor</th><th>Contract</th><th>Repartizare pe linii</th><th class="num">Valoare</th><th class="num">RON fără TVA</th><th class="num">Plătit</th><th class="num">În aprobare</th><th class="num">Rest</th><th>ERP</th><th></th></tr></thead>
+  <tbody>{% for x in facturi %}<tr {% if x.achitata %}class="table-success"{% endif %}>
+    <td class="text-center">{% with prin_flux=x.platit_ron %}<form method="post" action="{% url 'factura_platita' p.pk x.pk %}" class="m-0">{% csrf_token %}<input type="hidden" name="platita" value="{% if x.achitata %}0{% else %}1{% endif %}">
+      <input class="form-check-input" type="checkbox" title="{% if x.achitata %}achitată – debifați pentru a anula marcajul{% else %}bifați pentru a marca factura plătită{% endif %}" {% if x.achitata %}checked{% endif %}
+        {% if not editabil_fin %}disabled{% endif %} onchange="if(confirm(this.checked ? 'Marcați factura {{ x.numar|escapejs }} ca plătită integral?' : 'Anulați marcajul de plată pentru factura {{ x.numar|escapejs }}?')) this.form.submit(); else this.checked = !this.checked;"></form>{% endwith %}</td>
+    <td>{{ x.numar }}<div class="small text-secondary">{{ x.data|date:"d.m.Y" }}</div></td>
+    <td>{{ x.furnizor }}{% if x.intragrup %} <span class="badge text-bg-info" title="emisă de {{ x.furnizor_societate }}">intragrup</span>{% endif %}<div class="small text-secondary">{{ x.cui_furnizor }}</div></td>
+    <td class="small">{% if x.contract %}{{ x.contract.numar }}<div class="text-secondary">{{ x.contract.partener|truncatechars:25 }}</div>{% else %}<span class="badge text-bg-secondary">fără contract</span>{% endif %}</td>
+    <td class="small">{% for a in x.alocari.all %}<div>cap. {{ a.linie_buget.capitol }}: {{ a.valoare_ron|bani2 }}{% if editabil_fin and not x.lot_export %} <a href="{% url 'obiect_editare' p.pk 'alocare' a.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}</div>{% endfor %}
+      {% if x.nealocat_ron %}<div class="text-danger">nealocat {{ x.nealocat_ron|bani2 }}{% if editabil_fin %} <a href="{% url 'obiect_nou' p.pk 'alocare' %}?factura={{ x.pk }}&valoare_ron={{ x.nealocat_ron }}">+ alocă</a>{% endif %}</div>{% endif %}</td>
+    <td class="num">{{ x.valoare|bani2 }} {{ x.moneda }}</td><td class="num">{{ x.valoare_ron|bani2 }}</td><td class="num">{{ x.platit_ron|bani2 }}</td>
+    <td class="num">{{ x.in_aprobare_ron|bani2 }}</td><td class="num {% if x.rest_de_plata > 0 %}text-warning-emphasis{% endif %}">{{ x.rest_de_plata|bani2 }}</td>
+    <td class="small">{% if x.lot_export %}<span class="badge text-bg-success">{{ x.lot_export }}</span>{% else %}<span class="badge text-bg-light">neexportată</span>{% endif %}</td>
+    <td class="small text-nowrap">{% for d in x.documente.all %}<a href="{% url 'document' d.pk %}" target="_blank"><i class="bi bi-paperclip"></i></a>{% endfor %}
+      {% if editabil_fin %}{% if not x.lot_export %}<a href="{% url 'obiect_editare' p.pk 'factura' x.pk %}" title="editează"><i class="bi bi-pencil"></i></a>{% endif %}
+      <a href="{% url 'obiect_nou' p.pk 'document' %}?factura={{ x.pk }}&categorie=factura&titlu=Factura {{ x.numar|urlencode }}" title="atașează factura"><i class="bi bi-upload"></i></a>
+      {% if not x.nealocat_ron and x.rest_de_plata > x.in_aprobare_ron %}<a href="{% url 'obiect_nou' p.pk 'plata' %}?factura={{ x.pk }}" title="propune plată"><i class="bi bi-cash"></i></a>{% endif %}{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="12" class="text-center text-secondary py-4">Nicio factură înregistrată.</td></tr>{% endfor %}</tbody></table></div>
+ </div>
+ <div class="card">
+  <div class="card-header">Plăți – circuit de aprobare: propusă → aprobată tehnic ({{ p.aprobator_tehnic|default:p.coordonator|default:"coordonator" }}) → aprobată financiar ({{ p.aprobator_financiar|default:"responsabil financiar" }}){% if p.prag_aprobare_suplimentara %} → peste {{ p.prag_aprobare_suplimentara|bani }} RON: {{ p.aprobator_suplimentar|default:"aprobator suplimentar" }}{% endif %} → export fișier → plătită</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Data</th><th>Factură</th><th class="num">Sumă fără TVA</th><th>Stare</th><th>Aprobări</th><th>Lot / OP</th><th></th></tr></thead>
+  <tbody>{% for pl in plati %}<tr>
+    <td class="small">{{ pl.data|date:"d.m.Y" }}</td><td class="small">{{ pl.factura.furnizor }} {{ pl.factura.numar }}</td><td class="num">{{ pl.suma_ron|bani2 }}</td>
+    <td><span class="badge {% if pl.stare == 'platita' %}text-bg-success{% elif pl.stare == 'respinsa' %}text-bg-danger{% elif pl.stare == 'exportata' %}text-bg-primary{% else %}text-bg-warning{% endif %}">{{ pl.get_stare_display }}</span>{% if pl.respinsa_motiv %}<div class="small text-danger">{{ pl.respinsa_motiv }}</div>{% endif %}</td>
+    <td class="small">propusă: {{ pl.propusa_de|default:"—" }}{% if pl.aprobat_tehnic_de %}<br>tehnic: {{ pl.aprobat_tehnic_de }} {{ pl.aprobat_tehnic_la|date:"d.m.Y H:i" }}{% endif %}{% if pl.aprobat_financiar_de %}<br>financiar: {{ pl.aprobat_financiar_de }} {{ pl.aprobat_financiar_la|date:"d.m.Y H:i" }}{% endif %}{% if pl.aprobat_suplimentar_de %}<br>suplimentar: {{ pl.aprobat_suplimentar_de }}{% elif pl.necesita_aprobare_suplimentara %}<br><span class="text-warning-emphasis">necesită aprobare suplimentară</span>{% endif %}</td>
+    <td class="small">{{ pl.lot_export|default:"" }} {{ pl.document_plata }}</td>
+    <td class="text-nowrap">{% for a, et in pl.actiuni %}<form class="d-inline" method="post" action="{% url 'plata_actiune' pl.pk a %}" {% if a == 'respinge' %}onsubmit="const m=prompt('Motivul respingerii:'); if(!m) return false; this.motiv.value=m;"{% endif %}>{% csrf_token %}<input type="hidden" name="motiv"><input type="hidden" name="inapoi" value="{{ request.path }}?tab=financiar"><button class="btn btn-sm {% if a == 'respinge' %}btn-outline-danger{% else %}btn-outline-success{% endif %} py-0">{{ et }}</button></form> {% endfor %}
+      {% if editabil_fin and pl.stare == 'propusa' %}<a href="{% url 'obiect_editare' p.pk 'plata' pl.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="7" class="text-center text-secondary py-4">Nicio plată propusă.</td></tr>{% endfor %}</tbody></table></div>
+ </div>
+ </div>
 </div>
 
 {# ---------------- ECHIPAMENTE ---------------- #}
@@ -169,71 +225,74 @@
     <div class="card-footer small text-secondary">Rest în contract = partea din contract care nu e echipament din listă (ex. montaj, transport, servicii).</div></div>{% endif %}
 </div>
 
-{# ---------------- FACTURI ---------------- #}
-<div class="tab-pane fade {% if tab == 'financiar' %}show active{% endif %}" id="t-financiar">
- <div class="card mb-3">
-  <div class="card-header d-flex align-items-center">Facturi (contract → factură → repartizare pe linii de buget)
-    {% if facturi_nealocate %}<span class="badge text-bg-danger ms-2">{{ facturi_nealocate }} nerepartizate integral</span>{% endif %}
-    {% if editabil_fin %}<a class="btn btn-sm btn-primary ms-auto" href="{% url 'obiect_nou' p.pk 'factura' %}">+ Factură</a>{% endif %}</div>
-  <div class="table-responsive"><table class="table table-sm mb-0 align-middle tabel-filtrabil">
-  <thead><tr><th>Plătită</th><th>Factură</th><th>Furnizor</th><th>Contract</th><th>Repartizare pe linii</th><th class="num">Valoare</th><th class="num">RON fără TVA</th><th class="num">Plătit</th><th class="num">În aprobare</th><th class="num">Rest</th><th>ERP</th><th></th></tr></thead>
-  <tbody>{% for x in facturi %}<tr {% if x.achitata %}class="table-success"{% endif %}>
-    <td class="text-center">{% with prin_flux=x.platit_ron %}<form method="post" action="{% url 'factura_platita' p.pk x.pk %}" class="m-0">{% csrf_token %}<input type="hidden" name="platita" value="{% if x.achitata %}0{% else %}1{% endif %}">
-      <input class="form-check-input" type="checkbox" title="{% if x.achitata %}achitată – debifați pentru a anula marcajul{% else %}bifați pentru a marca factura plătită{% endif %}" {% if x.achitata %}checked{% endif %}
-        {% if not editabil_fin %}disabled{% endif %} onchange="if(confirm(this.checked ? 'Marcați factura {{ x.numar|escapejs }} ca plătită integral?' : 'Anulați marcajul de plată pentru factura {{ x.numar|escapejs }}?')) this.form.submit(); else this.checked = !this.checked;"></form>{% endwith %}</td>
-    <td>{{ x.numar }}<div class="small text-secondary">{{ x.data|date:"d.m.Y" }}</div></td>
-    <td>{{ x.furnizor }}{% if x.intragrup %} <span class="badge text-bg-info" title="emisă de {{ x.furnizor_societate }}">intragrup</span>{% endif %}<div class="small text-secondary">{{ x.cui_furnizor }}</div></td>
-    <td class="small">{% if x.contract %}{{ x.contract.numar }}<div class="text-secondary">{{ x.contract.partener|truncatechars:25 }}</div>{% else %}<span class="badge text-bg-secondary">fără contract</span>{% endif %}</td>
-    <td class="small">{% for a in x.alocari.all %}<div>cap. {{ a.linie_buget.capitol }}: {{ a.valoare_ron|bani2 }}{% if editabil_fin and not x.lot_export %} <a href="{% url 'obiect_editare' p.pk 'alocare' a.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}</div>{% endfor %}
-      {% if x.nealocat_ron %}<div class="text-danger">nealocat {{ x.nealocat_ron|bani2 }}{% if editabil_fin %} <a href="{% url 'obiect_nou' p.pk 'alocare' %}?factura={{ x.pk }}&valoare_ron={{ x.nealocat_ron }}">+ alocă</a>{% endif %}</div>{% endif %}</td>
-    <td class="num">{{ x.valoare|bani2 }} {{ x.moneda }}</td><td class="num">{{ x.valoare_ron|bani2 }}</td><td class="num">{{ x.platit_ron|bani2 }}</td>
-    <td class="num">{{ x.in_aprobare_ron|bani2 }}</td><td class="num {% if x.rest_de_plata > 0 %}text-warning-emphasis{% endif %}">{{ x.rest_de_plata|bani2 }}</td>
-    <td class="small">{% if x.lot_export %}<span class="badge text-bg-success">{{ x.lot_export }}</span>{% else %}<span class="badge text-bg-light">neexportată</span>{% endif %}</td>
-    <td class="small text-nowrap">{% for d in x.documente.all %}<a href="{% url 'document' d.pk %}" target="_blank"><i class="bi bi-paperclip"></i></a>{% endfor %}
-      {% if editabil_fin %}{% if not x.lot_export %}<a href="{% url 'obiect_editare' p.pk 'factura' x.pk %}" title="editează"><i class="bi bi-pencil"></i></a>{% endif %}
-      <a href="{% url 'obiect_nou' p.pk 'document' %}?factura={{ x.pk }}&categorie=factura&titlu=Factura {{ x.numar|urlencode }}" title="atașează factura"><i class="bi bi-upload"></i></a>
-      {% if not x.nealocat_ron and x.rest_de_plata > x.in_aprobare_ron %}<a href="{% url 'obiect_nou' p.pk 'plata' %}?factura={{ x.pk }}" title="propune plată"><i class="bi bi-cash"></i></a>{% endif %}{% endif %}</td>
-  </tr>{% empty %}<tr><td colspan="12" class="text-center text-secondary py-4">Nicio factură înregistrată.</td></tr>{% endfor %}</tbody></table></div>
- </div>
- <div class="card">
-  <div class="card-header">Plăți – circuit de aprobare: propusă → aprobată tehnic ({{ p.aprobator_tehnic|default:p.coordonator|default:"coordonator" }}) → aprobată financiar ({{ p.aprobator_financiar|default:"responsabil financiar" }}){% if p.prag_aprobare_suplimentara %} → peste {{ p.prag_aprobare_suplimentara|bani }} RON: {{ p.aprobator_suplimentar|default:"aprobator suplimentar" }}{% endif %} → export fișier → plătită</div>
-  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
-  <thead><tr><th>Data</th><th>Factură</th><th class="num">Sumă fără TVA</th><th>Stare</th><th>Aprobări</th><th>Lot / OP</th><th></th></tr></thead>
-  <tbody>{% for pl in plati %}<tr>
-    <td class="small">{{ pl.data|date:"d.m.Y" }}</td><td class="small">{{ pl.factura.furnizor }} {{ pl.factura.numar }}</td><td class="num">{{ pl.suma_ron|bani2 }}</td>
-    <td><span class="badge {% if pl.stare == 'platita' %}text-bg-success{% elif pl.stare == 'respinsa' %}text-bg-danger{% elif pl.stare == 'exportata' %}text-bg-primary{% else %}text-bg-warning{% endif %}">{{ pl.get_stare_display }}</span>{% if pl.respinsa_motiv %}<div class="small text-danger">{{ pl.respinsa_motiv }}</div>{% endif %}</td>
-    <td class="small">propusă: {{ pl.propusa_de|default:"—" }}{% if pl.aprobat_tehnic_de %}<br>tehnic: {{ pl.aprobat_tehnic_de }} {{ pl.aprobat_tehnic_la|date:"d.m.Y H:i" }}{% endif %}{% if pl.aprobat_financiar_de %}<br>financiar: {{ pl.aprobat_financiar_de }} {{ pl.aprobat_financiar_la|date:"d.m.Y H:i" }}{% endif %}{% if pl.aprobat_suplimentar_de %}<br>suplimentar: {{ pl.aprobat_suplimentar_de }}{% elif pl.necesita_aprobare_suplimentara %}<br><span class="text-warning-emphasis">necesită aprobare suplimentară</span>{% endif %}</td>
-    <td class="small">{{ pl.lot_export|default:"" }} {{ pl.document_plata }}</td>
-    <td class="text-nowrap">{% for a, et in pl.actiuni %}<form class="d-inline" method="post" action="{% url 'plata_actiune' pl.pk a %}" {% if a == 'respinge' %}onsubmit="const m=prompt('Motivul respingerii:'); if(!m) return false; this.motiv.value=m;"{% endif %}>{% csrf_token %}<input type="hidden" name="motiv"><input type="hidden" name="inapoi" value="{{ request.path }}?tab=financiar"><button class="btn btn-sm {% if a == 'respinge' %}btn-outline-danger{% else %}btn-outline-success{% endif %} py-0">{{ et }}</button></form> {% endfor %}
-      {% if editabil_fin and pl.stare == 'propusa' %}<a href="{% url 'obiect_editare' p.pk 'plata' pl.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}</td>
-  </tr>{% empty %}<tr><td colspan="7" class="text-center text-secondary py-4">Nicio plată propusă.</td></tr>{% endfor %}</tbody></table></div>
- </div>
-</div>
-
 {# ---------------- AVIZE ---------------- #}
 <div class="tab-pane fade {% if tab == 'avize' %}show active{% endif %}" id="t-avize">
   <div class="row g-3">
   <div class="col-lg-4"><div class="card"><div class="card-header d-flex">Certificate de urbanism {% if editabil %}<a class="ms-auto small" href="{% url 'obiect_nou' p.pk 'certificat' %}">+ CU manual</a>{% endif %}</div>
+    {% if editabil %}<div class="card-body border-bottom"><form method="post" enctype="multipart/form-data" action="{% url 'cu_incarca' p.pk %}" id="formCU">{% csrf_token %}
+      <label class="form-label small fw-semibold"><i class="bi bi-stars text-primary"></i> Încarcă CU – AI completează lista de avize</label>
+      <input type="file" name="fisier" class="form-control form-control-sm" accept=".pdf,image/*" required onchange="if(this.files.length){document.getElementById('cuAsteptare').classList.remove('d-none');this.form.submit();}">
+      <div class="form-text">Se preiau avizele / studiile bifate în certificat. Le verificați înainte să intre în listă și puteți adăuga altele.{% if not stare_ai.0 %} <span class="text-danger">AI indisponibil acum: {{ stare_ai.1 }}.</span>{% endif %}</div>
+      <div id="cuAsteptare" class="small text-primary d-none mt-1"><span class="spinner-border spinner-border-sm"></span> Se citește certificatul…</div></form></div>{% endif %}
     <ul class="list-group list-group-flush">{% for cu in certificate %}<li class="list-group-item"><b>{{ cu }}</b> · {{ cu.emitent }}<div class="small {% if cu.valabil_pana and cu.valabil_pana < azi %}text-danger{% else %}text-secondary{% endif %}">valabil până la {{ cu.valabil_pana|date:"d.m.Y"|default:"—" }}</div>
       {% for d in cu.documente.all %}<a class="small" href="{% url 'document' d.pk %}" target="_blank"><i class="bi bi-paperclip"></i> {{ d.titlu }}</a>{% endfor %}</li>{% empty %}<li class="list-group-item text-secondary small">Niciun CU. Încărcați PDF-ul certificatului în tabul Documente (categoria „Certificat de urbanism”) și apăsați „Extrage avize cu AI”.</li>{% endfor %}</ul>
     <div class="card-body small border-top">{% for k, v in avize_stat.items %}{% if v %}<span class="me-3">{{ k }}: <b>{{ v }}</b></span>{% endif %}{% endfor %}</div></div></div>
-  <div class="col-lg-8"><div class="card"><div class="card-header d-flex">Avize necesare pentru autorizația de construire {% if editabil %}<a class="ms-auto btn btn-sm btn-outline-primary" href="{% url 'obiect_nou' p.pk 'aviz' %}">+ Aviz</a>{% endif %}</div>
-    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
-    <thead><tr><th>Aviz</th><th>Status</th><th>Responsabil</th><th>Depus</th><th>Obținut</th><th>Valabil până</th><th>Doc.</th><th></th></tr></thead>
+  <div class="col-lg-8"><div class="card"><div class="card-header d-flex align-items-center">Avize și studii necesare pentru autorizația de construire {% if editabil %}<div class="ms-auto d-flex gap-1"><a class="btn btn-sm btn-outline-primary" href="{% url 'obiect_nou' p.pk 'aviz' %}?origine=cu">+ Aviz din CU</a><a class="btn btn-sm btn-outline-secondary" href="{% url 'obiect_nou' p.pk 'aviz' %}?origine=suplimentar&tip=studiu">+ Aviz / studiu suplimentar</a></div>{% endif %}</div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle tabel-filtrabil">
+    <thead><tr><th>Aviz / studiu</th><th>Tip</th><th>Status</th><th>Responsabil</th><th>Depus</th><th>Obținut</th><th>Valabilitate</th><th>Doc.</th><th></th></tr></thead>
     <tbody>{% for a in avize %}<tr>
       <td>{{ a.denumire }}{% if a.extras_ai %} <i class="bi bi-stars text-primary" title="propus de AI din CU"></i>{% endif %}<div class="small text-secondary">{{ a.emitent }}</div></td>
+      <td class="small">{{ a.get_tip_display }}<div>{% if a.origine == 'cu' %}<span class="badge text-bg-light">din CU</span>{% else %}<span class="badge text-bg-info">{{ a.get_origine_display|lower }}</span>{% endif %}</div></td>
       <td><span class="badge {% if a.status == 'obtinut' %}text-bg-success{% elif a.status == 'respins' %}text-bg-danger{% elif a.status == 'depus' %}text-bg-warning{% else %}text-bg-light{% endif %}">{{ a.get_status_display }}</span></td>
       <td class="small">{{ a.responsabil|default:"" }}</td><td class="small">{{ a.data_depunere|date:"d.m.Y" }}</td><td class="small">{{ a.numar_aviz }} {{ a.data_aviz|date:"d.m.Y" }}</td>
-      <td class="small {% if a.expira_curand %}text-danger fw-semibold{% endif %}">{{ a.valabil_pana|date:"d.m.Y" }}</td>
-      <td>{% for d in a.documente.all %}{% if not d.arhivat %}<a href="{% url 'document' d.pk %}" target="_blank"><i class="bi bi-file-earmark-check"></i></a>{% endif %}{% endfor %}</td>
-      <td class="text-nowrap">{% if editabil %}<a href="{% url 'obiect_editare' p.pk 'aviz' a.pk %}"><i class="bi bi-pencil"></i></a> <a href="{% url 'obiect_nou' p.pk 'document' %}?aviz={{ a.pk }}&categorie=aviz&titlu={{ a.denumire|urlencode }}" title="încarcă avizul"><i class="bi bi-upload"></i></a>{% endif %}</td>
-    </tr>{% empty %}<tr><td colspan="8" class="text-center text-secondary py-4">Nicio cerință de aviz.</td></tr>{% endfor %}</tbody></table></div></div></div>
+      <td class="small text-nowrap" data-sort="{{ a.valabil_pana|date:'Y-m-d' }}">{% with sv=a.stare_valabilitate z=a.zile_ramase %}{% if sv == 'nedefinit' %}{% if a.status == 'obtinut' %}<span class="badge text-bg-warning">fără dată</span>{% else %}<span class="text-secondary">—</span>{% endif %}
+        {% else %}{{ a.valabil_pana|date:"d.m.Y" }}<div>{% if sv == 'expirat' %}<span class="badge text-bg-danger">expirat de {{ z|stringformat:"d"|cut:"-" }} zile</span>{% elif sv == 'expira' %}<span class="badge text-bg-warning">expiră în {{ z }} zile</span>{% else %}<span class="badge text-bg-success">valabil {{ z }} zile</span>{% endif %}</div>{% endif %}{% endwith %}</td>
+      <td>{% for d in a.documente.all %}{% if not d.arhivat %}<a href="{% url 'document' d.pk %}" target="_blank" title="{{ d.titlu }}"><i class="bi bi-file-earmark-check text-success"></i></a>{% endif %}{% empty %}{% if a.status == 'obtinut' %}<span class="badge text-bg-warning">fără scan</span>{% endif %}{% endfor %}</td>
+      <td class="text-nowrap">{% if editabil %}<a href="{% url 'obiect_editare' p.pk 'aviz' a.pk %}" title="editează / încarcă avizul obținut"><i class="bi bi-pencil"></i></a> <a href="{% url 'obiect_editare' p.pk 'aviz' a.pk %}#id_scan" title="încarcă avizul (PDF)"><i class="bi bi-upload"></i></a>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="9" class="text-center text-secondary py-4">Nicio cerință de aviz. Încărcați certificatul de urbanism pentru lista de avize.</td></tr>{% endfor %}</tbody></table></div></div></div>
   </div>
 </div>
 
 {# ---------------- FINANȚARE ---------------- #}
 <div class="tab-pane fade {% if tab == 'finantare' %}show active{% endif %}" id="t-finantare"><div class="row g-3">
-  <div class="col-lg-5"><div class="card"><div class="card-header d-flex">Surse de finanțare {% if editabil %}<a class="ms-auto small" href="{% url 'obiect_nou' p.pk 'finantare' %}">+ sursă</a>{% endif %}</div>
+  <div class="col-lg-5"><div class="card h-100"><div class="card-header d-flex align-items-center"><span><i class="bi bi-diagram-3"></i> Structura de finanțare</span>
+    {% if p.fonduri_ue %}<a class="btn btn-sm btn-primary ms-auto" href="{% url 'fonduri_ue' p.pk %}"><i class="bi bi-stars"></i> Tablou de bord Fonduri UE</a>{% endif %}</div>
+    <div class="card-body">{% include "platforma/_structura_finantare.html" %}
+      <div class="form-text mt-2">Definită în Raportul Zero{% if editabil and p.stare_rz in 'ciorna respins' %} – <a href="{% url 'raport_zero_editare' p.pk %}#structura-finantare">modifică</a>{% elif p.stare_rz == 'aprobat' %}; se modifică printr-o revizie a RZ{% endif %}.</div></div></div></div>
+
+  {% if p.fin_bancara or p.limita_credit_ron %}<div class="col-lg-7" id="linie-credit"><div class="card h-100"><div class="card-header d-flex align-items-center"><span><i class="bi bi-bank"></i> Linia de credit – execuție</span>
+    {% if editabil_fin %}<a class="btn btn-sm btn-primary ms-auto" href="{% url 'cerere_tragere_noua' p.pk %}"><i class="bi bi-file-earmark-plus"></i> Cerere de tragere nouă</a>{% endif %}</div>
+    <div class="card-body">
+      {% with lim=p.limita_credit_ron tras=p.credit_tras_ron curs_=p.credit_in_curs_ron disp=p.credit_disponibil_ron %}
+      <div class="row g-2 text-center mb-2">
+        <div class="col"><div class="small text-secondary">Plafon credit</div><div class="fw-bold">{{ lim|bani }}</div></div>
+        <div class="col"><div class="small text-secondary">Tras (consumat)</div><div class="fw-bold text-primary">{{ tras|bani }}</div></div>
+        <div class="col"><div class="small text-secondary">Cereri în curs</div><div class="fw-bold text-warning-emphasis">{{ curs_|bani }}</div></div>
+        <div class="col"><div class="small text-secondary">Disponibil</div><div class="fw-bold {% if disp < 0 %}text-danger{% else %}text-success{% endif %}">{{ disp|bani }}</div></div>
+      </div>
+      <div class="progress mb-1" style="height:14px"><div class="progress-bar" style="width:{{ tras|procent:lim|plafon }}%" title="tras"></div><div class="progress-bar bg-warning" style="width:{{ curs_|procent:lim|plafon }}%" title="în curs"></div></div>
+      <div class="small text-secondary mb-2">RON · consumat {{ tras|procent:lim }}% din plafon{% if not p.finantari.all %} · plafonul e valoarea bancară din RZ; adăugați contractul de credit la „Contracte de finanțare”{% endif %}</div>
+      {% endwith %}
+      <table class="table table-sm small mb-0 align-middle"><thead><tr><th>Cerere</th><th>Data</th><th class="num">Facturi</th><th class="num">Solicitat</th><th class="num">Tras</th><th>Stare</th></tr></thead>
+      <tbody>{% for c in cereri_tragere %}<tr><td><a href="{% url 'cerere_tragere' p.pk c.pk %}">{{ c.numar }}</a></td><td>{{ c.data|date:"d.m.Y" }}</td><td class="num">{{ c.pozitii.all|length }}</td>
+        <td class="num">{{ c.total_solicitat|bani2 }}</td><td class="num">{% if c.status == 'aprobata' %}{{ c.suma_trasa|bani2 }}<div class="text-secondary">{{ c.data_tragere|date:"d.m.Y" }}</div>{% else %}—{% endif %}</td>
+        <td><span class="badge {% if c.status == 'aprobata' %}text-bg-success{% elif c.status == 'respinsa' %}text-bg-danger{% elif c.status == 'transmisa' %}text-bg-warning{% else %}text-bg-light{% endif %}">{{ c.get_status_display }}</span></td></tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-secondary py-3">Nicio cerere de tragere. Bifați facturile de solicitat cu „Cerere de tragere nouă”.</td></tr>{% endfor %}</tbody></table>
+    </div></div></div>{% endif %}
+
+  <div class="col-12"><div class="card"><div class="card-header d-flex align-items-center"><span><i class="bi bi-clipboard-data"></i> Raportare bancă – rapoarte de progres</span>
+    {% if editabil %}<a class="btn btn-sm btn-outline-primary ms-auto" href="{% url 'obiect_nou' p.pk 'raport_progres' %}">+ Raport de progres</a>{% endif %}</div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle"><thead><tr><th>Raport</th><th>Perioada</th><th>Raportor</th><th class="num">Progres fizic</th><th class="num">Executat (RON)</th><th>Constatări / recomandări</th><th>Stare</th><th>Doc.</th><th></th></tr></thead>
+    <tbody>{% for r in rapoarte_progres %}<tr><td class="text-nowrap"><b>{{ r.numar }}</b><div class="small text-secondary">{{ r.data|date:"d.m.Y" }}{% if r.finantare %} · {{ r.finantare.finantator|default:r.finantare }}{% endif %}</div></td>
+      <td class="small text-nowrap">{{ r.perioada_de_la|date:"d.m.Y"|default:"" }}{% if r.perioada_pana %} – {{ r.perioada_pana|date:"d.m.Y" }}{% endif %}</td><td class="small">{{ r.raportor }}</td>
+      <td class="num">{% if r.progres_fizic is not None %}{{ r.progres_fizic }}%{% else %}—{% endif %}</td><td class="num">{{ r.valoare_executata_ron|bani|default:"—" }}</td>
+      <td class="small" style="max-width:360px">{{ r.constatari|truncatechars:140 }}{% if r.recomandari %}<div class="text-warning-emphasis">{{ r.recomandari|truncatechars:120 }}</div>{% endif %}</td>
+      <td><span class="badge {% if r.status == 'acceptat' %}text-bg-success{% elif r.status == 'observatii' %}text-bg-warning{% elif r.status == 'transmis' %}text-bg-primary{% else %}text-bg-light{% endif %}">{{ r.get_status_display }}</span>{% if r.data_transmitere %}<div class="small text-secondary">{{ r.data_transmitere|date:"d.m.Y" }}</div>{% endif %}</td>
+      <td>{% for d in r.documente.all %}{% if not d.arhivat %}<a href="{% url 'document' d.pk %}" target="_blank" title="{{ d.titlu }}"><i class="bi bi-file-earmark-pdf text-danger"></i></a>{% endif %}{% empty %}<span class="badge text-bg-warning">fără PDF</span>{% endfor %}</td>
+      <td>{% if editabil %}<a href="{% url 'obiect_editare' p.pk 'raport_progres' r.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="9" class="text-center text-secondary py-3">Niciun raport de progres pentru bancă.</td></tr>{% endfor %}</tbody></table></div></div></div>
+
+  <div class="col-lg-5"><div class="card"><div class="card-header d-flex">Contracte de finanțare (credit, grant) {% if editabil %}<a class="ms-auto small" href="{% url 'obiect_nou' p.pk 'finantare' %}">+ contract finanțare</a>{% endif %}</div>
     <ul class="list-group list-group-flush">{% for fi in finantari %}<li class="list-group-item"><b>{{ fi.get_tip_display }}</b> · {{ fi.finantator }} {% if editabil %}<a class="small" href="{% url 'obiect_editare' p.pk 'finantare' fi.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}
       <div class="small">{{ fi.valoare_ron|bani }} RON {% if fi.procent_nerambursabil %}· {{ fi.procent_nerambursabil }}% nerambursabil{% endif %} {% if fi.nr_contract %}· contract {{ fi.nr_contract }}/{{ fi.data_contract|date:"d.m.Y" }}{% endif %}</div>
       {% if fi.data_limita_implementare %}<div class="small text-secondary">implementare până la {{ fi.data_limita_implementare|date:"d.m.Y" }}{% if fi.perioada_monitorizare_ani %} · monitorizare {{ fi.perioada_monitorizare_ani }} ani{% endif %}</div>{% endif %}

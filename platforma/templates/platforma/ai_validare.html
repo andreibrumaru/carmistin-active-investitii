@@ -12,6 +12,26 @@
   <label class="form-check-label" for="e{{ forloop.counter0 }}"><b>{% firstof e.denumire e.descriere %}</b>{% if e.tip %} <span class="badge text-bg-light">{{ e.tip }}</span>{% endif %}{% if e.emitent %} · {{ e.emitent }}{% endif %}{% if e.termen %} · termen {{ e.termen }}{% endif %}{% if e.valoare %} · {{ e.valoare }}{% endif %}{% if e.recurenta %} · {{ e.recurenta }}{% endif %}</label>
   {% if e.fragment %}<div class="fragment mt-1">„{{ e.fragment }}” {% if e.pagina %}(pag. {{ e.pagina }}){% endif %}</div>{% endif %}</div></li>
 {% empty %}<li class="list-group-item text-secondary">AI-ul nu a identificat elemente.</li>{% endfor %}</ul>
+{% if ex.tip == 'cu_avize' and ex.status == 'propus' %}
+<div class="card-body border-top">
+  <div class="fw-semibold mb-1"><i class="bi bi-plus-circle"></i> Alte avize / studii (intermediare sau suplimentare)</div>
+  <div class="small text-secondary mb-2">Adăugați ce nu apare în CU sau a fost cerut ulterior (ex. studiu geotehnic, aviz de amplasament, studiu de trafic).</div>
+  <table class="table table-sm align-middle mb-2"><thead><tr><th>Denumire</th><th style="width:160px">Tip</th><th style="width:170px">Origine</th><th style="width:40px"></th></tr></thead>
+  <tbody id="avizeExtra"></tbody></table>
+  <button type="button" class="btn btn-sm btn-outline-primary" id="adaugaAvizExtra"><i class="bi bi-plus-lg"></i> Adaugă aviz / studiu</button>
+  <template id="randAvizExtra"><tr>
+    <td><input name="extra_denumire" class="form-control form-control-sm" placeholder="ex. Studiu geotehnic"></td>
+    <td><select name="extra_tip" class="form-select form-select-sm">{% for k, e in tipuri_aviz %}<option value="{{ k }}">{{ e }}</option>{% endfor %}</select></td>
+    <td><select name="extra_origine" class="form-select form-select-sm">{% for k, e in origini_aviz %}{% if k != 'cu' %}<option value="{{ k }}">{{ e }}</option>{% endif %}{% endfor %}</select></td>
+    <td><button type="button" class="btn btn-sm btn-link text-danger p-0 sterge-extra" title="elimină"><i class="bi bi-x-lg"></i></button></td></tr></template>
+</div>
+<script>
+(() => {
+  const corp = document.getElementById('avizeExtra'), sablon = document.getElementById('randAvizExtra');
+  document.getElementById('adaugaAvizExtra').addEventListener('click', () => { corp.appendChild(sablon.content.cloneNode(true)); corp.lastElementChild.querySelector('input').focus(); });
+  corp.addEventListener('click', e => { const b = e.target.closest('.sterge-extra'); if (b) b.closest('tr').remove(); });
+})();
+</script>{% endif %}
 {% if ex.status == 'propus' %}<div class="card-footer d-flex gap-2"><button class="btn btn-primary"><i class="bi bi-check2-all"></i> Validează selecția</button><button name="respinge" value="1" class="btn btn-outline-danger" formnovalidate>Respinge extragerea</button></div>{% endif %}
 </div></form>
 {% endblock %}
