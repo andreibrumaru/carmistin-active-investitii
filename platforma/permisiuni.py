@@ -99,7 +99,12 @@ def poate_aproba_suplimentar(user, proiect):
 
 
 def poate_crea_proiect(user):
-    return rol(user) in ("admin", "coordonator", "pm")
+    return rol(user) in ("admin", "coordonator", "pm", "implementare")
+
+
+def doar_proiectele_lui(user):
+    """Responsabil de proiect cu acces limitat: nu vede registrele grupului, doar Rapoartele Zero și proiectele lui."""
+    return rol(user) == "implementare"
 
 
 def poate_aviza_rz(user):
@@ -121,3 +126,34 @@ class DoarCitireMiddleware:
             from django.core.exceptions import PermissionDenied
             raise PermissionDenied("Contul dumneavoastră are doar drept de vizualizare.")
         return self.get_response(request)
+
+
+class ProiecteleMeleMiddleware:
+    """Pentru responsabilii de proiect cu acces limitat: registrele grupului (active, hartă, autorizații, buget anual,
+    jurnal, export, ștergeri) sunt închise; pagina de start devine registrul Rapoartelor Zero (doar ale lor)."""
+    INCHISE = {
+        "locatii", "locatii_harta", "locatie_noua", "cod_pentru_societate", "cf_citire_definire", "acronim_propus", "societate_noua",
+        "proprietar_extern_nou", "locatie_detaliu", "locatie_editare", "locatie_document", "locatie_din_scan", "locatie_incarcare",
+        "poze_sterge", "consolidare_valoare", "urmarire_autorizatii", "cerinta_autorizatie", "suport_autorizatie", "raport_autorizatii",
+        "cf_din_registru", "preia_din_cf", "cf_extrase_multiple", "cf_sterge", "drept_anexe", "locatie_obiect_nou", "locatie_obiect_editare",
+        "raport_zero_sterge", "jurnal", "stergere_proiect", "export_erp", "lot_descarca", "lot_confirma", "dashboard_anual",
+    }
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        return self.get_response(request)
+
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        user = getattr(request, "user", None)
+        if not (user and user.is_authenticated and doar_proiectele_lui(user)):
+            return None
+        nume = getattr(request.resolver_match, "url_name", "") or ""
+        if nume == "dashboard":
+            from django.shortcuts import redirect
+            return redirect("investitii")
+        if nume in self.INCHISE or request.path.startswith("/admin/"):
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied("Aveți acces doar la Rapoartele Zero și la proiectele în care sunteți responsabil.")
+        return None

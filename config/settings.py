@@ -57,6 +57,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "platforma.audit.UtilizatorCurentMiddleware",
     "platforma.permisiuni.DoarCitireMiddleware",
+    "platforma.permisiuni.ProiecteleMeleMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"

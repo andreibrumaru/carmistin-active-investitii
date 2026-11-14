@@ -3,12 +3,16 @@
 Denumire: {{ p.denumire }}
 Nr. înregistrare: {{ p.nr_inregistrare }}
 Beneficiar: {{ p.beneficiar }}
-Locație: {{ p.locatie.cod }} · {{ p.obiectiv|default:p.locatie.denumire }}
+Locație: {{ p.locatie.cod }} · {{ p.locatie.denumire }}
 Valoare: {{ p.valoare_rz|bani }} {{ p.moneda_rz }}
-Buget HG (RON fără TVA): {{ total_buget|bani }}
-Perioada: {{ p.data_demarare|date:"d.m.Y" }} – {{ p.data_finalizare|date:"d.m.Y" }}
+Buget HG ({{ p.moneda_rz }} fără TVA): {{ total_buget|bani }}
+Perioada: {{ p.data_demarare|date:"d.m.Y" }} – {% if p.fara_termen %}FT (fără termen de finalizare){% else %}{{ p.data_finalizare|date:"d.m.Y" }}{% endif %}
 
-Pentru a aproba sau respinge, deschideți (valabil {{ zile }} zile, o singură dată):
+{% if p.revizie_rz %}REVIZIA {{ p.revizie_rz }} – reavizare{% if motiv_revizie %}. Motiv: {{ motiv_revizie }}{% endif %}
+{% if rezumat_modificari %}CE S-A MODIFICAT:
+{% for r in rezumat_modificari %}  * [{{ r.sectiune }}] {{ r.ce }}: {{ r.inainte }} -> {{ r.acum }}
+{% endfor %}{% endif %}
+{% endif %}Pentru a aproba sau respinge, deschideți (valabil {{ zile }} zile, o singură dată):
 {{ link }}
 
 Raportul complet în aplicație: {{ link_aplicatie }}

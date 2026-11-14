@@ -1,4 +1,4 @@
-{% extends "platforma/base.html" %}{% load fmt %}
+{% extends "platforma/base.html" %}{% load fmt static %}
 {% block titlu %}{{ c.numar }}{% endblock %}
 {% block continut %}
 <style>
@@ -29,6 +29,7 @@
 </div></div>{% endif %}
 
 <div class="card document-cerere"><div class="card-body p-4">
+  <div class="text-center mb-3"><img src="{% static 'platforma/logo-carmistin.png' %}" alt="Carmistin – The Food Company" class="logo-document"></div>
   <div class="d-flex justify-content-between mb-3"><div><div class="fw-bold fs-5">{{ p.beneficiar }}</div><div class="small text-secondary">{% if p.beneficiar.cui %}CUI {{ p.beneficiar.cui }}{% endif %}</div></div>
     <div class="text-end small">Nr. {{ c.numar }}<br>Data: {{ c.data|date:"d.m.Y" }}</div></div>
   <div class="mb-3">Către: <b>{% if c.finantare %}{{ c.finantare.finantator|default:"Banca finanțatoare" }}{% else %}Banca finanțatoare{% endif %}</b></div>

@@ -57,21 +57,32 @@ def citeste_token(token):
 
 def trimite(p, trimis_de=None):
     """Trimite emailul de avizare. Întoarce (ok, mesaj)."""
-    from .views import _buget_rz
+    from .views import context_rz_afisare
     apr = aprobator()
     catre = settings.RZ_APROBATOR_EMAIL
     e = m.EmailAvizRZ.objects.create(proiect=p, revizie=p.revizie_rz, catre=catre, aprobator=apr, trimis_de=trimis_de,
                                      amprenta=amprenta(p), salvat_local=not settings.EMAIL_CONFIGURAT)
-    capitole, total = _buget_rz(p)
-    ctx = {"p": p, "e": e, "link": link(e), "link_aplicatie": settings.SITE_URL + reverse("raport_zero", args=[p.pk]),
-           "capitole_buget": capitole, "total_buget": total,
-           "echipamente": list(p.echipamente.select_related("linie_buget").order_by("linie_buget__capitol", "pk")), "zile": settings.RZ_LINK_ZILE, "trimis_de": trimis_de}
-    subiect = f"Avizare Raport Zero {p.cod}{f' rev.{p.revizie_rz}' if p.revizie_rz else ''} – {p.denumire}"[:200]
+    ctx = {**context_rz_afisare(p), "e": e, "link": link(e), "link_aplicatie": settings.SITE_URL + reverse("raport_zero", args=[p.pk]),
+           "zile": settings.RZ_LINK_ZILE, "trimis_de": trimis_de}
+    subiect = (f"Reavizare Raport Zero {p.cod} rev.{p.revizie_rz} – {len(ctx['rezumat_modificari'])} modificări – {p.denumire}" if p.revizie_rz
+               else f"Avizare Raport Zero {p.cod} – {p.denumire}")[:200]
     text = render_to_string("platforma/email/aviz_rz.txt", ctx)
     html = render_to_string("platforma/email/aviz_rz.html", ctx)
     msg = EmailMultiAlternatives(subiect, text, settings.DEFAULT_FROM_EMAIL, [catre],
                                  reply_to=[trimis_de.email] if trimis_de and trimis_de.email else None)
     msg.attach_alternative(html, "text/html")
+    # logo-ul Carmistin, inclus în email (nu depinde de accesul destinatarului la rețeaua internă)
+    try:
+        from email.mime.image import MIMEImage
+        from pathlib import Path
+        with open(Path(__file__).resolve().parent / "static" / "platforma" / "logo-carmistin.png", "rb") as f:
+            img = MIMEImage(f.read(), _subtype="png")
+        img.add_header("Content-ID", "<logo-carmistin>")
+        img.add_header("Content-Disposition", "inline", filename="logo-carmistin.png")
+        msg.mixed_subtype = "related"
+        msg.attach(img)
+    except OSError:
+        pass
     for d in p.documente.filter(categorie="raport_zero", arhivat=False)[:3]:  # PDF-ul semnat, dacă există
         try:
             if d.fisier.size <= 10 * 1024 * 1024:

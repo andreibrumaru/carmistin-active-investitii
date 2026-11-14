@@ -1,4 +1,4 @@
-{% extends "platforma/form.html" %}
+{% extends "platforma/form.html" %}{% load fmt %}
 {% block antet_dreapta %}
 <div class="rz-cod-mare ms-auto" id="codRzMare">
   <div class="eticheta">Cod Raport Zero</div>
@@ -8,6 +8,9 @@
 </div>
 {% endblock %}
 {% block campuri %}
+{% if rev_ref %}<div class="alert rz-legenda d-flex gap-2 align-items-start"><i class="bi bi-pencil-square fs-5"></i><div>
+  <b>Revizia {{ form.instance.revizie_rz }} a Raportului Zero.</b> Tot ce se modifică față de versiunea avizată ({% if rev_ref.revizie %}rev. {{ rev_ref.revizie }}{% else %}inițială{% endif %}, avizată la {{ rev_ref.aprobat_la|date:"d.m.Y" }}) apare <span class="rz-modificat px-1">evidențiat</span>, cu valoarea anterioară dedesubt.</div></div>{% endif %}
+{{ rev_valori|json_script:"revValori" }}
 {# Câmpurile Raportului Zero, grupate pe secțiuni #}
 <div class="rz-sectiune prima">
   <div class="rz-titlu"><i class="bi bi-geo-alt"></i> Beneficiar și locație</div>
@@ -25,10 +28,11 @@
 </div>
 
 <div class="rz-sectiune">
-  <div class="rz-titlu"><i class="bi bi-diagram-3"></i> Tipul investiției și responsabilul</div>
+  <div class="rz-titlu"><i class="bi bi-diagram-3"></i> Tipul investiției, solicitant și responsabil</div>
   <div class="row g-3">
     <div class="col-md-6">{% include "platforma/_camp.html" with field=form.tip_investitie %}</div>
     <div class="col-md-6"><div class="rz-bifa">{% include "platforma/_camp.html" with field=form.necesita_ac %}</div></div>
+    <div class="col-md-6">{% include "platforma/_camp.html" with field=form.solicitant %}</div>
     <div class="col-md-6">{% include "platforma/_camp.html" with field=form.responsabil %}</div>
     <div class="col-12">{% include "platforma/_camp.html" with field=form.descriere_lucrari %}</div>
   </div>
@@ -41,8 +45,19 @@
     <div class="col-md-6 col-lg-2">{% include "platforma/_camp.html" with field=form.moneda_rz %}</div>
     <div class="col-md-4 col-lg-2">{% include "platforma/_camp.html" with field=form.prioritate %}</div>
     <div class="col-md-4 col-lg-2">{% include "platforma/_camp.html" with field=form.data_demarare %}</div>
-    <div class="col-md-4 col-lg-2">{% include "platforma/_camp.html" with field=form.data_finalizare %}</div>
+    <div class="col-md-4 col-lg-2">{% include "platforma/_camp.html" with field=form.data_finalizare %}
+      <div class="form-check form-check-sm mt-1 small text-secondary" title="Bifați dacă proiectul nu are un termen de finalizare stabilit.">{{ form.fara_termen }} <label class="form-check-label" for="{{ form.fara_termen.id_for_label }}">FT – fără termen</label></div>
+      {% for e in form.fara_termen.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>
   </div>
+<script>
+// Proiect FT: fără termen de finalizare – câmpul de termen se golește și se dezactivează.
+(() => {
+  const ft = document.getElementById('id_fara_termen'), t = document.getElementById('id_data_finalizare');
+  if (!ft || !t) return;
+  const aplica = () => { t.disabled = ft.checked; if (ft.checked) { t.dataset.vechi = t.value || t.dataset.vechi || ''; t.value = ''; t.placeholder = 'FT'; } else if (!t.value && t.dataset.vechi) t.value = t.dataset.vechi; };
+  ft.addEventListener('change', aplica); aplica();
+})();
+</script>
 </div>
 {% endblock %}
 {% block in_form %}
@@ -66,8 +81,8 @@
   <div class="table-responsive"><table class="table table-sm align-middle mb-2" id="tabelEchipamente">
     <thead><tr><th>Denumire echipament / dotare</th><th>Specificații</th><th style="width:90px" class="num">Cant.</th><th style="width:80px">U.M.</th><th style="width:230px">Linie buget</th><th style="width:170px" class="num">Valoare estimată totală (<span class="moneda-rz">{{ form.moneda_rz.value|default:"RON" }}</span>)</th><th style="width:40px"></th></tr></thead>
     <tbody>
-    {% for e in echipamente_rz %}<tr>
-      <td><input type="hidden" name="ech_id" value="{{ e.id|default:'' }}"><input name="ech_denumire" value="{{ e.denumire }}" class="form-control form-control-sm" required></td>
+    {% for e in echipamente_rz %}<tr class="{% if e.rev_stare %}rz-modificat{% endif %}">
+      <td><input type="hidden" name="ech_id" value="{{ e.id|default:'' }}"><input name="ech_denumire" value="{{ e.denumire }}" class="form-control form-control-sm" required>{% if e.rev_stare %}<span class="badge rev-badge">{% if e.rev_stare == 'nou' %}nou în rev. {{ form.instance.revizie_rz }}{% else %}modificat în rev. {{ form.instance.revizie_rz }}{% endif %}</span>{% endif %}</td>
       <td><input name="ech_specificatii" value="{{ e.specificatii }}" class="form-control form-control-sm"></td>
       <td><input name="ech_cantitate" value="{{ e.cantitate_text }}" inputmode="decimal" class="form-control form-control-sm text-end"></td>
       <td><input name="ech_um" value="{{ e.um }}" class="form-control form-control-sm"></td>
@@ -76,6 +91,7 @@
       <td class="text-center">{% if e.contract %}<i class="bi bi-lock text-secondary" title="contractat prin {{ e.contract.numar }} – nu se poate scoate din listă"></i>{% else %}<button type="button" class="btn btn-sm btn-link text-danger p-0 ech-sterge" title="scoate din listă"><i class="bi bi-x-lg"></i></button>{% endif %}</td>
     </tr>{% endfor %}
     </tbody>
+    {% if ech_eliminate %}<tr class="rz-modificat"><td colspan="7" class="small"><i class="bi bi-dash-circle text-danger"></i> Eliminate față de versiunea avizată: {{ ech_eliminate|join:", " }}</td></tr>{% endif %}
     <tfoot><tr class="fw-bold"><td colspan="5">Total echipamente și dotări</td><td class="num" id="ech-total">0</td><td></td></tr></tfoot>
   </table></div>
   <button type="button" class="btn btn-sm btn-outline-primary" id="ech-adauga"><i class="bi bi-plus-lg"></i> Adaugă echipament</button>
@@ -83,16 +99,18 @@
 <div class="tab-pane fade p-3" id="fer-buget" role="tabpanel">
   <p class="small text-secondary mb-2">Structura devizului general (HG 907/2016), sume în <span class="moneda-rz">{{ form.moneda_rz.value|default:"RON" }}</span> fără TVA (moneda Raportului Zero). Liniile 4.3, 4.4 și 4.5 vin automat din lista de echipamente (fereastra 1) și nu se completează manual.
     După avizare bugetul rămâne fixat și se modifică doar printr-o revizie a Raportului Zero, aprobată de administrator.</p>
-  <div class="table-responsive"><table class="table table-sm align-middle mb-2" style="max-width:900px">
-    <thead><tr><th style="width:70px">Cap.</th><th>Denumire</th><th class="num" style="width:200px">Bugetat (<span class="moneda-rz">{{ form.moneda_rz.value|default:"RON" }}</span>)</th></tr></thead>
+  {% if coloane_buget %}<div class="alert rz-legenda small py-2 mb-2"><i class="bi bi-layers"></i> Revizia {{ form.instance.revizie_rz }}: coloana gri este versiunea avizată anterior ({{ coloane_buget|last|get:"eticheta" }}); în ultima coloană se completează revizia. Liniile modificate față de ea sunt evidențiate.</div>{% endif %}
+  <div class="table-responsive"><table class="table table-sm align-middle mb-2" {% if not coloane_buget %}style="max-width:900px"{% endif %}>
+    <thead><tr><th style="width:70px">Cap.</th><th>Denumire</th>{% for r in coloane_buget %}<th class="num rev-col" style="width:120px">{{ r.eticheta }}<div class="small fw-normal">avizat {{ r.aprobat_la|date:"d.m.Y" }}</div></th>{% endfor %}<th class="num" style="width:200px">{% if coloane_buget %}Rev. {{ form.instance.revizie_rz }} – în lucru{% else %}Bugetat{% endif %} (<span class="moneda-rz">{{ form.moneda_rz.value|default:"RON" }}</span>)</th></tr></thead>
     <tbody>{% for c in capitole_buget %}
-      <tr class="capitol-row"><td>{{ c.cod }}</td><td>{{ c.denumire }}</td><td class="num" data-total-capitol="{{ c.cod }}">0</td></tr>
+      <tr class="capitol-row"><td>{{ c.cod }}</td><td>{{ c.denumire }}</td>{% for v in c.revizii %}<td class="num rev-col">{{ v|bani }}</td>{% endfor %}<td class="num" data-total-capitol="{{ c.cod }}">0</td></tr>
       {% for l in c.linii %}<tr><td class="text-secondary">{{ l.cod }}</td><td>{{ l.denumire }}{% if l.cod in linii_ech_coduri %} <span class="badge text-bg-light"><i class="bi bi-cpu"></i> din lista de echipamente</span>{% endif %}</td>
-        <td>{% if l.cod in linii_ech_coduri %}<input type="text" name="buget_{{ l.cod }}" value="{% if l.valoare %}{{ l.valoare|floatformat:'-2' }}{% endif %}" placeholder="0" class="form-control form-control-sm text-end celula-buget camp-calculat" data-capitol="{{ c.cod }}" data-ech="1" readonly tabindex="-1" title="calculat din lista de echipamente">{% else %}<input type="text" inputmode="decimal" name="buget_{{ l.cod }}" value="{% if l.valoare %}{{ l.valoare|floatformat:'-2' }}{% endif %}" placeholder="0" class="form-control form-control-sm text-end celula-buget" data-capitol="{{ c.cod }}">{% endif %}</td></tr>{% endfor %}
+        {% for v in l.revizii %}<td class="num rev-col">{% if v %}{{ v|bani }}{% else %}–{% endif %}</td>{% endfor %}
+        <td class="{% if l.rev_modificat %}rz-modificat{% endif %}">{% if l.cod in linii_ech_coduri %}<input type="text" name="buget_{{ l.cod }}" value="{% if l.valoare %}{{ l.valoare|floatformat:'-2' }}{% endif %}" placeholder="0" class="form-control form-control-sm text-end celula-buget camp-calculat" data-capitol="{{ c.cod }}" data-ech="1"{% if coloane_buget %} data-ref="{{ l.ref|default_if_none:0|stringformat:'s' }}"{% endif %} readonly tabindex="-1" title="calculat din lista de echipamente">{% else %}<input type="text" inputmode="decimal" name="buget_{{ l.cod }}" value="{% if l.valoare %}{{ l.valoare|floatformat:'-2' }}{% endif %}" placeholder="0" class="form-control form-control-sm text-end celula-buget" data-capitol="{{ c.cod }}"{% if coloane_buget %} data-ref="{{ l.ref|default_if_none:0|stringformat:'s' }}"{% endif %}>{% endif %}</td></tr>{% endfor %}
     {% endfor %}</tbody>
-    <tfoot><tr class="fw-bold"><td></td><td>TOTAL BUGET HG</td><td class="num" id="totalBuget">0</td></tr>
-      <tr class="small"><td></td><td class="text-secondary">Valoarea Raportului Zero (calculată din buget)</td><td class="num text-secondary" id="valoareRzRon">—</td></tr>
-      <tr class="small"><td></td><td class="text-secondary">Diferență buget HG – valoare RZ</td><td class="num" id="diferentaRz">—</td></tr></tfoot>
+    <tfoot><tr class="fw-bold"><td></td><td>TOTAL BUGET HG</td>{% for r in coloane_buget %}<td class="num rev-col">{{ r.total|bani }}</td>{% endfor %}<td class="num" id="totalBuget">0</td></tr>
+      <tr class="small"><td></td><td class="text-secondary">Valoarea Raportului Zero (calculată din buget)</td>{% for r in coloane_buget %}<td></td>{% endfor %}<td class="num text-secondary" id="valoareRzRon">—</td></tr>
+      <tr class="small"><td></td><td class="text-secondary">Diferență buget HG – valoare RZ</td>{% for r in coloane_buget %}<td></td>{% endfor %}<td class="num" id="diferentaRz">—</td></tr></tfoot>
   </table></div>
 </div>
 
@@ -425,6 +443,48 @@
   formRZ.addEventListener('submit', () => { fin('fin_nerambursabil').disabled = false; });
   recalcFin();
   {% if form.errors.val_nerambursabil or form.errors.val_bancara %}document.addEventListener('DOMContentLoaded', () => new bootstrap.Modal('#fereastraFinantare').show());{% endif %}
+})();
+</script>
+<script>
+// Revizie: câmpurile modificate față de versiunea avizată se evidențiază pe loc, cu valoarea anterioară dedesubt.
+(() => {
+  const el = document.getElementById('revValori');
+  const ref = el ? JSON.parse(el.textContent) : null;
+  if (!ref || !Object.keys(ref).length) return;
+  const NUMERICE = ['valoare_rz', 'val_nerambursabil', 'val_bancara'];
+  const nr = t => { t = (t || '').replace(/\s/g, ''); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); else if ((t.match(/\./g) || []).length > 1 || /^\d{1,3}\.\d{3}$/.test(t)) t = t.replace(/\./g, ''); const v = parseFloat(t); return isNaN(v) ? 0 : v; };
+  const fmt = v => new Intl.NumberFormat('ro-RO', {maximumFractionDigits: 2}).format(v);
+  const valoare = (camp, x) => {
+    if (x.type === 'checkbox') return x.checked ? '1' : '0';
+    if (NUMERICE.includes(camp)) return x.value.trim() ? nr(x.value).toFixed(2) : '';
+    return x.value.trim().replace(/\s+/g, ' ');
+  };
+  const afisare = (camp, x, v) => {
+    if (x.type === 'checkbox') return v === '1' ? 'bifat' : 'nebifat';
+    if (x.tagName === 'SELECT') { const o = [...x.options].find(o => o.value === v); return o ? o.text : (v || '—'); }
+    if (NUMERICE.includes(camp)) return v ? fmt(parseFloat(v)) : '—';
+    return v ? (v.length > 140 ? v.slice(0, 140) + '…' : v) : '—';
+  };
+  const verifica = () => {
+    Object.entries(ref).forEach(([camp, vechi]) => {
+      const x = document.getElementById('id_' + camp); if (!x) return;
+      const schimbat = valoare(camp, x) !== vechi;
+      const tinta = x.type === 'checkbox' ? (x.closest('.rz-bifa') || x.closest('.form-check') || x.parentNode) : x;
+      tinta.classList.toggle('camp-revizuit', schimbat);
+      const gazda = x.type === 'checkbox' ? tinta : x.parentNode;
+      let nota = gazda.querySelector(':scope > .rev-anterior');
+      if (schimbat && !nota) { nota = document.createElement('div'); nota.className = 'rev-anterior'; x.type === 'checkbox' ? gazda.appendChild(nota) : x.insertAdjacentElement('afterend', nota); }
+      if (nota) { nota.hidden = !schimbat; if (schimbat) nota.textContent = 'în versiunea avizată: ' + afisare(camp, x, vechi); }
+    });
+    document.querySelectorAll('.celula-buget[data-ref]').forEach(c => {
+      const schimbat = Math.abs(nr(c.value) - parseFloat(c.dataset.ref || '0')) > 0.5;
+      c.classList.toggle('camp-revizuit', schimbat); c.closest('td').classList.toggle('rz-modificat', schimbat);
+    });
+  };
+  document.addEventListener('input', () => setTimeout(verifica));
+  document.addEventListener('change', () => setTimeout(verifica));
+  window.addEventListener('load', verifica);
+  verifica();
 })();
 </script>
 {% endblock %}

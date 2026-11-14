@@ -171,3 +171,28 @@ tr.linie-depasita-simpla > td { background-color: #fde8e6; }
 .stadii-investitii .stadiu-active.active { background: var(--c-primar); }
 .stadii-investitii .stadiu-anulate.active { background: #c0392b; }
 .stadii-investitii .stadiu-finalizate.active { background: #2e8b57; }
+
+/* Revizii ale Raportului Zero: ce s-a modificat față de versiunea avizată */
+.rz-legenda { background: #fff6dc; border: 1px solid #f0c75e; color: #6b4e00; }
+.rz-modificat, .table > :not(caption) > * > .rz-modificat, tr.rz-modificat > td { background-color: #fff3cd !important; }
+.rz-modificat { box-shadow: inset 3px 0 0 #e8a33d; }
+.camp-revizuit, .form-control.camp-revizuit, .form-select.camp-revizuit { background-color: #fff3cd !important; border-color: #e8a33d !important; box-shadow: 0 0 0 .15rem rgba(232,163,61,.25); }
+.rz-bifa.camp-revizuit { border-color: #e8a33d; }
+.rev-anterior { font-size: .75rem; color: #8a6100; margin-top: .15rem; }
+.rev-anterior::before { content: "\21B6  "; }
+.rev-col { color: #6b7a90; background: #f6f7f9; font-variant-numeric: tabular-nums; }
+.rev-badge { background: #e8a33d; color: #fff; font-weight: 600; margin-top: .2rem; }
+tr.rz-modificat > th { background-color: #ffe8a3 !important; box-shadow: inset 4px 0 0 #e8a33d; }
+tr.rz-modificat { box-shadow: none; }
+tr.rz-modificat > td:first-child { box-shadow: inset 4px 0 0 #e8a33d; }
+tr.rz-modificat > th + td { box-shadow: none; }
+@media print { .rz-modificat, tr.rz-modificat > td, tr.rz-modificat > th { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+/* Logo Carmistin: semnul (negru pe alb) devine alb pe fundalul închis al meniului */
+.sidebar .brand { display: flex; align-items: center; gap: .6rem; }
+.sidebar .brand .logo-semn { width: 34px; height: 34px; filter: invert(1); mix-blend-mode: screen; flex-shrink: 0; }
+.sidebar .brand small { margin-top: 1px; }
+.logo-document { height: 78px; width: auto; }
+@media print { .logo-document { height: 70px; } }
+.logo-document { mix-blend-mode: multiply; }
+.stadii-investitii .stadiu-pregatire.active { background: #8a96a8; }

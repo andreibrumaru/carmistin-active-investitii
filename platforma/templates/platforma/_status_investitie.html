@@ -1,0 +1,1 @@
+<span class="badge {% if p.status == 'Finalizat' %}text-bg-success{% elif p.status == 'Anulat/Suspendat' %}text-bg-danger{% elif p.status == 'În execuție' %}text-bg-primary{% else %}text-bg-secondary{% endif %}">{{ p.status_afisat }}</span>

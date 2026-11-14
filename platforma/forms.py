@@ -182,6 +182,7 @@ class LocatieSelect(forms.Select):
 
 
 class RaportZeroForm(Baza):
+    """responsabil_fix: responsabilul cu acces limitat inițiază Rapoarte Zero doar cu el însuși ca responsabil de proiect."""
     beneficiar = forms.ModelChoiceField(
         queryset=m.Societate.objects.none(), label="Beneficiar",
         help_text="Alegeți întâi beneficiarul; lista de locații se filtrează după proprietarul din registrul activelor.",
@@ -202,9 +203,9 @@ class RaportZeroForm(Baza):
     class Meta:
         model = m.Proiect
         fields = [
-            "beneficiar", "locatie", "linie", "divizie", "denumire", "tip_investitie", "necesita_ac", "responsabil",
+            "beneficiar", "locatie", "linie", "divizie", "denumire", "tip_investitie", "necesita_ac", "solicitant", "responsabil",
             "descriere_lucrari",
-            "valoare_rz", "moneda_rz", "prioritate", "data_demarare", "data_finalizare",
+            "valoare_rz", "moneda_rz", "prioritate", "data_demarare", "data_finalizare", "fara_termen",
             "fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "val_nerambursabil", "val_bancara",
             "observatii_rz",
         ]
@@ -212,7 +213,7 @@ class RaportZeroForm(Baza):
     CAMPURI_FINANTARE = ["fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "val_nerambursabil", "val_bancara"]
     CAMPURI_IN_BLOC = CAMPURI_FINANTARE + ["observatii_rz"]  # afișate de șablon în blocurile lor (finanțare; observații la final)
 
-    def __init__(self, *a, **kw):
+    def __init__(self, *a, responsabil_fix=None, **kw):
         super().__init__(*a, **kw)
         locatii = (m.Locatie.objects.exclude(cod__isnull=True).exclude(proprietar__isnull=True)
                    .annotate(max_ordine=Max("proiecte__nr_ordine")).order_by("cod"))
@@ -240,6 +241,10 @@ class RaportZeroForm(Baza):
                 div.widget.linii[len(div.choices)] = l
                 div.choices = list(div.choices) + [(loc.divizie, loc.divizie)]
         self.fields["linie"].choices = list(linii.items())
+        s = self.fields["solicitant"]
+        s.label, s.required = "Solicitant", True
+        s.help_text = "Cine are nevoie de investiție și a solicitat-o departamentului de investiții (persoană / departament / fermă)."
+        s.widget.attrs["placeholder"] = "ex. Ion Popescu – șef fermă Cazanești"
         self.fields["descriere_lucrari"].label = "Descriere investiție"
         self.fields["descriere_lucrari"].widget.attrs["rows"] = 4
         self.fields["moneda_rz"].label = "Moneda RZ"
@@ -249,6 +254,15 @@ class RaportZeroForm(Baza):
         r.widget.attrs["class"] = "form-select"
         if self.instance.pk and not self.initial.get("responsabil"):
             self.initial["responsabil"] = self.instance.pm_id or self.instance.coordonator_id
+        if responsabil_fix is not None:
+            r.queryset = User.objects.filter(pk=responsabil_fix.pk)
+            r.initial = self.initial["responsabil"] = responsabil_fix.pk
+            r.disabled = True
+            r.help_text = "Sunteți responsabilul acestui proiect; Raportul Zero se trimite administratorului spre avizare."
+        ft = self.fields["fara_termen"]
+        ft.label = "Proiect FT (fără termen de finalizare)"
+        ft.widget.attrs["class"] = "form-check-input"
+        self.fields["data_finalizare"].label = "Termen finalizare"
         self.fields["observatii_rz"].label = "Observații, alte detalii"
         self.fields["observatii_rz"].widget.attrs["rows"] = 4
         # Valoarea RZ nu se completează manual: se calculează din bugetul investiției și din lista de echipamente.
@@ -281,6 +295,12 @@ class RaportZeroForm(Baza):
         if self.is_bound and not self.total_buget_post():
             self.add_error(None, "Valoarea Raportului Zero se calculează din bugetul investiției și din lista de echipamente: "
                                  "completați bugetul (sau lista de echipamente) – valoarea nu se introduce manual.")
+        if date.get("fara_termen"):
+            date["data_finalizare"] = None
+        elif not date.get("data_finalizare"):
+            self.add_error("data_finalizare", "Completați termenul de finalizare sau bifați „Proiect FT (fără termen de finalizare)”.")
+        elif date.get("data_demarare") and date["data_finalizare"] < date["data_demarare"]:
+            self.add_error("data_finalizare", "Termenul de finalizare nu poate fi înaintea datei de demarare.")
         date.pop("valoare_rz", None)  # orice valoare trimisă se ignoră; se recalculează la salvare
         tip = date.get("tip_investitie")
         ech = self.data.getlist("ech_denumire") if hasattr(self.data, "getlist") else self.data.get("ech_denumire", [])

@@ -18,16 +18,18 @@ from django.db.models import Count, F, Q, Sum
 from django.db.models.functions import ExtractYear
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.contrib.auth.models import User
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from . import ai, aviz_email, curs as curs_mod, forms as f, models as m, plati as plati_mod, sms, stergere, status_investitie as stinv
+from . import ai, aviz_email, curs as curs_mod, forms as f, models as m, plati as plati_mod, revizii as rev, sms, stergere, status_investitie as stinv
 from .models import suma
 
 User = get_user_model()
 from .coduri import nr_inregistrare_nou, urmatorul_cod_locatie
 from .hg import CAPITOLE, LINII_ECHIPAMENTE, SUBCAPITOLE, capitol_din, creeaza_linii
+from .permisiuni import doar_proiectele_lui
 from .permisiuni import (e_admin, e_financiar, poate_aviza_rz, poate_bloca_buget, poate_crea_proiect, poate_edita,
                          poate_edita_financiar, poate_modifica_buget, poate_vedea, proiecte_vizibile, rol, vede_tot)
 
@@ -39,6 +41,28 @@ CATEGORII_ACTIVE = [
     ("teren", "Teren investiții", "bi-map"),
     ("retail", "Magazine retail", "bi-shop"),
 ]
+CATEGORII_INVESTITII = [
+    ("executie", "Investiții în execuție", "bi-play-circle"),
+    ("finalizate", "Finalizate", "bi-check-circle"),
+    ("inactive", "Inactive", "bi-pause-circle"),
+    ("aprobare", "RZ în aprobare", "bi-hourglass-split"),
+]
+
+
+def filtru_investitii(qs, categorie):
+    """Registrul cuprinde doar investițiile cu Raportul Zero avizat (au status); cele neavizate sunt „în aprobare”."""
+    if categorie == "aprobare":
+        return qs.filter(status="")
+    qs = qs.exclude(status="")
+    return {"executie": qs.filter(status=stinv.IN_EXECUTIE), "finalizate": qs.filter(status=stinv.FINALIZAT),
+            "inactive": qs.filter(status=stinv.ANULAT)}.get(categorie, qs)
+
+
+def proiecte_registru(user):
+    qs = m.Proiect.objects.all()
+    return qs.filter(pk__in=proiecte_vizibile(user).values("pk")) if doar_proiectele_lui(user) else qs
+
+
 def filtru_categorie(qs, categorie):
     """Categoriile din meniu = starea activului (setată de administrator, cu istoric)."""
     stare = {"functionale": "functional", "nefunctionale": "nefunctional", "teren": "teren", "retail": "retail"}.get(categorie)
@@ -53,8 +77,13 @@ def context_global(request):
         nr += m.Proiect.objects.filter(stare_rz="trimis").count()
     nr += len(stinv.cereri_de_aprobat(request.user))
     ctx = {"rol_curent": rol(request.user), "e_admin": e_admin(request.user), "e_financiar": e_financiar(request.user),
-           "poate_crea_proiect": poate_crea_proiect(request.user), "nr_aprobari": nr}
+           "poate_crea_proiect": poate_crea_proiect(request.user), "nr_aprobari": nr,
+           "doar_proiectele_lui": doar_proiectele_lui(request.user)}
     url = getattr(request.resolver_match, "url_name", "") or ""
+    if url == "investitii":  # subcategoriile registrului de investiții din meniu, cu numărul de poziții
+        toate = proiecte_registru(request.user)
+        ctx["categorii_investitii"] = [(cod, et, ic, filtru_investitii(toate, cod).count()) for cod, et, ic in CATEGORII_INVESTITII]
+        ctx["categorie_investitii"] = request.GET.get("categorie", "")
     if "locati" in url:  # subcategoriile registrului de active din meniu, cu numărul de poziții
         toate = m.Locatie.objects.all()
         ctx["categorii_active"] = [(cod, et, ic, filtru_categorie(toate, cod).count()) for cod, et, ic in CATEGORII_ACTIVE]
@@ -1204,21 +1233,10 @@ def locatie_document(request, pk):
 # ------------------------------------------------------------------ Raport Zero
 @login_required
 def rapoarte_zero(request):
-    qs = m.Proiect.objects.select_related("locatie", "beneficiar").prefetch_related("revizii_rz").order_by("-nr_inregistrare")
-    q = request.GET.get("q")
-    if q:
-        qs = qs.filter(Q(cod__icontains=q) | Q(denumire__icontains=q) | Q(beneficiar__denumire__icontains=q) | Q(nr_inregistrare__icontains=q))
-    if request.GET.get("export"):
-        return _export_xlsx("registru_rapoarte_zero", [
-            ("Nr. înregistrare", "nr_inregistrare"), ("Data înregistrării", "data_inregistrare_rz"), ("Data avizării", "aprobat_la"), ("Cod proiect", "cod"), ("Denumire", "denumire"), ("Locație", "locatie"),
-            ("Beneficiar", "beneficiar"), ("Valoare RZ", "valoare_rz"), ("Monedă", "moneda_rz"), ("Finanțare", "finantare"),
-            ("Prioritate", "get_prioritate_display"), ("Demarare", "data_demarare"), ("Finalizare", "data_finalizare"),
-            ("Stare RZ", "get_stare_rz_display"), ("Revizie", "revizie_rz"), ("Întocmit", "intocmit_de"), ("Avizat", "avizat_de"),
-        ], qs)
-    vizibile = set(proiecte_vizibile(request.user).values_list("pk", flat=True))
-    # cronologic: cele mai noi înregistrări primele
-    proiecte = sorted(qs, key=lambda p: (p.data_inregistrare_rz or datetime.date.min, p.nr_inregistrare or ""), reverse=True)
-    return render(request, "platforma/rapoarte_zero.html", {"proiecte": proiecte, "vizibile": vizibile, "e_admin": e_admin(request.user)})
+    """Registrul Rapoartelor Zero a fost comasat în registrul unic al investițiilor (modul „Registratură”)."""
+    q = request.GET.copy()
+    q.setdefault("vedere", "registratura")
+    return redirect(f"{reverse('investitii')}?{q.urlencode()}")
 
 
 @login_required
@@ -1231,7 +1249,7 @@ def raport_zero_sterge(request, pk):
     p = get_object_or_404(m.Proiect, pk=pk)
     if request.POST.get("confirmare_cod", "").strip().upper() != p.cod.upper():
         messages.error(request, f"Raportul Zero nu a fost șters: pentru confirmare trebuie scris exact codul proiectului ({p.cod}).")
-        return redirect("rapoarte_zero")
+        return redirect("investitii")
     cod_p, den_p, pk_p, nr = p.cod, p.denumire, p.pk, p.nr_inregistrare
     arhiva = stergere.arhiveaza(p)
     stergere.sterge(p)
@@ -1239,12 +1257,27 @@ def raport_zero_sterge(request, pk):
                                  obiect=f"{cod_p} · {den_p} (nr. {nr})", proiect_id=pk_p,
                                  modificari={"arhiva": str(arhiva.relative_to(arhiva.parents[2]))})
     messages.success(request, f"Raportul Zero {cod_p} (nr. {nr}) a fost șters împreună cu proiectul. Arhiva completă (date și documente) a rămas pe server: {arhiva.name}.")
-    return redirect("rapoarte_zero")
+    return redirect("investitii")
 
 
 @login_required
 def raport_zero(request, pk):
     p = get_object_or_404(m.Proiect.objects.select_related("locatie", "beneficiar"), pk=pk)
+    if not (poate_vedea(request.user, p) or poate_aviza_rz(request.user)):  # registrul e public, deschiderea – doar cu drept
+        raise PermissionDenied("Nu aveți drept de acces la acest proiect.")
+    return render(request, "platforma/raport_zero.html", {**context_rz_afisare(p),
+        "revizii": p.revizii_rz.all(), "poate_edita": poate_edita(request.user, p),
+        "poate_aviza": poate_aviza_rz(request.user) and (not p.revizie_rz or e_admin(request.user)),
+        "vizibil": poate_vedea(request.user, p),
+        "oferte": list(p.oferte_rz.prefetch_related("documente")),
+        "pdf_semnat": p.documente.filter(categorie="raport_zero", arhivat=False).first(),
+        "emailuri_aviz": p.emailuri_aviz.all()[:5],
+    })
+
+
+def context_rz_afisare(p):
+    """Datele de afișare ale Raportului Zero (pagina RZ, emailul și pagina de avizare): buget și echipamente în moneda RZ,
+    coloanele versiunilor avizate și ce s-a modificat în revizia curentă."""
     capitole_buget, total_buget = _buget_rz(p)
     ctx_ech = _echipamente_rz_ctx(p)
     curs = p.curs_rz or p.curs
@@ -1262,15 +1295,19 @@ def raport_zero(request, pk):
     else:
         for e in ctx_ech["echipamente"]:
             e.valoare_afisata = e.valoare_estimata
-    return render(request, "platforma/raport_zero.html", {
-        "p": p, "revizii": p.revizii_rz.all(), "poate_edita": poate_edita(request.user, p),
-        "poate_aviza": poate_aviza_rz(request.user) and (not p.revizie_rz or e_admin(request.user)),
-        "vizibil": poate_vedea(request.user, p), "capitole_buget": capitole_buget, "total_buget": total_buget,
-        "curs_rz": curs, **ctx_ech,
-        "oferte": list(p.oferte_rz.prefetch_related("documente")),
-        "pdf_semnat": p.documente.filter(categorie="raport_zero", arhivat=False).first(),
-        "emailuri_aviz": p.emailuri_aviz.all()[:5],
-    })
+    ctx_rev = _context_revizie(p, capitole_buget, ctx_ech["echipamente"], curs)
+    for c in capitole_buget:  # se afișează liniile cu bani în versiunea curentă sau într-o versiune avizată anterior
+        for l in c["linii"]:
+            l["vizibil"] = bool(l["valoare"]) or any(l.get("revizii") or [])
+        c["vizibil"] = bool(c["total"]) or any(c.get("revizii") or [])
+    rezumat = rev.rezumat_modificari(p, ctx_rev["rev_ref"], ctx_rev["rev_modificate"], capitole_buget, ctx_ech["echipamente"],
+                                     ctx_rev["ech_eliminate"]) if ctx_rev["rev_ref"] else []
+    motiv_revizie = ""
+    if p.revizie_rz:
+        gasit = re.findall(rf"Revizia {p.revizie_rz} deschisă [^:]*: (.*)", p.observatii or "")
+        motiv_revizie = gasit[-1] if gasit else ""
+    return {**ctx_rev, **ctx_ech, "p": p, "capitole_buget": capitole_buget, "total_buget": total_buget, "curs_rz": curs,
+            "rezumat_modificari": rezumat, "motiv_revizie": motiv_revizie}
 
 
 def _numar_ro(text):
@@ -1329,6 +1366,27 @@ def _salveaza_buget_rz(p, post):
             l.valoare_aprobata = nou
             l.save(update_fields=["valoare_aprobata"])
     return erori
+
+
+def _context_revizie(p, capitole_buget, echipamente, curs, editare=True):
+    """Revizie a Raportului Zero: coloanele versiunilor avizate în tabelul de buget și marcarea a ce s-a modificat
+    față de ultima versiune avizată (câmpuri, linii de buget, echipamente)."""
+    ref = rev.referinta(p)
+    if not ref:
+        return {"rev_ref": None, "rev_valori": {}, "coloane_buget": [], "ech_eliminate": [], "rev_modificate": set()}
+    coloane = rev.coloane_buget(p, curs)
+    for c in capitole_buget:
+        for l in c["linii"]:
+            l["revizii"] = [r["valori"].get(l["cod"]) for r in coloane]
+            l["ref"] = coloane[-1]["valori"].get(l["cod"], Decimal(0)) if coloane else None
+            try:
+                l["rev_modificat"] = editare and l["ref"] is not None and abs(Decimal(str(l["valoare"] or 0)) - l["ref"]) > Decimal("0.5")
+            except Exception:  # noqa: BLE001
+                l["rev_modificat"] = False
+        c["revizii"] = [sum((l["revizii"][i] or Decimal(0) for l in c["linii"]), Decimal(0)) for i in range(len(coloane))]
+    eliminate = rev.marcheaza_echipamente(echipamente, ref, lambda r: r.get("valoare_ron", r.get("valoare")) if isinstance(r, dict) else r.valoare_estimata)
+    return {"rev_ref": ref, "rev_valori": rev.valori_referinta(ref), "coloane_buget": coloane, "ech_eliminate": eliminate,
+            "rev_modificate": rev.campuri_modificate(p, ref)}
 
 
 def _seteaza_responsabil(p, user):
@@ -1499,7 +1557,7 @@ def raport_zero_form(request, pk=None):
             loc = m.Locatie.objects.filter(pk=request.GET["locatie"]).first()
             if loc:
                 initial.update(locatie=loc, beneficiar=loc.proprietar, linie=loc.linie_din_registru, divizie=loc.divizie if loc.linie_din_registru else "")
-        if rol(request.user) in ("pm", "coordonator", "admin"):
+        if rol(request.user) in ("pm", "coordonator", "admin", "implementare"):
             initial["responsabil"] = request.user
     post = request.POST
     # Cursul Raportului Zero: dacă RZ e în EUR, toate sumele din formular (buget, echipamente, finanțare) se introduc în EUR
@@ -1523,7 +1581,8 @@ def raport_zero_form(request, pk=None):
             for cod, _ in SUBCAPITOLE:
                 if cod not in LINII_ECHIPAMENTE:
                     post[f"buget_{cod}"] = "0"
-    form = f.RaportZeroForm(post if request.method == "POST" else None, instance=p, initial=initial)
+    form = f.RaportZeroForm(post if request.method == "POST" else None, instance=p, initial=initial,
+                            responsabil_fix=request.user if doar_proiectele_lui(request.user) else None)
     if request.method == "POST" and ech_erori:
         form.add_error(None, "Lista de echipamente: " + "; ".join(ech_erori))
     if request.method == "POST" and form.is_valid():
@@ -1570,11 +1629,13 @@ def raport_zero_form(request, pk=None):
     else:
         echipamente_rz = [{"id": e.pk, "denumire": e.denumire, "specificatii": e.specificatii, "um": e.um,
                            "linie": e.linie_buget.capitol if e.linie_buget_id else "", "cantitate_text": f"{e.cantitate:g}",
-                           "valoare_text": f"{e.valoare_estimata / impartitor:.2f}".replace(".", ","), "contract": e.contract}
+                           "valoare_text": f"{e.valoare_estimata / impartitor:.2f}".replace(".", ","), "contract": e.contract,
+                           "valoare_ron": e.valoare_estimata}
                           for e in (p.echipamente.select_related("linie_buget", "contract").order_by("linie_buget__capitol", "pk") if p else [])]
     return render(request, "platforma/raport_zero_form.html", {
         "capitole_buget": capitole_buget, "total_buget": total_buget, "curs_rz": curs_rz,
         "echipamente_rz": echipamente_rz, "linii_echipamente": [(c, dict(SUBCAPITOLE)[c]) for c in LINII_ECHIPAMENTE],
+        **_context_revizie(p, capitole_buget, echipamente_rz, curs_form, editare=request.method != "POST"),
         "form": form, "titlu": f"Raport Zero {p.cod}" if p else "Raport Zero nou",
         "campuri_in_bloc": f.RaportZeroForm.CAMPURI_IN_BLOC, "multipart": True,
         "linii_ech_coduri": list(LINII_ECHIPAMENTE),
@@ -1652,7 +1713,7 @@ def aviz_din_email(request, token):
     p = e.proiect if e else None
     ctx = {"e": e, "p": p, "eroare": eroare, "actiune": request.GET.get("actiune", "aproba")}
     if p and not eroare:
-        ctx["capitole_buget"], ctx["total_buget"] = _buget_rz(p)
+        ctx.update({k: v for k, v in context_rz_afisare(p).items() if k != "p"})
         apr = e.aprobator
         if not apr or not apr.is_active:
             ctx["eroare"] = "Aprobatorul nu are cont activ în aplicație."
@@ -1680,46 +1741,68 @@ def aviz_din_email(request, token):
 # ------------------------------------------------------------------ registrul investițiilor
 @login_required
 def investitii(request):
-    qs = proiecte_vizibile(request.user).prefetch_related("linii_buget__rectificari", "facturi", "contracte__acte_aditionale")
-    g = request.GET
+    """Registrul investițiilor: doar investițiile cu Raportul Zero avizat, pe categorii (în execuție / finalizate / inactive);
+    Rapoartele Zero neavizate sunt în fluxul de aprobare (categoria „aprobare”), nu în registru.
+    Toți văd pozițiile; fișa proiectului și cifrele financiare se deschid doar cu drept pe proiect."""
+    u, g = request.user, request.GET
+    vizibile = set(proiecte_vizibile(u).values_list("pk", flat=True))
+    categorie = g.get("categorie", "") if g.get("categorie") in dict((c, 1) for c, _, _ in CATEGORII_INVESTITII) else ""
+    qs = filtru_investitii(proiecte_registru(u), categorie).select_related("locatie", "beneficiar", "pm", "coordonator").prefetch_related(
+        "revizii_rz", "linii_buget__rectificari", "facturi", "contracte__acte_aditionale")
+    baza = qs
     if g.get("q"):
-        qs = qs.filter(Q(cod__icontains=g["q"]) | Q(denumire__icontains=g["q"]) | Q(beneficiar__denumire__icontains=g["q"]))
-    for camp in ("faza", "status", "linie", "divizie"):
+        qs = qs.filter(Q(cod__icontains=g["q"]) | Q(denumire__icontains=g["q"]) | Q(beneficiar__denumire__icontains=g["q"])
+                       | Q(solicitant__icontains=g["q"]) | Q(pm__first_name__icontains=g["q"]) | Q(pm__last_name__icontains=g["q"])
+                       | Q(coordonator__first_name__icontains=g["q"]) | Q(coordonator__last_name__icontains=g["q"]))
+    for camp in ("faza", "linie", "divizie"):
         if g.get(camp):
             qs = qs.filter(**{camp: g[camp]})
     if g.get("finantare"):  # proiectele cu finanțare mixtă apar la fiecare formă bifată
         fin = g["finantare"].lower()
         cod = "nerambursabil" if "nerambursabil" in fin else "bancara" if "banc" in fin else "proprii" if "propri" in fin else None
         qs = qs.filter(**{f"fin_{cod}": True}) if cod else qs.filter(finantare=g["finantare"])
-    if g.get("pm"):
-        qs = qs.filter(pm_id=g["pm"])
+    if g.get("responsabil"):
+        qs = qs.filter(Q(pm_id=g["responsabil"]) | Q(pm__isnull=True, coordonator_id=g["responsabil"]))
     if g.get("beneficiar"):
         qs = qs.filter(beneficiar_id=g["beneficiar"])
-    # cele 3 stadii ale investiției (proiectele încă neavizate – fără status – intră la „active”)
-    stadii = {"active": Q(status=stinv.IN_EXECUTIE) | Q(status=""), "anulate": Q(status=stinv.ANULAT), "finalizate": Q(status=stinv.FINALIZAT)}
-    numar_stadii = {k: qs.filter(q).count() for k, q in stadii.items()}
-    numar_stadii["toate"] = qs.count()
-    stadiu = g.get("stadiu", "") if g.get("stadiu") in stadii else ""
-    if stadiu:
-        qs = qs.filter(stadii[stadiu])
+    vedere = "financiar" if g.get("vedere") == "financiar" else "registru"
     if g.get("export"):
+        if vedere == "financiar":  # cifrele financiare doar pentru proiectele la care utilizatorul are drept
+            return _export_xlsx("registru_investitii", [
+                ("Cod proiect", "cod"), ("Denumire", "denumire"), ("Beneficiar", "beneficiar"), ("Responsabil proiect", "responsabil_proiect"),
+                ("Status", "status_afisat"), ("Fază", "faza"), ("Monedă", "moneda_urmarire"),
+                ("Buget RZ (RON)", "buget_rz_ron"), ("Buget actualizat (RON)", "buget_actualizat_ron"), ("Angajat (RON)", "angajat_ron"),
+                ("Facturat (RON)", "facturat_ron"), ("Plătit (RON)", "platit_ron"), ("Stadiu execuție %", "procent_executie"),
+                ("Progres fizic %", "progres_fizic"), ("Demarare", "data_demarare"), ("Termen finalizare", "termen_finalizare"),
+            ], qs.filter(pk__in=vizibile))
         return _export_xlsx("registru_investitii", [
-            ("Cod", "cod"), ("Denumire", "denumire"), ("Locație", "locatie"), ("Beneficiar", "beneficiar"), ("Linie", "linie"),
-            ("Coordonator", "coordonator"), ("PM", "pm"), ("Finanțare", "finantare"), ("Fază", "faza"), ("Status", "status"),
-            ("Buget RZ (RON)", "buget_rz_ron"), ("Buget actualizat (RON)", "buget_actualizat_ron"), ("Angajat (RON)", "angajat_ron"),
-            ("Facturat (RON)", "facturat_ron"), ("Plătit (RON)", "platit_ron"), ("Execuție %", "procent_executie"),
-            ("Progres fizic %", "progres_fizic"), ("Demarare", "data_demarare"), ("Finalizare", "data_finalizare"),
+            ("Cod proiect (nr. Raport Zero)", "cod"), ("Denumire", "denumire"), ("Beneficiar", "beneficiar"), ("Locație", "locatie"),
+            ("Linie", "linie"), ("Divizie", "divizie"), ("Responsabil proiect", "responsabil_proiect"), ("Solicitant", "solicitant"),
+            ("Valoare RZ", "valoare_rz"), ("Monedă", "moneda_rz"), ("Data avizării", "aprobat_la"), ("Stare RZ", "stare_rz_registru"),
+            ("Status investiție", "status_afisat"), ("Demarare", "data_demarare"), ("Termen finalizare", "termen_finalizare"),
         ], qs)
-    nom = {t: m.Nomenclator.optiuni(t) for t in ("faza_proiect", "status_proiect", "linie", "tip_finantare")}
-    beneficiari = m.Societate.objects.filter(proiecte__in=proiecte_vizibile(request.user)).distinct().order_by("denumire")
-    divizii = proiecte_vizibile(request.user).exclude(divizie="").values_list("divizie", flat=True).distinct().order_by("divizie")
-    filtre_fara_stadiu = g.copy()
-    filtre_fara_stadiu.pop("stadiu", None)
-    return render(request, "platforma/investitii.html", {"proiecte": qs, "nom": nom, "query": g, "beneficiari": beneficiari, "divizii": divizii,
-                                                          "stadiu": stadiu, "filtre_fara_stadiu": filtre_fara_stadiu.urlencode(),
-                                                          "stadii_nav": [(c, et, ic, numar_stadii[c]) for c, et, ic in (
-                                                              ("toate", "Toate proiectele", "bi-list-ul"), ("active", "Proiecte active", "bi-play-circle"),
-                                                              ("anulate", "Anulate / suspendate", "bi-pause-circle"), ("finalizate", "Proiecte finalizate", "bi-check-circle"))]})
+    nom = {t: m.Nomenclator.optiuni(t) for t in ("faza_proiect", "linie", "tip_finantare")}
+    beneficiari = m.Societate.objects.filter(proiecte__in=baza).distinct().order_by("denumire")
+    divizii = baza.exclude(divizie="").values_list("divizie", flat=True).distinct().order_by("divizie")
+    ids_resp = set(baza.values_list("pm_id", flat=True)) | set(baza.filter(pm__isnull=True).values_list("coordonator_id", flat=True))
+    responsabili = User.objects.filter(pk__in=[i for i in ids_resp if i]).order_by("first_name", "last_name", "username")
+    # cele mai recente avizări primele (în aprobare: cele mai recente înregistrări)
+    proiecte = sorted(qs, key=lambda p: ((p.ultima_avizare_rz[0] if p.ultima_avizare_rz[0] else None) or p.creat_la), reverse=True)
+
+    def link(**schimba):
+        q = g.copy()
+        q.pop("export", None)
+        for k, v in schimba.items():
+            q.pop(k, None)
+            if v:
+                q[k] = v
+        return "?" + q.urlencode()
+    titlu = dict((c, et) for c, et, _ in CATEGORII_INVESTITII).get(categorie, "Registrul investițiilor")
+    return render(request, "platforma/investitii.html", {
+        "proiecte": proiecte, "vizibile": vizibile, "nom": nom, "query": g, "beneficiari": beneficiari, "divizii": divizii,
+        "responsabili": responsabili, "categorie": categorie, "vedere": vedere, "titlu_registru": titlu,
+        "link_registru": link(vedere=""), "link_financiar": link(vedere="financiar"), "link_export": link(export="1"),
+    })
 
 
 # ------------------------------------------------------------------ fișa proiectului
@@ -2537,8 +2620,10 @@ def document_descarca(request, pk):
     if not d.proiect_id and not d.locatie_id and not e_admin(request.user):
         raise PermissionDenied  # extras încă neatașat (activ în curs de definire)
     if d.proiect_id and not poate_vedea(request.user, d.proiect):
-        if d.categorie != "raport_zero":  # Rapoartele Zero sunt vizibile tuturor
+        if d.categorie != "raport_zero" or not poate_aviza_rz(request.user):  # PDF-ul RZ: și pentru avizatori
             raise PermissionDenied
+    if not d.proiect_id and doar_proiectele_lui(request.user):  # documentele activelor (registrul grupului)
+        raise PermissionDenied
     return FileResponse(d.fisier.open("rb"), as_attachment=request.GET.get("dl") == "1", filename=d.fisier.name.split("/")[-1])
 
 
@@ -2782,6 +2867,8 @@ def _export_xlsx(nume, coloane, qs):
                 v = "Da" if v else "Nu"
             elif isinstance(v, Decimal):
                 v = float(v)
+            elif isinstance(v, datetime.datetime) and v.tzinfo is not None:  # Excel nu acceptă fus orar
+                v = timezone.localtime(v).replace(tzinfo=None)
             elif v is not None and not isinstance(v, (int, float, str, datetime.date)):
                 v = str(v)
             rand.append(v)

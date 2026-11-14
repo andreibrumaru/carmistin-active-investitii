@@ -5,21 +5,31 @@
 <title>{% block titlu %}Active & Investiții{% endblock %} · Carmistin</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<link href="{% static 'platforma/stil.css' %}?v=20261114g" rel="stylesheet">
+<link href="{% static 'platforma/stil.css' %}?v=20261114l" rel="stylesheet">
+<link rel="icon" type="image/png" href="{% static 'platforma/favicon.png' %}">
 {% block head %}{% endblock %}
 </head>
 <body>
 <div class="d-flex">
   <nav class="sidebar d-print-none">
-    <a href="{% url 'dashboard' %}" class="brand"><span class="logo">C</span> CARMISTIN<small>Active & Investiții</small></a>
+    <a href="{% url 'dashboard' %}" class="brand"><img src="{% static 'platforma/logo-semn.png' %}" alt="" class="logo-semn"><span>CARMISTIN<small>Active & Investiții</small></span></a>
     {% with u=request.resolver_match.url_name %}
+    {% if doar_proiectele_lui %}
+    <a class="nav-item {% if u == 'investitii' or u == 'proiect_detaliu' or 'obiect' in u or 'pv_' in u or 'raport_zero' in u and u != 'raport_zero_nou' %}active{% endif %}" href="{% url 'investitii' %}"><i class="bi bi-kanban"></i> Proiectele mele</a>
+    {% if categorii_investitii %}<div class="nav-subtree">{% for cod, et, ic, n in categorii_investitii %}
+      <a class="nav-item nav-sub {% if u == 'investitii' and categorie_investitii == cod %}active{% endif %}" href="{% url 'investitii' %}?categorie={{ cod }}"><i class="bi {{ ic }}"></i> {{ et }} <span class="badge rounded-pill nav-sub-nr">{{ n }}</span></a>{% endfor %}
+    </div>{% endif %}
+    {% if poate_crea_proiect %}<a class="nav-item {% if u == 'raport_zero_nou' %}active{% endif %}" href="{% url 'raport_zero_nou' %}"><i class="bi bi-plus-circle"></i> Raport Zero nou</a>{% endif %}
+    {% else %}
     <a class="nav-item {% if u == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><i class="bi bi-speedometer2"></i> Tablou de bord</a>
     <a class="nav-item {% if 'locati' in u and not categorie_curenta %}active{% endif %}" href="{% url 'locatii' %}"><i class="bi bi-buildings"></i> Registrul activelor{% if categorii_active %} <i class="bi bi-chevron-down float-end small mt-1 me-0"></i>{% else %} <i class="bi bi-chevron-right float-end small mt-1 me-0"></i>{% endif %}</a>
     {% if categorii_active %}<div class="nav-subtree">{% for cod, et, ic, n in categorii_active %}
       <a class="nav-item nav-sub {% if u == 'locatii' and categorie_curenta == cod %}active{% endif %}" href="{% url 'locatii' %}?categorie={{ cod }}"><i class="bi {{ ic }}"></i> {{ et }} <span class="badge rounded-pill nav-sub-nr">{{ n }}</span></a>{% endfor %}
     </div>{% endif %}
-    <a class="nav-item {% if 'raport' in u and u != 'raport_autorizatii' %}active{% endif %}" href="{% url 'rapoarte_zero' %}"><i class="bi bi-file-earmark-text"></i> Rapoarte Zero</a>
-    <a class="nav-item {% if u == 'investitii' or u == 'proiect_detaliu' or 'obiect' in u %}active{% endif %}" href="{% url 'investitii' %}"><i class="bi bi-kanban"></i> Registrul investițiilor</a>
+    <a class="nav-item {% if u == 'investitii' and not categorie_investitii or u == 'proiect_detaliu' or 'obiect' in u or 'raport_zero' in u %}active{% endif %}" href="{% url 'investitii' %}"><i class="bi bi-kanban"></i> Registrul investițiilor{% if categorii_investitii %} <i class="bi bi-chevron-down float-end small mt-1 me-0"></i>{% else %} <i class="bi bi-chevron-right float-end small mt-1 me-0"></i>{% endif %}</a>
+    {% if categorii_investitii %}<div class="nav-subtree">{% for cod, et, ic, n in categorii_investitii %}
+      <a class="nav-item nav-sub {% if u == 'investitii' and categorie_investitii == cod %}active{% endif %}" href="{% url 'investitii' %}?categorie={{ cod }}"><i class="bi {{ ic }}"></i> {{ et }} <span class="badge rounded-pill nav-sub-nr">{{ n }}</span></a>{% endfor %}
+    </div>{% endif %}
     <a class="nav-item {% if u == 'dashboard_anual' %}active{% endif %}" href="{% url 'dashboard_anual' %}"><i class="bi bi-bar-chart"></i> Buget anual</a>
     <a class="nav-item {% if u == 'raport_autorizatii' %}active{% endif %}" href="{% url 'raport_autorizatii' %}"><i class="bi bi-patch-check"></i> Raport autorizații</a>
     <a class="nav-item {% if u == 'aprobari' %}active{% endif %}" href="{% url 'aprobari' %}"><i class="bi bi-check2-square"></i> Aprobări {% if nr_aprobari %}<span class="badge text-bg-warning ms-1">{{ nr_aprobari }}</span>{% endif %}</a>
@@ -29,6 +39,7 @@
     {% endif %}
     {% if e_admin %}<a class="nav-item" href="/admin/"><i class="bi bi-gear"></i> Administrare</a>
     <a class="nav-item {% if u == 'stergere_proiect' %}active{% endif %}" href="{% url 'stergere_proiect' %}"><i class="bi bi-shield-lock"></i> Ștergere proiect</a>{% endif %}
+    {% endif %}
     {% endwith %}
     <div class="user-box">
       <i class="bi bi-person-circle"></i> {{ request.user.get_full_name|default:request.user.username }}

@@ -24,12 +24,43 @@ def bani2(v):
     return _fmt(v, 2)
 
 
+def _in_moneda_proiect(v, p):
+    """Sumele interne sunt în RON; la un proiect cu Raportul Zero în EUR se afișează în EUR, la cursul RZ."""
+    k = getattr(p, "curs_urmarire", None) if getattr(p, "moneda_urmarire", "RON") == "EUR" else None
+    if k:
+        try:
+            return Decimal(str(v or 0)) / Decimal(str(k))
+        except Exception:  # noqa: BLE001
+            return v
+    return v
+
+
+@register.filter
+def bp(v, p):
+    """Sumă în moneda de urmărire a proiectului (0 zecimale)."""
+    return _fmt(_in_moneda_proiect(v, p), 0)
+
+
+@register.filter
+def bp2(v, p):
+    """Sumă în moneda de urmărire a proiectului (2 zecimale)."""
+    return _fmt(_in_moneda_proiect(v, p), 2)
+
+
 @register.filter
 def in_eur(v, curs):
     try:
         return _fmt(Decimal(v or 0) / Decimal(curs), 0)
     except Exception:
         return "—"
+
+
+@register.filter
+def contine(colectie, element):
+    try:
+        return element in colectie
+    except TypeError:
+        return False
 
 
 @register.filter

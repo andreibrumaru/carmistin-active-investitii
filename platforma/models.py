@@ -749,6 +749,7 @@ class Proiect(models.Model):
     prioritate = models.CharField(max_length=10, choices=PRIORITATE, default="medie")
     data_demarare = models.DateField(null=True, blank=True)
     data_finalizare = models.DateField(null=True, blank=True)
+    fara_termen = models.BooleanField("proiect FT – fără termen de finalizare", default=False)
     intocmit_de = models.CharField("întocmit", max_length=120, blank=True)
     avizat_de = models.CharField("avizat", max_length=120, blank=True)
     stare_rz = models.CharField("stare Raport Zero", max_length=10, choices=STARE_RZ, default="ciorna")
@@ -797,7 +798,8 @@ class Proiect(models.Model):
         "denumire", "departament", "linie", "beneficiar_id", "solicitant", "responsabil_tehnic", "responsabil_implementare",
         "obiectiv", "cladire", "descriere_lucrari", "necesar_achizitii", "valoare_rz", "moneda_rz", "finantare",
         "tip_investitie", "tip_autorizare", "fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "val_nerambursabil", "val_bancara", "val_proprii",
-        "prioritate", "data_demarare", "data_finalizare", "observatii_rz", "intocmit_de", "avizat_de",
+        "prioritate", "data_demarare", "data_finalizare", "fara_termen", "observatii_rz", "intocmit_de", "avizat_de",
+        "divizie", "pm_id", "coordonator_id",
     ]
 
     class Meta:
@@ -811,6 +813,20 @@ class Proiect(models.Model):
 
     def get_absolute_url(self):
         return reverse("proiect_detaliu", args=[self.pk])
+
+    @property
+    def responsabil_proiect(self):
+        u = self.pm or self.coordonator
+        return (u.get_full_name() or u.username) if u else ""
+
+    @property
+    def stare_rz_registru(self):
+        """Starea Raportului Zero văzută din registru: avizat / revizie în lucru / revizie în avizare."""
+        if self.stare_rz == "aprobat":
+            return f"Avizat{f' (rev.{self.revizie_rz})' if self.revizie_rz else ''}"
+        if self.revizie_rz:
+            return f"Rev.{self.revizie_rz} " + {"trimis": "în avizare", "respins": "respinsă"}.get(self.stare_rz, "în lucru")
+        return self.get_stare_rz_display()
 
     @property
     def responsabil_implementare_afisat(self):
@@ -853,6 +869,15 @@ class Proiect(models.Model):
     @property
     def curs(self):
         return self.curs_referinta or CursValutar.la_data(self.data_demarare)
+
+    @property
+    def moneda_urmarire(self):
+        """Moneda în care se urmărește proiectul: cea a Raportului Zero (EUR doar dacă există cursul RZ)."""
+        return "EUR" if self.moneda_rz == "EUR" and (self.curs_rz or self.curs) else "RON"
+
+    @property
+    def curs_urmarire(self):
+        return self.curs_rz or self.curs
 
     def in_eur(self, ron):
         return (Decimal(ron or 0) / self.curs).quantize(Decimal("1")) if self.curs else None
@@ -959,7 +984,13 @@ class Proiect(models.Model):
 
     @property
     def intarziat(self):
-        return bool(self.data_finalizare and not self.data_finalizare_reala and self.data_finalizare < timezone.localdate())
+        return bool(not self.fara_termen and self.data_finalizare and not self.data_finalizare_reala
+                    and self.data_finalizare < timezone.localdate())
+
+    @property
+    def termen_finalizare(self):
+        """Termenul de finalizare planificat: „FT” pentru proiectele fără termen, altfel data."""
+        return "FT" if self.fara_termen else self.data_finalizare
 
     @property
     def data_inregistrare_rz(self):
