@@ -35,6 +35,8 @@ class Profil(models.Model):
         ("coordonator", "Coordonator"),
         ("pm", "Project manager"),
         ("financiar", "Responsabil financiar / finanțare"),
+        ("implementare", "Responsabil proiect (acces doar la proiectele lui)"),
+        ("vizualizare", "Vizualizare – toate proiectele, fără modificări"),
         ("utilizator", "Utilizator"),
     ]
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profil")
@@ -127,6 +129,10 @@ class Nomenclator(models.Model):
     @classmethod
     def optiuni(cls, tip):
         return cls.objects.filter(tip=tip, activ=True)
+
+    @classmethod
+    def valori(cls, tip):
+        return set(cls.optiuni(tip).values_list("valoare", flat=True))
 
 
 class CursValutar(models.Model):
@@ -259,6 +265,15 @@ class Locatie(models.Model):
     sursa_import = models.CharField(max_length=120, blank=True)
     creat_la = models.DateTimeField(auto_now_add=True)
     modificat_la = models.DateTimeField(auto_now=True)
+
+    STARI_DEFINITE = ("functional", "retail")  # active în exploatare: linia de business e fixată în registru
+
+    @property
+    def linie_din_registru(self):
+        """Linia de business a activului, dacă e fixată în registru (activ funcțional / retail cu linie din nomenclator); altfel ''."""
+        if self.stare_activ in self.STARI_DEFINITE and self.linie and self.linie in Nomenclator.valori("linie"):
+            return self.linie
+        return ""
 
     class Meta:
         ordering = ["cod", "denumire"]
@@ -698,15 +713,30 @@ class Proiect(models.Model):
     beneficiar = models.ForeignKey(Societate, on_delete=models.PROTECT, related_name="proiecte")
     solicitant = models.CharField(max_length=120, blank=True)
     responsabil_tehnic = models.CharField(max_length=120, blank=True)
-    responsabil_implementare = models.CharField(max_length=120, blank=True)
+    responsabil_implementare = models.CharField("responsabil implementare (text, versiune veche)", max_length=120, blank=True)
+    implementator = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="proiecte_implementare",
+                                      verbose_name="responsabil implementare",
+                                      help_text="Utilizator cu rolul „Responsabil implementare”: vede și lucrează pe acest proiect.")
     obiectiv = models.CharField("locație / obiectiv", max_length=255, blank=True)
     cladire = models.CharField("clădire / nr. cadastral", max_length=255, blank=True)
-    descriere_lucrari = models.TextField("descriere lucrări", blank=True)
+    descriere_lucrari = models.TextField("descriere investiție", blank=True)
     necesar_achizitii = models.TextField("necesar achiziții", blank=True)
     valoare_rz = models.DecimalField("valoare ofertă / buget (Raport Zero)", max_digits=16, decimal_places=2)
     moneda_rz = models.CharField(max_length=3, choices=MONEDE, default="EUR")
     curs_rz = models.DecimalField("curs EUR la data RZ", max_digits=10, decimal_places=4, null=True, blank=True)
     finantare = models.CharField("finanțare", max_length=80, blank=True)
+    TIP_INVESTITIE = [("studii", "Studii & masterplan"), ("echipamente", "Achiziție echipamente"), ("lucrari", "Lucrări"),
+                      ("lucrari_ech", "Lucrări & echipamente"), ("mentenanta", "Mentenanță")]
+    TIPURI_CU_ECHIPAMENTE = ("echipamente", "lucrari_ech", "mentenanta")  # au listă de echipamente (liniile 4.3–4.5)
+    tip_investitie = models.CharField("tip investiție", max_length=12, choices=TIP_INVESTITIE, blank=True,
+                                      help_text="Achiziție echipamente: bugetul este lista de echipamente. "
+                                                "Celelalte tipuri: bugetul pe structura devizului general (HG 907/2016); "
+                                                "lista de echipamente doar la Lucrări & echipamente și Mentenanță.")
+    TIP_AUTORIZARE = [("cu_ac", "Cu autorizație de construire"),
+                      ("fara_ac", "Fără autorizație de construire (dotări, echipamente, reparații curente)")]
+    tip_autorizare = models.CharField("tip proiect", max_length=10, choices=TIP_AUTORIZARE, blank=True,
+                                      help_text="Stabilește documentul de închidere: recepția la terminarea lucrărilor (HG 343/2017) "
+                                                "sau recepția și punerea în funcțiune a mijloacelor fixe.")
     # Structura de finanțare (definită în Raportul Zero; sume în moneda RZ)
     fonduri_ue = models.BooleanField("proiect cu fonduri UE", default=False,
                                      help_text="Bifat: proiectul are tabloul de bord separat pentru fonduri UE (buget eligibil / neeligibil, ajutor nerambursabil).")
@@ -727,7 +757,9 @@ class Proiect(models.Model):
     aprobat_la = models.DateTimeField(null=True, blank=True)
 
     # Urmărire
-    status = models.CharField(max_length=60, blank=True, default="In lucru")
+    STATUS_INVESTITIE = [("În execuție", "În execuție"), ("Finalizat", "Finalizat"), ("Anulat/Suspendat", "Anulat/Suspendat")]
+    status = models.CharField("status investiție", max_length=60, blank=True, default="", choices=STATUS_INVESTITIE,
+                              help_text="Devine „În execuție” la avizarea Raportului Zero; orice schimbare ulterioară se aprobă de administrator.")
     faza = models.CharField("fază", max_length=60, blank=True, default="Propus/in lucru")
     coordonator = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="proiecte_coordonate")
     pm = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="proiecte_pm", verbose_name="project manager")
@@ -756,14 +788,16 @@ class Proiect(models.Model):
     buget_blocat_la = models.DateTimeField(null=True, blank=True)
     data_finalizare_reala = models.DateField(null=True, blank=True)
     observatii = models.TextField(blank=True)
+    observatii_rz = models.TextField("observații, alte detalii", blank=True,
+                                     help_text="Observații și alte detalii ale Raportului Zero.")
     creat_la = models.DateTimeField(auto_now_add=True)
     modificat_la = models.DateTimeField(auto_now=True)
 
     CAMPURI_RZ = [
         "denumire", "departament", "linie", "beneficiar_id", "solicitant", "responsabil_tehnic", "responsabil_implementare",
         "obiectiv", "cladire", "descriere_lucrari", "necesar_achizitii", "valoare_rz", "moneda_rz", "finantare",
-        "fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "val_nerambursabil", "val_bancara", "val_proprii",
-        "prioritate", "data_demarare", "data_finalizare", "intocmit_de", "avizat_de",
+        "tip_investitie", "tip_autorizare", "fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "val_nerambursabil", "val_bancara", "val_proprii",
+        "prioritate", "data_demarare", "data_finalizare", "observatii_rz", "intocmit_de", "avizat_de",
     ]
 
     class Meta:
@@ -777,6 +811,35 @@ class Proiect(models.Model):
 
     def get_absolute_url(self):
         return reverse("proiect_detaliu", args=[self.pk])
+
+    @property
+    def responsabil_implementare_afisat(self):
+        u = self.implementator
+        return (u.get_full_name() or u.username) if u else self.responsabil_implementare
+
+    @property
+    def status_afisat(self):
+        return self.status or {"ciorna": "În pregătire", "respins": "În pregătire", "trimis": "În avizare"}.get(self.stare_rz, "—")
+
+    @property
+    def aprobator_status(self):
+        """Administratorul care aprobă schimbările de status: cel care a avizat Raportul Zero (dacă e admin activ); altfel orice administrator (None)."""
+        u = self.aprobat_de_user
+        if u and u.is_active and (u.is_superuser or getattr(getattr(u, "profil", None), "rol", "") == "admin"):
+            return u
+        return None
+
+    @property
+    def cerere_status_deschisa(self):
+        return self.cereri_status.filter(stare="asteptare").first()
+
+    @property
+    def are_echipamente(self):
+        return not self.tip_investitie or self.tip_investitie in self.TIPURI_CU_ECHIPAMENTE
+
+    @property
+    def necesita_ac(self):
+        return self.tip_autorizare == "cu_ac"
 
     def save(self, *args, **kwargs):
         if not self.centru_cost:
@@ -1640,6 +1703,90 @@ class CerereTragereFactura(models.Model):
         verbose_name_plural = "facturi în cererile de tragere"
 
 
+class OfertaRZ(models.Model):
+    """Ofertele existente la data Raportului Zero (justifică valorile din buget / lista de echipamente)."""
+    proiect = models.ForeignKey(Proiect, on_delete=models.CASCADE, related_name="oferte_rz")
+    furnizor = models.CharField(max_length=200)
+    obiect = models.CharField("obiectul ofertei", max_length=300, blank=True)
+    valoare = models.DecimalField("valoare (fără TVA)", max_digits=16, decimal_places=2, null=True, blank=True)
+    moneda = models.CharField(max_length=3, choices=[("RON", "RON"), ("EUR", "EUR")], default="RON")
+    data_oferta = models.DateField("data ofertei", null=True, blank=True)
+    observatii = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["proiect", "pk"]
+        verbose_name = "ofertă (Raport Zero)"
+        verbose_name_plural = "oferte (Raport Zero)"
+
+    def __str__(self):
+        return f"Ofertă {self.furnizor}" + (f" {self.valoare:,.0f} {self.moneda}".replace(",", ".") if self.valoare else "")
+
+    @property
+    def document(self):
+        return self.documente.filter(arhivat=False).first()
+
+
+class ProcesVerbalInchidere(models.Model):
+    """Procesul-verbal de închidere a investiției, la terminarea lucrărilor:
+    - proiecte cu autorizație de construire: Proces-verbal de recepție la terminarea lucrărilor (HG 343/2017);
+    - proiecte fără autorizație: Proces-verbal de recepție și punere în funcțiune (formular 14-2-5/b, OMFP 2634/2015).
+    La emitere se fotografiază situația investiției (buget, contracte, facturi, plăți, avize, echipamente)."""
+    TIP = [("terminare", "Proces-verbal de recepție la terminarea lucrărilor"),
+           ("pif", "Proces-verbal de recepție și punere în funcțiune")]
+    DECIZIE = [("admisa", "Se admite recepția"), ("admisa_obiectii", "Se admite recepția cu obiecții (remedieri)"),
+               ("suspendata", "Se suspendă recepția"), ("respinsa", "Se respinge recepția")]
+    STATUS = [("ciorna", "Ciornă"), ("semnat", "Semnat – investiție închisă")]
+    proiect = models.ForeignKey(Proiect, on_delete=models.PROTECT, related_name="procese_verbale")
+    tip = models.CharField(max_length=12, choices=TIP)
+    numar = models.CharField("nr. proces-verbal", max_length=40)
+    data = models.DateField("data recepției", default=timezone.localdate)
+    loc_receptie = models.CharField("locul recepției", max_length=200, blank=True)
+    # lucrări / autorizare
+    nr_autorizatie = models.CharField("nr. autorizație de construire", max_length=60, blank=True)
+    data_autorizatie = models.DateField("data autorizației", null=True, blank=True)
+    emitent_autorizatie = models.CharField("emitentul autorizației", max_length=200, blank=True)
+    data_incepere = models.DateField("data începerii lucrărilor", null=True, blank=True)
+    data_terminare = models.DateField("data terminării lucrărilor", null=True, blank=True)
+    executant = models.CharField("executant / furnizor principal", max_length=300, blank=True)
+    proiectant = models.CharField(max_length=200, blank=True)
+    diriginte = models.CharField("diriginte de șantier", max_length=200, blank=True)
+    # comisia
+    presedinte_comisie = models.CharField("președintele comisiei", max_length=200, blank=True)
+    membri_comisie = models.TextField("membrii comisiei", blank=True, help_text="Câte unul pe rând: nume – funcție.")
+    alti_participanti = models.TextField("alți participanți", blank=True, help_text="Reprezentanții executantului, proiectantului etc.")
+    # constatări
+    documentatie_completa = models.BooleanField("cartea tehnică / documentația de recepție este completă", default=False)
+    obiective_realizate = models.TextField("obiectivele realizate", blank=True)
+    constatari = models.TextField("constatări privind calitatea lucrărilor", blank=True)
+    lipsuri = models.TextField("lipsuri și remedieri necesare", blank=True)
+    termen_remediere = models.DateField("termen de remediere", null=True, blank=True)
+    decizie = models.CharField("decizia comisiei", max_length=20, choices=DECIZIE, default="admisa")
+    # punere în funcțiune / patrimoniu
+    data_pif = models.DateField("data punerii în funcțiune", null=True, blank=True)
+    valoare_intrare_ron = models.DecimalField("valoare de intrare în patrimoniu (RON, fără TVA)", max_digits=16, decimal_places=2, null=True, blank=True,
+                                              help_text="Gol = valoarea facturată a investiției.")
+    durata_amortizare_ani = models.PositiveIntegerField("durata normală de funcționare (ani)", null=True, blank=True)
+    nr_inventar = models.CharField("nr. de inventar", max_length=200, blank=True)
+    observatii = models.TextField(blank=True)
+    situatie = models.JSONField("situația investiției la data recepției", default=dict, editable=False)
+    status = models.CharField(max_length=10, choices=STATUS, default="ciorna", editable=False)
+    creat_de = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="+", editable=False)
+    creat_la = models.DateTimeField(auto_now_add=True)
+    semnat_la = models.DateTimeField(null=True, blank=True, editable=False)
+
+    class Meta:
+        ordering = ["-data", "-pk"]
+        verbose_name = "proces-verbal de închidere"
+        verbose_name_plural = "procese-verbale de închidere"
+
+    def __str__(self):
+        return f"PV {self.numar} / {self.data:%d.%m.%Y}"
+
+    @property
+    def valoare_intrare(self):
+        return self.valoare_intrare_ron if self.valoare_intrare_ron is not None else Decimal(self.situatie.get("facturat", 0) or 0)
+
+
 # ---------------------------------------------------------------------------
 # Grafic Gantt
 # ---------------------------------------------------------------------------
@@ -1683,7 +1830,7 @@ class Document(models.Model):
         ("raport_zero", "Raport Zero semnat"), ("cu", "Certificat de urbanism"), ("aviz", "Aviz / acord"),
         ("autorizatie", "Autorizație de construire"), ("contract", "Contract"), ("act_aditional", "Act adițional"),
         ("factura", "Factură"), ("plata", "Document plată"), ("finantare", "Contract finanțare"),
-        ("proces_verbal", "Proces-verbal / recepție"), ("deviz", "Deviz / buget"), ("grafic", "Grafic execuție"),
+        ("proces_verbal", "Proces-verbal / recepție"), ("pv_inchidere", "Proces-verbal de închidere a investiției"), ("oferta", "Ofertă"), ("deviz", "Deviz / buget"), ("grafic", "Grafic execuție"),
         ("raport_progres", "Raport de progres"), ("cerere_tragere", "Cerere de tragere"), ("studiu", "Studiu"), ("cf", "Extras de carte funciară"), ("foto", "Fotografie"),
         ("folosinta", "Act / contract privind dreptul de folosință"), ("anexa_autoriz", "Document suport autorizație"),
         ("standard", "Certificat standard (ISO, IFS…)"), ("anexa_drept", "Anexă la actul de folosință"),
@@ -1716,6 +1863,8 @@ class Document(models.Model):
     control = models.ForeignKey(ControlAutoritate, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
     raport_progres = models.ForeignKey(RaportProgres, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
     cerere_tragere = models.ForeignKey(CerereTragere, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
+    proces_verbal = models.ForeignKey(ProcesVerbalInchidere, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
+    oferta = models.ForeignKey(OfertaRZ, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
     incarcat_de = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="+")
     incarcat_la = models.DateTimeField(auto_now_add=True)
     text_extras = models.TextField(blank=True, editable=False)
@@ -1829,3 +1978,26 @@ class EmailAvizRZ(models.Model):
 
     def __str__(self):
         return f"{self.proiect.cod} rev.{self.revizie} → {self.catre}"
+
+
+class CerereStatus(models.Model):
+    """Cerere de schimbare a statusului investiției (În execuție / Finalizat / Anulat/Suspendat) – se aplică doar după aprobarea administratorului."""
+    STARE = [("asteptare", "Așteaptă aprobarea"), ("aprobata", "Aprobată"), ("respinsa", "Respinsă")]
+    proiect = models.ForeignKey(Proiect, on_delete=models.CASCADE, related_name="cereri_status")
+    status_vechi = models.CharField(max_length=60, blank=True)
+    status_nou = models.CharField(max_length=60, choices=Proiect.STATUS_INVESTITIE)
+    motiv = models.TextField()
+    cerut_de = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="+")
+    cerut_la = models.DateTimeField(auto_now_add=True)
+    stare = models.CharField(max_length=10, choices=STARE, default="asteptare")
+    decis_de = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    decis_la = models.DateTimeField(null=True, blank=True)
+    motiv_decizie = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        ordering = ["-cerut_la"]
+        verbose_name = "cerere de schimbare a statusului"
+        verbose_name_plural = "cereri de schimbare a statusului"
+
+    def __str__(self):
+        return f"{self.proiect.cod}: {self.status_vechi or '—'} → {self.status_nou} ({self.get_stare_display()})"

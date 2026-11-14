@@ -1,0 +1,97 @@
+{% extends "platforma/base.html" %}{% load fmt %}
+{% block titlu %}{{ pv }} · {{ p.cod }}{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3 flex-wrap gap-2 no-print">
+  <a href="{{ p.get_absolute_url }}?tab=prezentare" class="btn btn-sm btn-outline-secondary me-2"><i class="bi bi-arrow-left"></i></a>
+  <h4 class="mb-0 me-2">{{ pv.get_tip_display }}</h4>
+  <span class="badge {% if pv.status == 'semnat' %}text-bg-success{% else %}text-bg-warning{% endif %}">{{ pv.get_status_display }}</span>
+  <div class="ms-auto d-flex gap-2 flex-wrap">
+    <button class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Tipărește / PDF</button>
+    {% if editabil %}<a class="btn btn-sm btn-outline-primary" href="{% url 'pv_editare' p.pk pv.pk %}"><i class="bi bi-pencil"></i> Modifică</a>{% endif %}
+    {% if poate_semna %}<form method="post" action="{% url 'pv_actiune' p.pk pv.pk %}" data-confirm="Semnați procesul-verbal și închideți investiția {{ p.cod }}? Proiectul trece în faza „Finalizat”.">{% csrf_token %}
+      <input type="hidden" name="actiune" value="semneaza"><button class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i> Semnează și închide investiția</button></form>{% endif %}
+    {% if poate_redeschide %}<form method="post" action="{% url 'pv_actiune' p.pk pv.pk %}" data-confirm="Redeschideți procesul-verbal pentru corecturi?">{% csrf_token %}
+      <input type="hidden" name="actiune" value="redeschide"><button class="btn btn-sm btn-outline-danger">Redeschide</button></form>{% endif %}
+    {% if editabil and not documente %}<form method="post" action="{% url 'pv_actiune' p.pk pv.pk %}" data-confirm="Ștergeți ciorna procesului-verbal?">{% csrf_token %}
+      <input type="hidden" name="actiune" value="sterge"><button class="btn btn-sm btn-link text-danger"><i class="bi bi-trash"></i></button></form>{% endif %}
+  </div>
+</div>
+{% if pv.status == 'ciorna' and not poate_semna and pv.decizie in 'admisa admisa_obiectii' %}<div class="alert alert-info small no-print">Semnarea (închiderea investiției) o face coordonatorul proiectului sau administratorul.</div>{% endif %}
+{% if pv.decizie == 'suspendata' or pv.decizie == 'respinsa' %}<div class="alert alert-warning small no-print">Recepția este {{ pv.get_decizie_display|lower }}: investiția nu se poate închide cu acest proces-verbal.</div>{% endif %}
+{% if verificari %}<div class="card mb-3 border-warning-subtle no-print"><div class="card-header bg-warning-subtle small fw-semibold"><i class="bi bi-list-check"></i> De verificat înainte de semnare</div>
+  <ul class="list-group list-group-flush small">{% for niv, t in verificari %}<li class="list-group-item d-flex gap-2"><span class="tag {% if niv == 'crit' %}t-crit{% elif niv == 'warn' %}t-warn{% else %}t-info{% endif %}">{% if niv == 'crit' %}de rezolvat{% elif niv == 'warn' %}atenție{% else %}info{% endif %}</span>{{ t }}</li>{% endfor %}</ul></div>{% endif %}
+{% if documente %}<div class="small mb-3 no-print">Exemplarul semnat: {% for d in documente %}<a href="{% url 'document' d.pk %}"><i class="bi bi-file-earmark-pdf text-danger"></i> {{ d.titlu }}</a>{% endfor %}</div>{% endif %}
+
+<div class="pv-doc">
+  <div class="d-flex justify-content-between">
+    <div><b>Investitor (beneficiar):</b> {{ p.beneficiar }}{% if p.beneficiar.cui %}<br>CUI {{ p.beneficiar.cui }}{% endif %}</div>
+    <div class="text-end">Nr. <b>{{ pv.numar }}</b><br>din {{ pv.data|date:"d.m.Y" }}</div>
+  </div>
+  <h2>{{ pv.get_tip_display }}</h2>
+  <div class="text-center small text-secondary mb-3">{{ temei }}</div>
+
+  <h3>1. Date generale</h3>
+  <table class="table table-sm table-bordered mb-0">
+    <tr><th style="width:34%">Investiția</th><td><b>{{ p.cod }}</b> – {{ p.denumire }}</td></tr>
+    <tr><th>Amplasament</th><td>{{ p.locatie }}{% if pv.loc_receptie %} · recepție la: {{ pv.loc_receptie }}{% endif %}</td></tr>
+    <tr><th>Tip proiect</th><td>{{ p.get_tip_autorizare_display }}</td></tr>
+    {% if pv.tip == 'terminare' %}<tr><th>Autorizația de construire</th><td>{% if pv.nr_autorizatie %}nr. {{ pv.nr_autorizatie }}{% if pv.data_autorizatie %} din {{ pv.data_autorizatie|date:"d.m.Y" }}{% endif %}{% if pv.emitent_autorizatie %}, emisă de {{ pv.emitent_autorizatie }}{% endif %}{% else %}—{% endif %}</td></tr>
+    <tr><th>Proiectant / diriginte de șantier</th><td>{{ pv.proiectant|default:"—" }} / {{ pv.diriginte|default:"—" }}</td></tr>{% endif %}
+    <tr><th>Executant / furnizor</th><td>{{ pv.executant|default:"—" }}</td></tr>
+    <tr><th>Perioada de execuție</th><td>planificat: {{ s.data_demarare|default:"—" }} – {{ s.data_finalizare|default:"—" }} · realizat: {{ pv.data_incepere|date:"d.m.Y"|default:"—" }} – {{ pv.data_terminare|date:"d.m.Y"|default:"—" }}</td></tr>
+  </table>
+
+  <h3>2. Comisia de recepție</h3>
+  <p class="mb-1"><b>Președinte:</b> {{ pv.presedinte_comisie|default:"—" }}</p>
+  <p class="mb-1"><b>Membri:</b> {% for x in membri %}{{ x }}{% if not forloop.last %}; {% endif %}{% empty %}—{% endfor %}</p>
+  {% if pv.alti_participanti %}<p class="mb-1"><b>Alți participanți:</b> {{ pv.alti_participanti|linebreaksbr }}</p>{% endif %}
+
+  <h3>3. Constatările comisiei</h3>
+  <p class="mb-1">{% if pv.documentatie_completa %}☒{% else %}☐{% endif %} {% if pv.tip == 'terminare' %}Cartea tehnică a construcției și documentația de recepție sunt complete.{% else %}Documentele tehnice (cărți tehnice, certificate de garanție, conformitate) au fost predate.{% endif %}</p>
+  {% if pv.obiective_realizate %}<p class="mb-1"><b>Obiective realizate:</b> {{ pv.obiective_realizate|linebreaksbr }}</p>{% endif %}
+  <p class="mb-1"><b>Calitatea lucrărilor:</b> {{ pv.constatari|default:"—"|linebreaksbr }}</p>
+  <p class="mb-1"><b>Lipsuri și remedieri:</b> {{ pv.lipsuri|default:"nu este cazul"|linebreaksbr }}{% if pv.termen_remediere %} – termen {{ pv.termen_remediere|date:"d.m.Y" }}{% endif %}</p>
+
+  <h3>4. Situația financiară a investiției <span class="text-secondary" style="text-transform:none;letter-spacing:0">(RON fără TVA, la {{ s.data|default:"" }})</span></h3>
+  <table class="table table-sm table-bordered">
+    <thead class="table-light"><tr><th class="num">Buget Raport Zero</th><th class="num">Buget aprobat</th><th class="num">Buget actualizat</th><th class="num">Contractat</th><th class="num">Facturat</th><th class="num">Plătit</th><th class="num">Rest de plată</th></tr></thead>
+    <tr><td class="num">{{ s.buget_rz|bani2 }}</td><td class="num">{{ s.buget_aprobat|bani2 }}</td><td class="num">{{ s.buget_actualizat|bani2 }}</td><td class="num">{{ s.angajat|bani2 }}</td><td class="num fw-bold">{{ s.facturat|bani2 }}</td><td class="num">{{ s.platit|bani2 }}</td><td class="num">{{ s.rest_plata|bani2 }}</td></tr>
+  </table>
+  {% if s.structura %}<p class="small mb-2"><b>Surse de finanțare:</b> {% for x in s.structura %}{{ x.eticheta }} {{ x.ron|bani }} RON{% if x.procent is not None %} ({{ x.procent }}%){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}{% if s.credit_tras %} · credit tras {{ s.credit_tras|bani }} RON{% endif %}</p>{% endif %}
+  {% if s.linii %}<table class="table table-sm table-bordered"><thead class="table-light"><tr><th>Cap.</th><th>Linie de buget</th><th class="num">Aprobat</th><th class="num">Actualizat</th><th class="num">Facturat</th><th class="num">Rămas</th></tr></thead>
+    {% for l in s.linii %}<tr><td>{{ l.capitol }}</td><td>{{ l.denumire }}</td><td class="num">{{ l.aprobat|bani }}</td><td class="num">{{ l.actualizat|bani }}</td><td class="num">{{ l.facturat|bani }}</td><td class="num">{{ l.diferenta|bani }}</td></tr>{% endfor %}</table>{% endif %}
+  {% if s.contracte %}<table class="table table-sm table-bordered"><thead class="table-light"><tr><th>Contract</th><th>Partener</th><th class="num">Valoare</th><th class="num">Facturat</th><th class="num">Plătit</th><th>Stare</th></tr></thead>
+    {% for c in s.contracte %}<tr><td>{{ c.numar }} / {{ c.data }}</td><td>{{ c.partener }}</td><td class="num">{{ c.valoare|bani }}</td><td class="num">{{ c.facturat|bani }}</td><td class="num">{{ c.platit|bani }}</td><td>{{ c.status }}</td></tr>{% endfor %}</table>{% endif %}
+  {% if s.facturi_neachitate %}<p class="small"><b>Facturi neachitate integral la data recepției:</b> {% for x in s.facturi_neachitate %}{{ x.furnizor }} {{ x.numar }} (rest {{ x.rest|bani }}){% if not forloop.last %}; {% endif %}{% endfor %}</p>{% endif %}
+
+  {% if pv.tip == 'terminare' and s.avize %}<h3>5. Avize, acorduri și autorizații</h3>
+  <table class="table table-sm table-bordered"><thead class="table-light"><tr><th>Document</th><th>Stare</th><th>Nr. / data</th><th>Valabil până</th></tr></thead>
+    {% for a in s.avize %}<tr><td>{{ a.denumire }}</td><td>{{ a.status }}</td><td>{{ a.numar|default:"" }} {{ a.data|default:"" }}</td><td>{{ a.valabil_pana|default:"—" }}</td></tr>{% endfor %}</table>{% endif %}
+
+  {% if s.echipamente %}<h3>{% if pv.tip == 'terminare' and s.avize %}6{% else %}5{% endif %}. Echipamente și dotări recepționate</h3>
+  <table class="table table-sm table-bordered"><thead class="table-light"><tr><th>Denumire</th><th class="num">Cantitate</th><th class="num">Valoare (RON)</th><th>Stare</th></tr></thead>
+    {% for e in s.echipamente %}<tr><td>{{ e.denumire }}</td><td class="num">{{ e.cantitate|floatformat:"-2" }} {{ e.um }}</td><td class="num">{{ e.valoare|bani }}</td><td>{{ e.status }}</td></tr>{% endfor %}</table>{% endif %}
+
+  <h3>Punerea în funcțiune și înregistrarea în patrimoniu</h3>
+  <table class="table table-sm table-bordered mb-0">
+    <tr><th style="width:34%">Data punerii în funcțiune</th><td>{{ pv.data_pif|date:"d.m.Y"|default:"—" }}</td></tr>
+    <tr><th>Valoare de intrare (RON, fără TVA)</th><td class="fw-bold">{{ pv.valoare_intrare|bani2 }}</td></tr>
+    <tr><th>Durata normală de funcționare</th><td>{% if pv.durata_amortizare_ani %}{{ pv.durata_amortizare_ani }} ani{% else %}—{% endif %}</td></tr>
+    <tr><th>Nr. de inventar</th><td>{{ pv.nr_inventar|default:"—" }}</td></tr>
+  </table>
+
+  <h3>Decizia comisiei</h3>
+  <p class="fs-6 fw-bold mb-1">{{ pv.get_decizie_display }}</p>
+  {% if pv.observatii %}<p class="mb-1">{{ pv.observatii|linebreaksbr }}</p>{% endif %}
+  <p class="small text-secondary">Prezentul proces-verbal s-a încheiat în {% if pv.tip == 'terminare' %}trei{% else %}două{% endif %} exemplare{% if pv.status == 'semnat' %}; semnat electronic în platformă la {{ pv.semnat_la|date:"d.m.Y H:i" }}{% endif %}.</p>
+
+  <h3>Semnături</h3>
+  <div class="semn">
+    <div>Președinte comisie<br><b>{{ pv.presedinte_comisie|default:"" }}</b></div>
+    {% for x in membri %}<div>Membru<br><b>{{ x }}</b></div>{% endfor %}
+    <div>Executant / furnizor<br><b>{{ pv.executant|truncatechars:60 }}</b></div>
+    {% if pv.tip == 'terminare' %}<div>Diriginte de șantier<br><b>{{ pv.diriginte }}</b></div><div>Proiectant<br><b>{{ pv.proiectant }}</b></div>{% endif %}
+    <div>Aprobat, investitor<br><b>{{ p.beneficiar }}</b></div>
+  </div>
+</div>
+{% endblock %}

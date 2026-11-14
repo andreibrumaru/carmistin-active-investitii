@@ -1,66 +1,70 @@
 {% extends "platforma/form.html" %}
+{% block antet_dreapta %}
+<div class="rz-cod-mare ms-auto" id="codRzMare">
+  <div class="eticheta">Cod Raport Zero</div>
+  {% if form.instance.pk %}<div class="valoare">{{ form.instance.cod }}{% if form.instance.revizie_rz %} <small>rev.{{ form.instance.revizie_rz }}</small>{% endif %}</div>
+    <div class="nr">Nr. înreg. {{ form.instance.nr_inregistrare }}</div>
+  {% else %}<div class="valoare text-secondary" data-previzualizare>—</div><div class="nr">se alocă la salvare, după locație</div>{% endif %}
+</div>
+{% endblock %}
+{% block campuri %}
+{# Câmpurile Raportului Zero, grupate pe secțiuni #}
+<div class="rz-sectiune prima">
+  <div class="rz-titlu"><i class="bi bi-geo-alt"></i> Beneficiar și locație</div>
+  <div class="row g-3">
+    <div class="col-md-6">{% include "platforma/_camp.html" with field=form.beneficiar %}</div>
+    <div class="col-md-6">{% include "platforma/_camp.html" with field=form.locatie %}</div>
+    <div class="col-md-6">{% include "platforma/_camp.html" with field=form.linie %}</div>
+    <div class="col-md-6">{% include "platforma/_camp.html" with field=form.divizie %}</div>
+  </div>
+</div>
+
+<div class="rz-denumire">
+  <label class="form-label" for="{{ form.denumire.id_for_label }}"><i class="bi bi-bookmark-star"></i> {{ form.denumire.label|capfirst }} <span class="text-danger">*</span></label>
+  {% include "platforma/_camp.html" with field=form.denumire fara_eticheta=1 %}
+</div>
+
+<div class="rz-sectiune">
+  <div class="rz-titlu"><i class="bi bi-diagram-3"></i> Tipul investiției și responsabilul</div>
+  <div class="row g-3">
+    <div class="col-md-6">{% include "platforma/_camp.html" with field=form.tip_investitie %}</div>
+    <div class="col-md-6"><div class="rz-bifa">{% include "platforma/_camp.html" with field=form.necesita_ac %}</div></div>
+    <div class="col-md-6">{% include "platforma/_camp.html" with field=form.responsabil %}</div>
+    <div class="col-12">{% include "platforma/_camp.html" with field=form.descriere_lucrari %}</div>
+  </div>
+</div>
+
+<div class="rz-sectiune">
+  <div class="rz-titlu"><i class="bi bi-calendar-range"></i> Valoare, prioritate și calendar</div>
+  <div class="row g-3">
+    <div class="col-md-6 col-lg-4">{% include "platforma/_camp.html" with field=form.valoare_rz %}</div>
+    <div class="col-md-6 col-lg-2">{% include "platforma/_camp.html" with field=form.moneda_rz %}</div>
+    <div class="col-md-4 col-lg-2">{% include "platforma/_camp.html" with field=form.prioritate %}</div>
+    <div class="col-md-4 col-lg-2">{% include "platforma/_camp.html" with field=form.data_demarare %}</div>
+    <div class="col-md-4 col-lg-2">{% include "platforma/_camp.html" with field=form.data_finalizare %}</div>
+  </div>
+</div>
+{% endblock %}
 {% block in_form %}
-{% with ff=form %}
-<div class="mt-4" id="structura-finantare">
-  <h5 class="mb-1"><i class="bi bi-bank"></i> Structura de finanțare <span class="text-danger">*</span></h5>
-  <div class="d-flex flex-wrap align-items-center gap-2 border rounded p-2 {% if ff.errors.val_nerambursabil or ff.errors.val_bancara or ff.non_field_errors %}border-danger{% endif %}">
-    <div id="finSumar" class="small flex-grow-1">—</div>
-    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#fereastraFinantare"><i class="bi bi-ui-checks"></i> Alege formele de finanțare</button>
-  </div>
-  {% if ff.errors.val_nerambursabil %}<div class="text-danger small">Buget nerambursabil: {{ ff.errors.val_nerambursabil.0 }}</div>{% endif %}
-  {% if ff.errors.val_bancara %}<div class="text-danger small">Finanțare bancară: {{ ff.errors.val_bancara.0 }}</div>{% endif %}
-</div>
 
-<div class="modal fade" id="fereastraFinantare" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
-  <div class="modal-header"><h5 class="modal-title"><i class="bi bi-bank"></i> Structura de finanțare a investiției</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-  <div class="modal-body">
-    <p class="small text-secondary">Bifați una sau mai multe forme (finanțare mixtă). Sumele sunt în moneda Raportului Zero (<span class="moneda-rz">RON</span>); fondurile proprii acoperă automat diferența până la valoarea RZ.</p>
-    <div class="form-check form-switch mb-3 p-2 ps-5 border rounded bg-body-tertiary">{{ ff.fonduri_ue }} <label class="form-check-label fw-semibold" for="{{ ff.fonduri_ue.id_for_label }}">Proiect cu fonduri UE</label>
-      <div class="form-text">Proiectul primește tabloul de bord „Fonduri UE”: buget eligibil / neeligibil / cumulat și ajutorul nerambursabil. Implică finanțare nerambursabilă.</div></div>
-    <table class="table table-sm align-middle mb-2">
-      <thead><tr><th style="width:40px"></th><th>Formă de finanțare</th><th class="num" style="width:220px">Sumă (<span class="moneda-rz">RON</span>)</th><th class="num" style="width:80px">%</th></tr></thead>
-      <tbody>
-      <tr><td>{{ ff.fin_nerambursabil }}</td><td><label for="{{ ff.fin_nerambursabil.id_for_label }}" class="fw-semibold">Fonduri nerambursabile</label><div class="small text-secondary">bugetul nerambursabil (ajutorul acordat)</div></td>
-        <td>{{ ff.val_nerambursabil }}{% for e in ff.val_nerambursabil.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td><td class="num" data-proc="nerambursabil">—</td></tr>
-      <tr><td>{{ ff.fin_bancara }}</td><td><label for="{{ ff.fin_bancara.id_for_label }}" class="fw-semibold">Finanțare bancară</label><div class="small text-secondary">credit de investiții – plafonul liniei de credit</div></td>
-        <td>{{ ff.val_bancara }}{% for e in ff.val_bancara.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td><td class="num" data-proc="bancara">—</td></tr>
-      <tr><td>{{ ff.fin_proprii }}</td><td><label for="{{ ff.fin_proprii.id_for_label }}" class="fw-semibold">Fonduri proprii</label><div class="small text-secondary">calculat: valoarea RZ − celelalte surse</div></td>
-        <td class="num fw-semibold" id="finProprii">—</td><td class="num" data-proc="proprii">—</td></tr>
-      </tbody>
-      <tfoot><tr class="fw-bold"><td></td><td>Valoare RZ</td><td class="num" id="finTotal">—</td><td></td></tr></tfoot>
-    </table>
-    <div id="finAvert" class="alert alert-warning small py-2 d-none mb-0"></div>
-  </div>
-  <div class="modal-footer"><button type="button" class="btn btn-primary" data-bs-dismiss="modal"><i class="bi bi-check2"></i> Gata</button></div>
-</div></div></div>
-{% endwith %}
-<div class="mt-4" id="buget-rz">
-  <h5 class="mb-1"><i class="bi bi-calculator"></i> Bugetul investiției – structura devizului general (HG 907/2016)</h5>
-  <p class="small text-secondary mb-2">Sume în RON, fără TVA. Bugetul face parte din Raportul Zero: după avizare rămâne fixat și se poate modifica doar printr-o revizie a Raportului Zero, aprobată de administrator.</p>
-  <div class="table-responsive"><table class="table table-sm align-middle mb-2" style="max-width:900px">
-    <thead><tr><th style="width:70px">Cap.</th><th>Denumire</th><th class="num" style="width:200px">Bugetat (RON)</th></tr></thead>
-    <tbody>{% for c in capitole_buget %}
-      <tr class="capitol-row"><td>{{ c.cod }}</td><td>{{ c.denumire }}</td><td class="num" data-total-capitol="{{ c.cod }}">0</td></tr>
-      {% for l in c.linii %}<tr><td class="text-secondary">{{ l.cod }}</td><td>{{ l.denumire }}</td>
-        <td><input type="text" inputmode="decimal" name="buget_{{ l.cod }}" value="{% if l.valoare %}{{ l.valoare|floatformat:'-2' }}{% endif %}" placeholder="0" class="form-control form-control-sm text-end celula-buget" data-capitol="{{ c.cod }}"></td></tr>{% endfor %}
-    {% endfor %}</tbody>
-    <tfoot><tr class="fw-bold"><td></td><td>TOTAL BUGET HG</td><td class="num" id="totalBuget">0</td></tr>
-      <tr class="small"><td></td><td class="text-secondary">Valoarea preluată în Raportul Zero (câmpul „Valoare ofertă / buget”), în RON</td><td class="num text-secondary" id="valoareRzRon">—</td></tr>
-      <tr class="small"><td></td><td class="text-secondary">Diferență buget HG – valoare RZ</td><td class="num" id="diferentaRz">—</td></tr></tfoot>
-  </table></div>
-</div>
-
-<div class="mt-4" id="echipamente-rz">
-  <h5 class="mb-1"><i class="bi bi-cpu"></i> Lista echipamentelor și dotărilor (cap. 4.3, 4.4, 4.5) <span class="text-danger">*</span></h5>
-  <p class="small text-secondary mb-2">Banii prevăzuți pe liniile 4.3 (utilaje cu montaj), 4.4 (utilaje fără montaj, transport) și 4.5 (dotări) se justifică prin lista de mai jos.
-    Bugetul acestor linii se calculează automat din valorile estimate (RON, fără TVA). Lista trece apoi în fișa proiectului; la încheierea unui contract de achiziție se bifează exact echipamentele contractate.</p>
+<div class="rz-sectiune" id="ferestre-rz">
+  <div class="rz-titlu"><i class="bi bi-calculator"></i> Echipamente și buget</div>
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item cu-echipamente"><button class="nav-link active" type="button" data-bs-toggle="tab" data-bs-target="#fer-echipamente" id="tab-echipamente"><i class="bi bi-cpu"></i> 1. Lista de echipamente <span class="badge text-bg-light" id="tabEchTotal">0</span></button></li>
+    <li class="nav-item doar-lucrari"><button class="nav-link" type="button" data-bs-toggle="tab" data-bs-target="#fer-buget" id="tab-buget"><i class="bi bi-calculator"></i> <span class="nr-buget">2.</span> Bugetul investiției <span class="badge text-bg-light" id="tabBugetTotal">0</span></button></li>
+  </ul>
+  <div class="tab-content border border-top-0 rounded-bottom" id="echipamente-rz">
+<div class="tab-pane fade show active p-3" id="fer-echipamente" role="tabpanel">
+  <p class="small text-secondary mb-2"><span class="doar-lucrari">Liniile de buget 4.3 (utilaje cu montaj), 4.4 (utilaje fără montaj, transport) și 4.5 (dotări) se completează <b>numai</b> din această listă.</span>
+    <span class="doar-echipamente">La achiziția de echipamente, lista este chiar bugetul investiției.</span>
+    Valorile sunt estimate, în <span class="moneda-rz">{{ form.moneda_rz.value|default:"RON" }}</span> fără TVA (moneda Raportului Zero). Lista trece apoi în fișa proiectului; la încheierea unui contract de achiziție se bifează exact echipamentele contractate.</p>
   <div class="row g-2 mb-2" id="ech-sumar">{% for cod, den in linii_echipamente %}
     <div class="col-md-4"><div class="border rounded px-2 py-1 small h-100" data-ech-sumar="{{ cod }}"><b>{{ cod }}</b> {{ den|truncatechars:48 }}
       <div class="d-flex justify-content-between"><span class="text-secondary">listă</span><span class="fw-semibold" data-ech-total="{{ cod }}">0</span></div>
       <div class="ech-stare small" data-ech-stare="{{ cod }}"></div></div></div>{% endfor %}
   </div>
   <div class="table-responsive"><table class="table table-sm align-middle mb-2" id="tabelEchipamente">
-    <thead><tr><th>Denumire echipament / dotare</th><th>Specificații</th><th style="width:90px" class="num">Cant.</th><th style="width:80px">U.M.</th><th style="width:230px">Linie buget</th><th style="width:170px" class="num">Valoare estimată totală (RON)</th><th style="width:40px"></th></tr></thead>
+    <thead><tr><th>Denumire echipament / dotare</th><th>Specificații</th><th style="width:90px" class="num">Cant.</th><th style="width:80px">U.M.</th><th style="width:230px">Linie buget</th><th style="width:170px" class="num">Valoare estimată totală (<span class="moneda-rz">{{ form.moneda_rz.value|default:"RON" }}</span>)</th><th style="width:40px"></th></tr></thead>
     <tbody>
     {% for e in echipamente_rz %}<tr>
       <td><input type="hidden" name="ech_id" value="{{ e.id|default:'' }}"><input name="ech_denumire" value="{{ e.denumire }}" class="form-control form-control-sm" required></td>
@@ -76,6 +80,92 @@
   </table></div>
   <button type="button" class="btn btn-sm btn-outline-primary" id="ech-adauga"><i class="bi bi-plus-lg"></i> Adaugă echipament</button>
 </div>
+<div class="tab-pane fade p-3" id="fer-buget" role="tabpanel">
+  <p class="small text-secondary mb-2">Structura devizului general (HG 907/2016), sume în <span class="moneda-rz">{{ form.moneda_rz.value|default:"RON" }}</span> fără TVA (moneda Raportului Zero). Liniile 4.3, 4.4 și 4.5 vin automat din lista de echipamente (fereastra 1) și nu se completează manual.
+    După avizare bugetul rămâne fixat și se modifică doar printr-o revizie a Raportului Zero, aprobată de administrator.</p>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-2" style="max-width:900px">
+    <thead><tr><th style="width:70px">Cap.</th><th>Denumire</th><th class="num" style="width:200px">Bugetat (<span class="moneda-rz">{{ form.moneda_rz.value|default:"RON" }}</span>)</th></tr></thead>
+    <tbody>{% for c in capitole_buget %}
+      <tr class="capitol-row"><td>{{ c.cod }}</td><td>{{ c.denumire }}</td><td class="num" data-total-capitol="{{ c.cod }}">0</td></tr>
+      {% for l in c.linii %}<tr><td class="text-secondary">{{ l.cod }}</td><td>{{ l.denumire }}{% if l.cod in linii_ech_coduri %} <span class="badge text-bg-light"><i class="bi bi-cpu"></i> din lista de echipamente</span>{% endif %}</td>
+        <td>{% if l.cod in linii_ech_coduri %}<input type="text" name="buget_{{ l.cod }}" value="{% if l.valoare %}{{ l.valoare|floatformat:'-2' }}{% endif %}" placeholder="0" class="form-control form-control-sm text-end celula-buget camp-calculat" data-capitol="{{ c.cod }}" data-ech="1" readonly tabindex="-1" title="calculat din lista de echipamente">{% else %}<input type="text" inputmode="decimal" name="buget_{{ l.cod }}" value="{% if l.valoare %}{{ l.valoare|floatformat:'-2' }}{% endif %}" placeholder="0" class="form-control form-control-sm text-end celula-buget" data-capitol="{{ c.cod }}">{% endif %}</td></tr>{% endfor %}
+    {% endfor %}</tbody>
+    <tfoot><tr class="fw-bold"><td></td><td>TOTAL BUGET HG</td><td class="num" id="totalBuget">0</td></tr>
+      <tr class="small"><td></td><td class="text-secondary">Valoarea Raportului Zero (calculată din buget)</td><td class="num text-secondary" id="valoareRzRon">—</td></tr>
+      <tr class="small"><td></td><td class="text-secondary">Diferență buget HG – valoare RZ</td><td class="num" id="diferentaRz">—</td></tr></tfoot>
+  </table></div>
+</div>
+
+  </div>
+</div>
+<div class="rz-sectiune" id="anexa-oferte">
+  <div class="rz-titlu"><i class="bi bi-paperclip"></i> Anexă – Oferte pentru justificarea bugetului <span class="badge text-bg-light" id="tabOferteNr">{{ oferte_rz|length }}</span></div>
+  <p class="small text-secondary mb-2">Atașați ofertele primite până la data Raportului Zero, care justifică valorile din buget și din lista de echipamente.
+    Puteți selecta mai multe fișiere deodată – pentru fiecare se creează un rând; completați apoi furnizorul, obiectul și valoarea. Documentele intră în dosarul proiectului.</p>
+  <div class="border rounded p-2 mb-2 bg-body-tertiary d-flex flex-wrap align-items-center gap-2">
+    <label class="btn btn-sm btn-primary mb-0" for="of-multiple"><i class="bi bi-upload"></i> Atașează oferte (PDF / imagini)</label>
+    <input type="file" id="of-multiple" accept=".pdf,image/*" multiple class="d-none">
+    <span class="small text-secondary">sau</span>
+    <button type="button" class="btn btn-sm btn-outline-primary" id="of-adauga"><i class="bi bi-plus-lg"></i> Adaugă ofertă manual</button>
+  </div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-2" id="tabelOferte">
+    <thead><tr><th>Furnizor</th><th>Obiectul ofertei</th><th style="width:150px" class="num">Valoare fără TVA</th><th style="width:90px">Monedă</th><th style="width:150px">Data</th><th style="width:230px">Document (PDF)</th><th style="width:40px"></th></tr></thead>
+    <tbody>{% for o in oferte_rz %}<tr>
+      <td><input type="hidden" name="of_key" value="{{ o.key }}"><input type="hidden" name="of_id_{{ o.key }}" value="{{ o.id|default:'' }}"><input name="of_furnizor_{{ o.key }}" value="{{ o.furnizor }}" class="form-control form-control-sm" required></td>
+      <td><input name="of_obiect_{{ o.key }}" value="{{ o.obiect }}" class="form-control form-control-sm"></td>
+      <td><input name="of_valoare_{{ o.key }}" value="{{ o.valoare_text }}" inputmode="decimal" class="form-control form-control-sm text-end"></td>
+      <td><select name="of_moneda_{{ o.key }}" class="form-select form-select-sm"><option {% if o.moneda == 'RON' %}selected{% endif %}>RON</option><option {% if o.moneda == 'EUR' %}selected{% endif %}>EUR</option></select></td>
+      <td><input type="date" name="of_data_{{ o.key }}" value="{{ o.data_text }}" class="form-control form-control-sm"></td>
+      <td>{% if o.document %}<a class="small d-block text-truncate" href="{% url 'document' o.document.pk %}" title="{{ o.document.titlu }}"><i class="bi bi-file-earmark-pdf text-danger"></i> {{ o.document.titlu|truncatechars:28 }}</a>{% endif %}<input type="file" name="of_fisier_{{ o.key }}" accept=".pdf,image/*" class="form-control form-control-sm"></td>
+      <td class="text-center"><button type="button" class="btn btn-sm btn-link text-danger p-0 of-sterge" title="elimină oferta"><i class="bi bi-x-lg"></i></button></td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="small text-secondary mb-2" id="ofGol" {% if oferte_rz %}hidden{% endif %}>Nicio ofertă atașată.</div>
+</div>
+
+{% with ff=form %}
+<div class="rz-sectiune" id="structura-finantare">
+  <div class="rz-titlu"><i class="bi bi-bank"></i> Structura de finanțare <span class="text-danger">*</span></div>
+  <p class="small text-secondary mb-1" id="finInfo">Se stabilește după completarea bugetului: sumele se raportează la valoarea Raportului Zero.</p>
+  <div class="d-flex flex-wrap align-items-center gap-2 border rounded p-2 {% if ff.errors.val_nerambursabil or ff.errors.val_bancara or ff.non_field_errors %}border-danger{% endif %}">
+    <div id="finSumar" class="small flex-grow-1">—</div>
+    <button type="button" class="btn btn-sm btn-primary" id="btnFinantare" data-bs-toggle="modal" data-bs-target="#fereastraFinantare"><i class="bi bi-ui-checks"></i> Alege formele de finanțare</button>
+  </div>
+  {% if ff.errors.val_nerambursabil %}<div class="text-danger small">Buget nerambursabil: {{ ff.errors.val_nerambursabil.0 }}</div>{% endif %}
+  {% if ff.errors.val_bancara %}<div class="text-danger small">Finanțare bancară: {{ ff.errors.val_bancara.0 }}</div>{% endif %}
+</div>
+
+<div class="modal fade" id="fereastraFinantare" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title"><i class="bi bi-bank"></i> Structura de finanțare a investiției</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <div class="d-flex align-items-center gap-2 mb-2"><span class="small fw-semibold">Introduc sumele ca:</span>
+      <div class="btn-group btn-group-sm" role="group"><input type="radio" class="btn-check" name="fin_mod" id="finModValoare" value="valoare" checked><label class="btn btn-outline-primary" for="finModValoare">Valoare</label>
+        <input type="radio" class="btn-check" name="fin_mod" id="finModProcent" value="procent"><label class="btn btn-outline-primary" for="finModProcent">Procent (%)</label></div></div>
+    <p class="small text-secondary">Bifați una sau mai multe forme (finanțare mixtă). Sumele sunt în moneda Raportului Zero (<span class="moneda-rz">RON</span>); fondurile proprii acoperă automat diferența până la valoarea RZ.</p>
+    <div class="form-check form-switch mb-3 p-2 ps-5 border rounded bg-body-tertiary">{{ ff.fonduri_ue }} <label class="form-check-label fw-semibold" for="{{ ff.fonduri_ue.id_for_label }}">Proiect cu fonduri UE</label>
+      <div class="form-text">Proiectul primește tabloul de bord „Fonduri UE”: buget eligibil / neeligibil / cumulat și ajutorul nerambursabil. Implică finanțare nerambursabilă.</div></div>
+    <table class="table table-sm align-middle mb-2">
+      <thead><tr><th style="width:40px"></th><th>Formă de finanțare</th><th class="num" style="width:220px">Sumă (<span class="moneda-rz">RON</span>)</th><th class="num" style="width:110px">%</th></tr></thead>
+      <tbody>
+      <tr><td>{{ ff.fin_nerambursabil }}</td><td><label for="{{ ff.fin_nerambursabil.id_for_label }}" class="fw-semibold">Fonduri nerambursabile</label><div class="small text-secondary">bugetul nerambursabil (ajutorul acordat)</div></td>
+        <td>{{ ff.val_nerambursabil }}{% for e in ff.val_nerambursabil.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td><td><input type="text" inputmode="decimal" class="form-control form-control-sm text-end fin-proc" data-c="nerambursabil" placeholder="%"></td></tr>
+      <tr><td>{{ ff.fin_bancara }}</td><td><label for="{{ ff.fin_bancara.id_for_label }}" class="fw-semibold">Finanțare bancară</label><div class="small text-secondary">credit de investiții – plafonul liniei de credit</div></td>
+        <td>{{ ff.val_bancara }}{% for e in ff.val_bancara.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td><td><input type="text" inputmode="decimal" class="form-control form-control-sm text-end fin-proc" data-c="bancara" placeholder="%"></td></tr>
+      <tr><td>{{ ff.fin_proprii }}</td><td><label for="{{ ff.fin_proprii.id_for_label }}" class="fw-semibold">Fonduri proprii</label><div class="small text-secondary">calculat: valoarea RZ − celelalte surse</div></td>
+        <td class="num fw-semibold" id="finProprii">—</td><td class="num" data-proc="proprii">—</td></tr>
+      </tbody>
+      <tfoot><tr class="fw-bold"><td></td><td>Valoare RZ</td><td class="num" id="finTotal">—</td><td></td></tr></tfoot>
+    </table>
+    <div id="finAvert" class="alert alert-warning small py-2 d-none mb-0"></div>
+  </div>
+  <div class="modal-footer"><button type="button" class="btn btn-primary" data-bs-dismiss="modal"><i class="bi bi-check2"></i> Gata</button></div>
+</div></div></div>
+{% endwith %}
+<div class="rz-sectiune" id="observatii-rz">
+  <div class="rz-titlu"><i class="bi bi-chat-left-text"></i> {{ form.observatii_rz.label }}</div>
+  {{ form.observatii_rz }}
+  {% for e in form.observatii_rz.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+</div>
 <template id="ech-rand-nou"><tr>
   <td><input type="hidden" name="ech_id" value=""><input name="ech_denumire" class="form-control form-control-sm" required placeholder="ex. Linie de sortare ouă"></td>
   <td><input name="ech_specificatii" class="form-control form-control-sm" placeholder="model, capacitate…"></td>
@@ -84,6 +174,15 @@
   <td><select name="ech_linie" class="form-select form-select-sm" required><option value="">—</option>{% for cod, den in linii_echipamente %}<option value="{{ cod }}">{{ cod }} {{ den|truncatechars:30 }}</option>{% endfor %}</select></td>
   <td><input name="ech_valoare" inputmode="decimal" class="form-control form-control-sm text-end ech-valoare" required placeholder="0"></td>
   <td class="text-center"><button type="button" class="btn btn-sm btn-link text-danger p-0 ech-sterge" title="scoate din listă"><i class="bi bi-x-lg"></i></button></td>
+</tr></template>
+<template id="of-rand-nou"><tr>
+  <td><input type="hidden" name="of_key" value="__K__"><input type="hidden" name="of_id___K__" value=""><input name="of_furnizor___K__" class="form-control form-control-sm" required placeholder="ex. Big Dutchman"></td>
+  <td><input name="of_obiect___K__" class="form-control form-control-sm" placeholder="ce se ofertează"></td>
+  <td><input name="of_valoare___K__" inputmode="decimal" class="form-control form-control-sm text-end" placeholder="0"></td>
+  <td><select name="of_moneda___K__" class="form-select form-select-sm"><option>RON</option><option>EUR</option></select></td>
+  <td><input type="date" name="of_data___K__" class="form-control form-control-sm"></td>
+  <td><input type="file" name="of_fisier___K__" accept=".pdf,image/*" class="form-control form-control-sm"></td>
+  <td class="text-center"><button type="button" class="btn btn-sm btn-link text-danger p-0 of-sterge" title="elimină oferta"><i class="bi bi-x-lg"></i></button></td>
 </tr></template>
 {% endblock %}
 {% block scripturi %}
@@ -108,11 +207,44 @@
     const o = loc.selectedOptions[0];
     const n = toate.filter(x => x.dataset.beneficiar === ben.value).length;
     info.textContent = o && o.value ? `Cod proiect care se va genera: ${o.dataset.urmator}` : (ben.value ? `${n} locații ale beneficiarului` : '');
+    const mare = document.querySelector('#codRzMare [data-previzualizare]');
+    if (mare) { mare.textContent = o && o.value ? o.dataset.urmator : '—'; mare.classList.toggle('text-secondary', !(o && o.value)); }
   }
   ben.addEventListener('change', filtreaza);
   loc.addEventListener('change', actualizeaza);
   loc.form.addEventListener('submit', () => { loc.disabled = false; });
   filtreaza();
+})();
+</script>
+<script>
+// Activ funcțional: linia de business (și divizia, dacă e definită) se preiau din registrul activelor și nu se modifică.
+// Activ nefuncțional / teren de investiții: se completează în formular.
+(() => {
+  const loc = document.getElementById('id_locatie'), linie = document.getElementById('id_linie'), div = document.getElementById('id_divizie');
+  if (!loc || !linie || !div) return;
+  const nota = document.createElement('div'); nota.className = 'form-text';
+  linie.parentNode.appendChild(nota);
+  const blocheaza = (el, da) => { el.classList.toggle('camp-calculat', da); el.style.pointerEvents = da ? 'none' : ''; el.tabIndex = da ? -1 : 0; };
+  let fixat = false;
+  const aplica = () => {
+    const o = loc.selectedOptions[0], l = o?.dataset.linie || '';
+    if (l) {
+      if (![...linie.options].some(x => x.value === l)) linie.add(new Option(l, l));
+      linie.value = l; linie.dispatchEvent(new Event('change'));
+      const d = o.dataset.divizie || '';
+      if (d) { if (![...div.options].some(x => x.value === d)) { const x = new Option(d, d); x.dataset.linie = l; div.add(x); } div.value = d; }
+      blocheaza(linie, true); blocheaza(div, !!d);
+      nota.innerHTML = `<i class="bi bi-lock"></i> Preluat din registrul activelor (${o.dataset.stare.toLowerCase()})` + (d ? '' : ' – divizia nu e definită în registru; o puteți alege.');
+      fixat = true;
+    } else {
+      blocheaza(linie, false); blocheaza(div, false);
+      if (fixat) { linie.value = ''; linie.dispatchEvent(new Event('change')); fixat = false; }
+      nota.textContent = o?.value ? `${o.dataset.stare || 'Activ'}: linia de business și divizia nu sunt definite în registru – completați-le.` : '';
+    }
+  };
+  loc.addEventListener('change', aplica);
+  document.getElementById('id_beneficiar')?.addEventListener('change', () => setTimeout(aplica));
+  aplica();
 })();
 </script>
 <script>
@@ -122,24 +254,38 @@
   const curs = parseFloat('{{ curs_rz|stringformat:"s" }}'.replace(',', '.')) || 1;
   const nr = t => { t = (t || '').replace(/\s/g, ''); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); else if ((t.match(/\./g) || []).length > 1 || /^\d{1,3}\.\d{3}$/.test(t)) t = t.replace(/\./g, ''); const v = parseFloat(t); return isNaN(v) ? 0 : v; };
   const fmt = v => new Intl.NumberFormat('ro-RO', {maximumFractionDigits: 0}).format(v);
+  const tipInv = document.getElementById('id_tip_investitie');
+  const doarEchipamente = () => tipInv?.value === 'echipamente';
   const recalc = () => {
     const pe = {}; let tot = 0;
-    celule.forEach(c => { const v = nr(c.value); pe[c.dataset.capitol] = (pe[c.dataset.capitol] || 0) + v; tot += v; });
+    celule.forEach(c => { if (doarEchipamente() && !c.dataset.ech) return; const v = nr(c.value); pe[c.dataset.capitol] = (pe[c.dataset.capitol] || 0) + v; tot += v; });
+    document.getElementById('tabBugetTotal').textContent = fmt(tot) + ' ' + moneda();
     document.querySelectorAll('[data-total-capitol]').forEach(el => el.textContent = fmt(pe[el.dataset.totalCapitol] || 0));
     document.getElementById('totalBuget').textContent = fmt(tot);
     const camp = document.getElementById('id_valoare_rz'), mon = document.getElementById('id_moneda_rz')?.value;
-    if (camp) {  // valoarea RZ = totalul bugetului HG, convertit în moneda RZ; editabilă doar cât bugetul e gol
-      camp.readOnly = tot > 0;
-      camp.classList.toggle('camp-calculat', tot > 0);
-      if (tot > 0) camp.value = (mon === 'EUR' ? tot / curs : tot).toFixed(2);
+    if (camp) {  // valoarea RZ = totalul bugetului (sau al listei de echipamente); sumele sunt deja în moneda RZ
+      camp.readOnly = true;  // valoarea RZ nu se completează manual
+      camp.classList.add('camp-calculat');
+      camp.value = tot > 0 ? tot.toFixed(2) : '';
     }
     const val = nr(camp?.value);
-    const ron = mon === 'EUR' ? val * curs : val;
-    document.getElementById('valoareRzRon').textContent = val ? fmt(ron) + (mon === 'EUR' ? ` (${fmt(val)} EUR × ${curs})` : '') : '—';
+    document.getElementById('valoareRzRon').textContent = val ? fmt(val) + ' ' + mon + (mon === 'EUR' ? ` (≈ ${fmt(val * curs)} RON la cursul ${curs})` : '') : '—';
     const d = document.getElementById('diferentaRz');
-    if (val && tot) { const dif = tot - ron; d.textContent = (dif > 0 ? '+' : '') + fmt(dif); d.className = 'num ' + (Math.abs(dif) > ron * 0.01 ? 'text-danger fw-semibold' : 'text-success'); }
+    if (val && tot) { const dif = tot - val; d.textContent = (dif > 0 ? '+' : '') + fmt(dif); d.className = 'num ' + (Math.abs(dif) > val * 0.01 ? 'text-danger fw-semibold' : 'text-success'); }
     else { d.textContent = '—'; d.className = 'num'; }
+    document.querySelectorAll('.moneda-rz').forEach(e => e.textContent = mon || 'RON');
   };
+  const moneda = () => document.getElementById('id_moneda_rz')?.value || 'RON';
+  // Schimbarea monedei RZ: sumele deja introduse se convertesc la cursul RZ (aceeași valoare, altă monedă)
+  let monedaAnterioara = moneda();
+  document.getElementById('id_moneda_rz')?.addEventListener('change', () => {
+    const noua = moneda(); if (noua === monedaAnterioara) return;
+    const k = noua === 'EUR' ? 1 / curs : curs;
+    const conv = el => { const v = nr(el.value); if (el.value.trim() && v) el.value = (v * k).toFixed(2).replace('.', ','); };
+    document.querySelectorAll('.celula-buget:not([data-ech]), .ech-valoare, #id_val_nerambursabil, #id_val_bancara').forEach(conv);
+    monedaAnterioara = noua;
+    document.querySelector('#tabelEchipamente tbody').dispatchEvent(new Event('input'));
+  });
   celule.forEach((c, i) => {
     c.addEventListener('input', recalc);
     c.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (celule[i + 1] || c).focus(); } });
@@ -159,21 +305,12 @@
     document.getElementById('ech-total').textContent = fmt(tot);
     liniiEch.forEach(cod => {
       const celula = document.querySelector(`[name="buget_${cod}"]`), x = pe[cod];
-      document.querySelector(`[data-ech-total="${cod}"]`).textContent = x ? `${fmt(x.v)} RON (${x.n})` : '—';
+      document.querySelector(`[data-ech-total="${cod}"]`).textContent = x ? `${fmt(x.v)} ${moneda()} (${x.n})` : '—';
       const stare = document.querySelector(`[data-ech-stare="${cod}"]`), cutie = stare.parentElement;
-      if (celula) {
-        celula.readOnly = !!x;
-        celula.classList.toggle('camp-calculat', !!x);
-        celula.title = x ? 'calculat din lista de echipamente' : '';
-        if (x) celula.value = x.v.toFixed(2).replace('.', ',');
-      }
-      const buget = celula ? nr(celula.value) : 0;
-      const lipsa = buget > 0 && !x;
-      stare.innerHTML = x ? '<span class="text-success"><i class="bi bi-check2"></i> bugetul liniei = lista</span>'
-        : lipsa ? '<span class="text-danger fw-semibold"><i class="bi bi-exclamation-triangle"></i> are buget fără listă de echipamente</span>'
-        : '<span class="text-secondary">fără buget</span>';
-      cutie.classList.toggle('border-danger', lipsa); cutie.classList.toggle('bg-danger-subtle', lipsa);
+      if (celula) celula.value = x ? x.v.toFixed(2).replace('.', ',') : '';  // numai din listă, niciodată manual
+      stare.innerHTML = x ? '<span class="text-success"><i class="bi bi-check2"></i> bugetul liniei = lista</span>' : '<span class="text-secondary">fără echipamente</span>';
     });
+    document.getElementById('tabEchTotal').textContent = fmt(tot) + ' ' + moneda();
     recalc();
   };
   corpEch.addEventListener('input', recalcEch);
@@ -184,8 +321,59 @@
     corpEch.lastElementChild.querySelector('[name=ech_denumire]').focus();
     recalcEch();
   });
-  liniiEch.forEach(cod => document.querySelector(`[name="buget_${cod}"]`)?.addEventListener('input', recalcEch));
   recalcEch();
+
+  // Tipul investiției: „Achiziție echipamente” nu are buget pe structura HG – doar lista de echipamente
+  const TIPURI_CU_ECH = ['', 'echipamente', 'lucrari_ech', 'mentenanta'];
+  const aplicaTip = () => {
+    const ech = doarEchipamente(), cuEch = TIPURI_CU_ECH.includes(tipInv?.value || '');
+    document.querySelectorAll('.doar-lucrari').forEach(e => e.classList.toggle('d-none', ech));
+    document.querySelectorAll('.doar-echipamente').forEach(e => e.classList.toggle('d-none', !ech));
+    document.querySelectorAll('.cu-echipamente').forEach(e => e.classList.toggle('d-none', !cuEch));
+    document.getElementById('tab-buget').querySelector('.nr-buget').textContent = cuEch ? '2.' : '1.';
+    const n = corpEch.querySelectorAll('tr').length;
+    let av = document.getElementById('avertTipEch');
+    if (!av) { av = document.createElement('div'); av.id = 'avertTipEch'; av.className = 'text-danger small'; tipInv.parentNode.appendChild(av); }
+    av.textContent = !cuEch && n ? `Lista are ${n} echipament(e); acest tip nu are listă de echipamente – scoateți-le sau alegeți alt tip.` : '';
+    const activ = document.querySelector('#ferestre-rz .nav-link.active');
+    if (ech && activ?.id === 'tab-buget') bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-echipamente')).show();
+    if (!cuEch && activ?.id === 'tab-echipamente') bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-buget')).show();
+    recalc();
+  };
+  tipInv?.addEventListener('change', aplicaTip);
+  corpEch.addEventListener('click', () => setTimeout(aplicaTip));
+  document.getElementById('ech-adauga').addEventListener('click', () => setTimeout(aplicaTip));
+
+  // Ofertele existente
+  const corpOf = document.querySelector('#tabelOferte tbody'); let nOf = 0;
+  const numaraOf = () => { const n = corpOf.querySelectorAll('tr').length; document.getElementById('tabOferteNr').textContent = n; document.getElementById('ofGol').hidden = n > 0; };
+  const randNou = () => {
+    const k = 'n' + (++nOf) + Date.now() % 100000;
+    corpOf.insertAdjacentHTML('beforeend', document.getElementById('of-rand-nou').innerHTML.replaceAll('__K__', k));
+    numaraOf(); return corpOf.lastElementChild;
+  };
+  document.getElementById('of-adauga').addEventListener('click', () => randNou().querySelector('input:not([type=hidden])').focus());
+  // Atașare multiplă: fiecare fișier ales devine un rând de ofertă (furnizorul se propune din numele fișierului)
+  document.getElementById('of-multiple').addEventListener('change', e => {
+    let primul = null;
+    [...e.target.files].forEach(fis => {
+      const r = randNou(), dt = new DataTransfer(); dt.items.add(fis);
+      r.querySelector('input[type=file]').files = dt.files;
+      r.querySelector('[name^=of_furnizor_]').value = fis.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim().slice(0, 200);
+      primul = primul || r;
+    });
+    e.target.value = '';
+    if (primul) { primul.querySelector('[name^=of_furnizor_]').select(); primul.scrollIntoView({block: 'center'}); }
+  });
+  corpOf.addEventListener('click', e => { const b = e.target.closest('.of-sterge'); if (b) { b.closest('tr').remove(); numaraOf(); } });
+
+  // Un câmp obligatoriu necompletat într-o fereastră ascunsă: se deschide fereastra lui
+  document.querySelector('#ferestre-rz').closest('form').addEventListener('invalid', e => {
+    const pan = e.target.closest('.tab-pane');
+    if (pan && !pan.classList.contains('active')) bootstrap.Tab.getOrCreateInstance(document.querySelector(`[data-bs-target="#${pan.id}"]`)).show();
+  }, true);
+  document.addEventListener('DOMContentLoaded', aplicaTip);
+  if (window.bootstrap) aplicaTip();
 
   // Structura de finanțare: fondurile proprii = valoarea RZ − (nerambursabil + bancară)
   // Fereastra se mută direct în <body> (altfel rămâne sub conținutul paginii); câmpurile ei rămân legate de formular prin atributul „form”.
@@ -194,8 +382,22 @@
   fereastra.querySelectorAll('input, select, textarea').forEach(i => i.setAttribute('form', formRZ.id));
   document.body.appendChild(fereastra);
   const fin = id => document.getElementById('id_' + id);
+  const procent = () => document.getElementById('finModProcent').checked;
   const recalcFin = () => {
     const total = nr(fin('valoare_rz')?.value), mon = fin('moneda_rz')?.value || 'RON';
+    // finanțarea se stabilește după buget
+    const btn = document.getElementById('btnFinantare');
+    btn.disabled = !total;
+    document.getElementById('finInfo').innerHTML = total ? `Raportată la valoarea Raportului Zero: <b>${fmt(total)} ${mon}</b>.` : '<span class="text-warning-emphasis"><i class="bi bi-info-circle"></i> Completați întâi bugetul investiției (și lista de echipamente); apoi alegeți structura de finanțare.</span>';
+    // modul „Procent”: sumele = % × valoarea RZ; modul „Valoare”: procentele se calculează din sume
+    ['nerambursabil', 'bancara'].forEach(c => {
+      const pr = document.querySelector(`.fin-proc[data-c="${c}"]`), val = fin('val_' + c), bifat = fin('fin_' + c).checked;
+      pr.disabled = !bifat; pr.readOnly = !procent(); val.readOnly = procent();
+      pr.classList.toggle('camp-calculat', !procent()); val.classList.toggle('camp-calculat', procent());
+      if (!bifat) { pr.value = ''; return; }
+      if (procent()) { const p = nr(pr.value); val.value = total && pr.value.trim() ? (total * p / 100).toFixed(2) : val.value; }
+      else if (document.activeElement !== pr) pr.value = total && val.value.trim() ? (nr(val.value) / total * 100).toFixed(2).replace(/\.?0+$/, '') : '';
+    });
     document.querySelectorAll('.moneda-rz').forEach(e => e.textContent = mon);
     if (fin('fonduri_ue').checked) fin('fin_nerambursabil').checked = true;
     fin('fin_nerambursabil').disabled = fin('fonduri_ue').checked;
@@ -205,7 +407,7 @@
     v.proprii = fin('fin_proprii').checked ? Math.max(rest, 0) : 0;
     document.getElementById('finProprii').textContent = fin('fin_proprii').checked ? fmt(v.proprii) : '—';
     document.getElementById('finTotal').textContent = fmt(total);
-    ['nerambursabil', 'bancara', 'proprii'].forEach(c => document.querySelector(`[data-proc="${c}"]`).textContent = (fin('fin_' + c).checked && total) ? (v[c] / total * 100).toFixed(1) + '%' : '—');
+    document.querySelector('[data-proc="proprii"]').textContent = (fin('fin_proprii').checked && total) ? (v.proprii / total * 100).toFixed(1) + '%' : '—';
     const et = {nerambursabil: 'Nerambursabil', bancara: 'Bancar', proprii: 'Proprii'};
     const alese = ['nerambursabil', 'bancara', 'proprii'].filter(c => fin('fin_' + c).checked);
     document.getElementById('finSumar').innerHTML = (fin('fonduri_ue').checked ? '<span class="badge text-bg-primary me-1">Fonduri UE</span>' : '') +
@@ -217,9 +419,12 @@
   };
   ['fonduri_ue', 'fin_nerambursabil', 'fin_bancara', 'fin_proprii', 'val_nerambursabil', 'val_bancara', 'valoare_rz', 'moneda_rz'].forEach(id => { fin(id)?.addEventListener('input', recalcFin); fin(id)?.addEventListener('change', recalcFin); });
   celule.forEach(c => c.addEventListener('input', () => setTimeout(recalcFin)));
+  document.querySelectorAll('.fin-proc, [name=fin_mod]').forEach(x => { x.addEventListener('input', recalcFin); x.addEventListener('change', recalcFin); });
+  document.querySelector('#tabelEchipamente tbody').addEventListener('input', () => setTimeout(recalcFin));
+  document.getElementById('id_moneda_rz')?.addEventListener('change', () => setTimeout(recalcFin));
   formRZ.addEventListener('submit', () => { fin('fin_nerambursabil').disabled = false; });
   recalcFin();
-  {% if form.errors.val_nerambursabil or form.errors.val_bancara %}new bootstrap.Modal('#fereastraFinantare').show();{% endif %}
+  {% if form.errors.val_nerambursabil or form.errors.val_bancara %}document.addEventListener('DOMContentLoaded', () => new bootstrap.Modal('#fereastraFinantare').show());{% endif %}
 })();
 </script>
 {% endblock %}

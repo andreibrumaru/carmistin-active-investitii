@@ -32,7 +32,7 @@
   <thead><tr><th>Lot</th><th>Tip</th><th>Generat</th><th class="num">Înregistrări</th><th class="num">Total RON</th><th></th></tr></thead>
   {% for l in loturi %}<tr><td class="cod">{{ l.numar }}</td><td>{{ l.get_tip_display }}</td><td class="small">{{ l.creat_de }} · {{ l.creat_la|date:"d.m.Y H:i" }}</td><td class="num">{{ l.nr_inregistrari }}</td><td class="num">{{ l.total_ron|bani2 }}</td>
     <td class="text-nowrap"><a class="btn btn-sm btn-outline-success py-0" href="{% url 'lot_descarca' l.pk %}"><i class="bi bi-download"></i> Excel</a>
-    {% if l.tip == 'plati' %}{% with n=l.plati.all|length %}<form class="d-inline" method="post" action="{% url 'lot_confirma' l.pk %}" onsubmit="const o=prompt('Nr. OP / extras (opțional):',''); if(o===null) return false; this.document_plata.value=o;">{% csrf_token %}<input type="hidden" name="document_plata"><button class="btn btn-sm btn-outline-primary py-0">Confirmă plătite</button></form>{% endwith %}{% endif %}</td></tr>
+    {% if l.tip == 'plati' %}{% with n=l.plati.all|length %}<form class="d-inline" method="post" action="{% url 'lot_confirma' l.pk %}" data-prompt="Nr. OP / extras (opțional):" data-prompt-camp="document_plata">{% csrf_token %}<input type="hidden" name="document_plata"><button class="btn btn-sm btn-outline-primary py-0">Confirmă plătite</button></form>{% endwith %}{% endif %}</td></tr>
   {% empty %}<tr><td colspan="6" class="text-center text-secondary py-4">Niciun lot generat.</td></tr>{% endfor %}</table></div></div>
 </div>
 {% endblock %}

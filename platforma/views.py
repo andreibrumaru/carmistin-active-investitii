@@ -22,7 +22,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from . import ai, aviz_email, curs as curs_mod, forms as f, models as m, plati as plati_mod, sms, stergere
+from . import ai, aviz_email, curs as curs_mod, forms as f, models as m, plati as plati_mod, sms, stergere, status_investitie as stinv
 from .models import suma
 
 User = get_user_model()
@@ -51,6 +51,7 @@ def context_global(request):
     nr = len(plati_mod.plati_de_aprobat(request.user))
     if poate_aviza_rz(request.user):
         nr += m.Proiect.objects.filter(stare_rz="trimis").count()
+    nr += len(stinv.cereri_de_aprobat(request.user))
     ctx = {"rol_curent": rol(request.user), "e_admin": e_admin(request.user), "e_financiar": e_financiar(request.user),
            "poate_crea_proiect": poate_crea_proiect(request.user), "nr_aprobari": nr}
     url = getattr(request.resolver_match, "url_name", "") or ""
@@ -87,7 +88,7 @@ def dashboard(request):
         "nr_locatii": m.Locatie.objects.count(),
         "nr_fara_cod": m.Locatie.objects.filter(cod__isnull=True).count(),
         "nr_proiecte": len(proiecte),
-        "nr_active": sum(1 for p in proiecte if p.status not in ("Finalizat", "Inactiv")),
+        "nr_active": sum(1 for p in proiecte if p.status not in ("Finalizat", "Anulat/Suspendat", "Anulat", "Inactiv")),
         "buget_total": sum((p.buget_actualizat_ron or p.buget_rz_ron for p in proiecte), Decimal(0)),
         "facturat_total": sum((p.facturat_ron for p in proiecte), Decimal(0)),
         "platit_total": sum((p.platit_ron for p in proiecte), Decimal(0)),
@@ -366,7 +367,7 @@ def locatii_harta(request):
     return render(request, "platforma/locatii_harta.html", {"puncte": puncte})
 
 
-FAZE_INCHISE = ("Finalizat", "Inactiv")
+FAZE_INCHISE = ("Finalizat", "Anulat/Suspendat", "Anulat", "Inactiv")
 
 
 def matrice_autorizatii(loc, autorizatii=None, tipuri=None):
@@ -718,8 +719,9 @@ def locatie_incarcare(request, pk, zona):
 
 
 def _verificare_cf(loc):
-    """Compară suprafețele din registru (dashboard) cu suma suprafețelor din extrasele CF."""
-    carti = list(loc.carti.all())
+    """Compară suprafețele din registru (dashboard) cu suma suprafețelor din extrasele CF.
+    Contează doar cărțile funciare cu extras încărcat (documentul PDF atașat); cele fără extras nu intră în totaluri."""
+    carti = [c for c in loc.carti.prefetch_related("documente") if any(not d.arhivat for d in c.documente.all())]
     def compara(registru, valori):
         n = len(valori)
         cf = sum(valori, Decimal(0)) if n else None
@@ -965,7 +967,8 @@ def cf_sterge(request, pk):
     """Ștergerea unui extras CF încărcat greșit (doar administratorul):
     - ce=extras: șterge extrasul curent al cărții funciare; versiunea anterioară (dacă există) redevine cea curentă;
     - ce=cf: șterge cartea funciară cu toate extrasele ei și numărul ei din registru;
-    - ce=neatasat: șterge un extras care nu a putut fi citit (nu e legat de nicio carte funciară).
+    - ce=neatasat: șterge un extras care nu a putut fi citit (nu e legat de nicio carte funciară);
+    - ce=registru: elimină din registru un număr CF identificat greșit (fără carte funciară înregistrată).
     Fișierele se mută în date/arhiva_stergeri/, iar operația rămâne în jurnalul de audit."""
     if not e_admin(request.user):
         raise PermissionDenied("Doar administratorul poate șterge extrase CF.")
@@ -973,6 +976,13 @@ def cf_sterge(request, pk):
     ce = request.POST.get("ce")
     inapoi = redirect(f"{loc.get_absolute_url()}?tab=prezentare#carti-funciare")
     with transaction.atomic():
+        if ce == "registru":
+            numar = (request.POST.get("numar") or "").strip().upper()
+            if not numar or numar not in _cf_din_text(loc.carti_funciare) or loc.carti.filter(numar=numar).exists():
+                messages.error(request, f"CF {numar} nu poate fi eliminat din registru (nu există sau are deja carte funciară înregistrată).")
+            elif _scoate_cf_din_registru(loc, numar):
+                messages.success(request, f"CF {numar} a fost eliminat din registrul activului.")
+            return inapoi
         if ce == "neatasat":
             d = get_object_or_404(m.Document, pk=request.POST.get("document"), locatie=loc, categorie="cf", carte_funciara__isnull=True)
             titlu = d.titlu
@@ -1208,18 +1218,56 @@ def rapoarte_zero(request):
     vizibile = set(proiecte_vizibile(request.user).values_list("pk", flat=True))
     # cronologic: cele mai noi înregistrări primele
     proiecte = sorted(qs, key=lambda p: (p.data_inregistrare_rz or datetime.date.min, p.nr_inregistrare or ""), reverse=True)
-    return render(request, "platforma/rapoarte_zero.html", {"proiecte": proiecte, "vizibile": vizibile})
+    return render(request, "platforma/rapoarte_zero.html", {"proiecte": proiecte, "vizibile": vizibile, "e_admin": e_admin(request.user)})
+
+
+@login_required
+@require_POST
+def raport_zero_sterge(request, pk):
+    """Ștergerea directă a unui Raport Zero (deci a proiectului) din registru – doar administratorul, fără cod SMS.
+    Confirmare: se scrie codul proiectului. Totul se arhivează înainte (date + documente) și rămâne în jurnalul de audit."""
+    if not e_admin(request.user):
+        raise PermissionDenied("Doar administratorul poate șterge Rapoarte Zero.")
+    p = get_object_or_404(m.Proiect, pk=pk)
+    if request.POST.get("confirmare_cod", "").strip().upper() != p.cod.upper():
+        messages.error(request, f"Raportul Zero nu a fost șters: pentru confirmare trebuie scris exact codul proiectului ({p.cod}).")
+        return redirect("rapoarte_zero")
+    cod_p, den_p, pk_p, nr = p.cod, p.denumire, p.pk, p.nr_inregistrare
+    arhiva = stergere.arhiveaza(p)
+    stergere.sterge(p)
+    m.JurnalAudit.objects.create(user=request.user, actiune="stergere", model="raport zero / proiect (din registru, admin)", obiect_id=str(pk_p),
+                                 obiect=f"{cod_p} · {den_p} (nr. {nr})", proiect_id=pk_p,
+                                 modificari={"arhiva": str(arhiva.relative_to(arhiva.parents[2]))})
+    messages.success(request, f"Raportul Zero {cod_p} (nr. {nr}) a fost șters împreună cu proiectul. Arhiva completă (date și documente) a rămas pe server: {arhiva.name}.")
+    return redirect("rapoarte_zero")
 
 
 @login_required
 def raport_zero(request, pk):
     p = get_object_or_404(m.Proiect.objects.select_related("locatie", "beneficiar"), pk=pk)
     capitole_buget, total_buget = _buget_rz(p)
+    ctx_ech = _echipamente_rz_ctx(p)
+    curs = p.curs_rz or p.curs
+    if p.moneda_rz == "EUR" and curs:  # Raport Zero în EUR: toate sumele se afișează în EUR, la cursul RZ
+        k = Decimal(str(curs))
+        eur = lambda v: (Decimal(str(v)) / k).quantize(Decimal("0.01"))  # noqa: E731
+        for c in capitole_buget:
+            c["total"] = eur(c["total"])
+            for l in c["linii"]:
+                l["valoare"] = eur(l["valoare"])
+        total_buget = eur(total_buget)
+        for e in ctx_ech["echipamente"]:
+            e.valoare_afisata = eur(e.valoare_estimata)
+        ctx_ech["total_echipamente_rz"] = eur(ctx_ech["total_echipamente_rz"])
+    else:
+        for e in ctx_ech["echipamente"]:
+            e.valoare_afisata = e.valoare_estimata
     return render(request, "platforma/raport_zero.html", {
         "p": p, "revizii": p.revizii_rz.all(), "poate_edita": poate_edita(request.user, p),
         "poate_aviza": poate_aviza_rz(request.user) and (not p.revizie_rz or e_admin(request.user)),
         "vizibil": poate_vedea(request.user, p), "capitole_buget": capitole_buget, "total_buget": total_buget,
-        "curs_rz": p.curs_rz or p.curs, **_echipamente_rz_ctx(p),
+        "curs_rz": curs, **ctx_ech,
+        "oferte": list(p.oferte_rz.prefetch_related("documente")),
         "pdf_semnat": p.documente.filter(categorie="raport_zero", arhivat=False).first(),
         "emailuri_aviz": p.emailuri_aviz.all()[:5],
     })
@@ -1281,6 +1329,67 @@ def _salveaza_buget_rz(p, post):
             l.valoare_aprobata = nou
             l.save(update_fields=["valoare_aprobata"])
     return erori
+
+
+def _seteaza_responsabil(p, user):
+    """„Responsabil proiect” înlocuiește perechea coordonator / PM: un PM rămâne PM, cu coordonatorul lui din profil;
+    un coordonator / administrator devine coordonatorul proiectului."""
+    if not user:
+        return
+    profil = getattr(user, "profil", None)
+    if profil and profil.rol in ("pm", "implementare"):  # responsabil de proiect cu acces doar la proiectele lui
+        p.pm, p.coordonator = user, profil.coordonator or p.coordonator
+    else:
+        p.pm, p.coordonator = None, user
+
+
+def _oferte_din_post(post):
+    randuri = []
+    for k in post.getlist("of_key"):
+        furnizor = post.get(f"of_furnizor_{k}", "").strip()
+        if not furnizor:
+            continue
+        val = post.get(f"of_valoare_{k}", "").strip()
+        try:
+            valoare = _numar_ro(val) if val else None
+        except ValueError:
+            valoare = None
+        randuri.append({"key": k, "id": int(post.get(f"of_id_{k}")) if post.get(f"of_id_{k}", "").isdigit() else None,
+                        "furnizor": furnizor[:200], "obiect": post.get(f"of_obiect_{k}", "").strip()[:300], "valoare": valoare,
+                        "valoare_text": val, "moneda": "EUR" if post.get(f"of_moneda_{k}") == "EUR" else "RON",
+                        "data_oferta": _data_sau_none(post.get(f"of_data_{k}")), "data_text": post.get(f"of_data_{k}", "")})
+    return randuri
+
+
+def _salveaza_oferte_rz(request, p):
+    """Ofertele existente din Raportul Zero: actualizare, adăugare, eliminare; PDF-ul ofertei devine document al proiectului."""
+    randuri = _oferte_din_post(request.POST)
+    pastrate = []
+    for r in randuri:
+        o = p.oferte_rz.filter(pk=r["id"]).first() if r["id"] else None
+        o = o or m.OfertaRZ(proiect=p)
+        for c in ("furnizor", "obiect", "valoare", "moneda", "data_oferta"):
+            setattr(o, c, r[c])
+        o.save()
+        pastrate.append(o.pk)
+        fisier = request.FILES.get(f"of_fisier_{r['key']}")
+        if fisier:
+            anterior = o.documente.filter(arhivat=False).first()
+            m.Document.objects.create(proiect=p, oferta=o, categorie="oferta", titlu=f"Ofertă {o.furnizor}"[:255], fisier=fisier,
+                                      incarcat_de=request.user,
+                                      inlocuieste=anterior if anterior and not hasattr(anterior, "inlocuit_de") else None)
+    for o in p.oferte_rz.exclude(pk__in=pastrate):
+        m.Document.objects.filter(oferta=o).update(oferta=None)  # documentul rămâne în dosarul proiectului
+        o.delete()
+
+
+def _oferte_rz_ctx(request, p):
+    if request.method == "POST":
+        return _oferte_din_post(request.POST)
+    if not p:
+        return []
+    return [{"key": f"e{o.pk}", "id": o.pk, "furnizor": o.furnizor, "obiect": o.obiect, "valoare_text": f"{o.valoare:.2f}".replace(".", ",") if o.valoare is not None else "",
+             "moneda": o.moneda, "data_text": o.data_oferta.isoformat() if o.data_oferta else "", "document": o.document} for o in p.oferte_rz.all()]
 
 
 def _echipamente_din_post(post):
@@ -1385,42 +1494,55 @@ def raport_zero_form(request, pk=None):
         raise PermissionDenied
     initial = {}
     if not p:
-        initial = {"intocmit_de": request.user.get_full_name() or request.user.username, "moneda_rz": "RON"}
+        initial = {"moneda_rz": "RON"}
         if request.GET.get("locatie"):
             loc = m.Locatie.objects.filter(pk=request.GET["locatie"]).first()
             if loc:
-                initial.update(locatie=loc, beneficiar=loc.proprietar, obiectiv=loc.adresa, linie=loc.linie, divizie=loc.divizie)
-        if rol(request.user) == "pm":
-            initial["pm"] = request.user
-            initial["coordonator"] = getattr(request.user.profil, "coordonator", None)
-        elif rol(request.user) == "coordonator":
-            initial["coordonator"] = request.user
+                initial.update(locatie=loc, beneficiar=loc.proprietar, linie=loc.linie_din_registru, divizie=loc.divizie if loc.linie_din_registru else "")
+        if rol(request.user) in ("pm", "coordonator", "admin"):
+            initial["responsabil"] = request.user
     post = request.POST
+    # Cursul Raportului Zero: dacă RZ e în EUR, toate sumele din formular (buget, echipamente, finanțare) se introduc în EUR
+    # și se stochează în RON la acest curs (contractele, facturile și plățile rămân în RON).
+    curs_form = Decimal(str((p.curs_rz if p and p.curs_rz else None) or m.CursValutar.la_data()))
     ech_randuri, ech_erori = _echipamente_din_post(post) if request.method == "POST" else ([], [])
     if request.method == "POST":
-        # liniile 4.3 / 4.4 / 4.5 care au listă de echipamente = suma valorilor estimate din listă
         post = post.copy()
-        for cod in LINII_ECHIPAMENTE:
-            sume = [r["valoare"] for r in ech_randuri if r["linie"] == cod]
-            if sume:
-                post[f"buget_{cod}"] = str(sum(sume, Decimal(0)))
+        if post.get("moneda_rz") == "EUR":
+            for r in ech_randuri:
+                r["valoare"] = (r["valoare"] * curs_form).quantize(Decimal("0.01"))
+            for k in [k for k in post if k.startswith("buget_")]:
+                try:
+                    post[k] = str((_numar_ro(post[k]) * curs_form).quantize(Decimal("0.01"))) if post[k].strip() else ""
+                except ValueError:
+                    pass  # rămâne textul invalid, raportat la salvare
+        # liniile 4.3 / 4.4 / 4.5 care au listă de echipamente = suma valorilor estimate din listă
+        for cod in LINII_ECHIPAMENTE:  # se completează DOAR din lista de echipamente, niciodată manual
+            post[f"buget_{cod}"] = str(sum((r["valoare"] for r in ech_randuri if r["linie"] == cod), Decimal(0)))
+        if post.get("tip_investitie") == "echipamente":  # achiziție echipamente: fără buget pe structura HG
+            for cod, _ in SUBCAPITOLE:
+                if cod not in LINII_ECHIPAMENTE:
+                    post[f"buget_{cod}"] = "0"
     form = f.RaportZeroForm(post if request.method == "POST" else None, instance=p, initial=initial)
     if request.method == "POST" and ech_erori:
         form.add_error(None, "Lista de echipamente: " + "; ".join(ech_erori))
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
             obj = form.save(commit=False)
+            _seteaza_responsabil(obj, form.cleaned_data["responsabil"])
             if not obj.pk:
+                obj.intocmit_de = (request.user.get_full_name() or request.user.username)[:120]
                 loc = m.Locatie.objects.select_for_update().get(pk=obj.locatie_id)
                 obj.cod, obj.nr_ordine = loc.urmatorul_cod_proiect()
                 obj.nr_inregistrare = nr_inregistrare_nou(loc.prefix)
             if obj.moneda_rz == "EUR" and not obj.curs_rz:
-                obj.curs_rz = m.CursValutar.la_data(obj.data_demarare)
+                obj.curs_rz = curs_form
             if obj.valoare_rz is None:
                 obj.valoare_rz = Decimal(0)  # se calculează imediat din bugetul HG
             obj.save()
             erori = _salveaza_buget_rz(obj, post)
             avert_ech = _salveaza_echipamente_rz(obj, ech_randuri)
+            _salveaza_oferte_rz(request, obj)
             _valoare_rz_din_buget(obj)
             obj.refresh_from_db()
             avert_fin = obj.actualizeaza_structura_finantare()
@@ -1435,19 +1557,28 @@ def raport_zero_form(request, pk=None):
         messages.success(request, f"Raport Zero {obj.cod} salvat (nr. înregistrare {obj.nr_inregistrare}).")
         return redirect("raport_zero", pk=obj.pk)
     capitole_buget, total_buget = _buget_rz(p)
-    curs_rz = (p.curs_rz or p.curs) if p else m.CursValutar.la_data()
+    curs_rz = curs_form
+    in_eur = (form["moneda_rz"].value() or "RON") == "EUR"
+    impartitor = curs_form if in_eur else Decimal(1)  # afișare în moneda Raportului Zero
+    if in_eur:
+        for c in capitole_buget:
+            for l in c["linii"]:
+                if not isinstance(l["valoare"], str):
+                    l["valoare"] = (Decimal(str(l["valoare"])) / impartitor).quantize(Decimal("0.01"))
     if request.method == "POST":
         echipamente_rz = ech_randuri
     else:
         echipamente_rz = [{"id": e.pk, "denumire": e.denumire, "specificatii": e.specificatii, "um": e.um,
                            "linie": e.linie_buget.capitol if e.linie_buget_id else "", "cantitate_text": f"{e.cantitate:g}",
-                           "valoare_text": f"{e.valoare_estimata:.2f}".replace(".", ","), "contract": e.contract}
+                           "valoare_text": f"{e.valoare_estimata / impartitor:.2f}".replace(".", ","), "contract": e.contract}
                           for e in (p.echipamente.select_related("linie_buget", "contract").order_by("linie_buget__capitol", "pk") if p else [])]
     return render(request, "platforma/raport_zero_form.html", {
         "capitole_buget": capitole_buget, "total_buget": total_buget, "curs_rz": curs_rz,
         "echipamente_rz": echipamente_rz, "linii_echipamente": [(c, dict(SUBCAPITOLE)[c]) for c in LINII_ECHIPAMENTE],
         "form": form, "titlu": f"Raport Zero {p.cod}" if p else "Raport Zero nou",
-        "campuri_in_bloc": f.RaportZeroForm.CAMPURI_FINANTARE,
+        "campuri_in_bloc": f.RaportZeroForm.CAMPURI_IN_BLOC, "multipart": True,
+        "linii_ech_coduri": list(LINII_ECHIPAMENTE),
+        "oferte_rz": _oferte_rz_ctx(request, p),
         "subtitlu": "Codul proiectului și numărul de înregistrare se generează automat la salvare." if not p else "",
         "inapoi": f"/rapoarte-zero/{p.pk}/" if p else "/rapoarte-zero/",
     })
@@ -1496,6 +1627,8 @@ def _avizeaza_rz(p, user, actiune, motiv="", sursa=""):
     """Aprobă / respinge un Raport Zero trimis (din aplicație sau din email)."""
     if actiune == "aproba":
         p.stare_rz, p.aprobat_de_user, p.aprobat_la = "aprobat", user, timezone.now()
+        if not p.status:  # la inițiere și avizare, investiția intră în execuție
+            p.status = stinv.IN_EXECUTIE
         p.buget_blocat, p.buget_blocat_de, p.buget_blocat_la = True, user, timezone.now()
         if not p.avizat_de:
             p.avizat_de = user.get_full_name() or user.username
@@ -1562,6 +1695,13 @@ def investitii(request):
         qs = qs.filter(pm_id=g["pm"])
     if g.get("beneficiar"):
         qs = qs.filter(beneficiar_id=g["beneficiar"])
+    # cele 3 stadii ale investiției (proiectele încă neavizate – fără status – intră la „active”)
+    stadii = {"active": Q(status=stinv.IN_EXECUTIE) | Q(status=""), "anulate": Q(status=stinv.ANULAT), "finalizate": Q(status=stinv.FINALIZAT)}
+    numar_stadii = {k: qs.filter(q).count() for k, q in stadii.items()}
+    numar_stadii["toate"] = qs.count()
+    stadiu = g.get("stadiu", "") if g.get("stadiu") in stadii else ""
+    if stadiu:
+        qs = qs.filter(stadii[stadiu])
     if g.get("export"):
         return _export_xlsx("registru_investitii", [
             ("Cod", "cod"), ("Denumire", "denumire"), ("Locație", "locatie"), ("Beneficiar", "beneficiar"), ("Linie", "linie"),
@@ -1573,7 +1713,13 @@ def investitii(request):
     nom = {t: m.Nomenclator.optiuni(t) for t in ("faza_proiect", "status_proiect", "linie", "tip_finantare")}
     beneficiari = m.Societate.objects.filter(proiecte__in=proiecte_vizibile(request.user)).distinct().order_by("denumire")
     divizii = proiecte_vizibile(request.user).exclude(divizie="").values_list("divizie", flat=True).distinct().order_by("divizie")
-    return render(request, "platforma/investitii.html", {"proiecte": qs, "nom": nom, "query": g, "beneficiari": beneficiari, "divizii": divizii})
+    filtre_fara_stadiu = g.copy()
+    filtre_fara_stadiu.pop("stadiu", None)
+    return render(request, "platforma/investitii.html", {"proiecte": qs, "nom": nom, "query": g, "beneficiari": beneficiari, "divizii": divizii,
+                                                          "stadiu": stadiu, "filtre_fara_stadiu": filtre_fara_stadiu.urlencode(),
+                                                          "stadii_nav": [(c, et, ic, numar_stadii[c]) for c, et, ic in (
+                                                              ("toate", "Toate proiectele", "bi-list-ul"), ("active", "Proiecte active", "bi-play-circle"),
+                                                              ("anulate", "Anulate / suspendate", "bi-pause-circle"), ("finalizate", "Proiecte finalizate", "bi-check-circle"))]})
 
 
 # ------------------------------------------------------------------ fișa proiectului
@@ -1624,6 +1770,7 @@ def proiect_detaliu(request, pk):
         "avize": p.avize.select_related("responsabil", "certificat").prefetch_related("documente"),
         "finantari": p.finantari.prefetch_related("obligatii", "documente"),
         "rapoarte_progres": p.rapoarte_progres.select_related("finantare").prefetch_related("documente"),
+        "procese_verbale": list(p.procese_verbale.all()),
         "cereri_tragere": list(p.cereri_tragere.prefetch_related("pozitii")),
         "avize_expira": sum(1 for a in p.avize.all() if a.stare_valabilitate in ("expirat", "expira") and a.status == "obtinut"),
         "obligatii": p.obligatii.select_related("finantare", "contract", "responsabil"),
@@ -1634,6 +1781,9 @@ def proiect_detaliu(request, pk):
         "accese": p.accese.select_related("user"),
         "jurnal": p.jurnal.select_related("user")[:100],
         "form_urmarire": f.UrmarireProiectForm(instance=p),
+        "statusuri_investitie": [s for s, _ in m.Proiect.STATUS_INVESTITIE],
+        "cereri_status": p.cereri_status.select_related("cerut_de", "decis_de")[:10],
+        "poate_aproba_status": stinv.poate_aproba_status(u, p),
         "form_setari": f.SetariProiectForm(instance=p, blocat=p.buget_blocat and not e_admin(u)),
         "curs_info": _curs_info(u, p),
         "plan_ani": [(an, plan.get(an, Decimal(0)), _realizat_an(p, an)) for an in ani],
@@ -1782,6 +1932,40 @@ def proiect_urmarire(request, pk):
     else:
         messages.error(request, form.errors.as_text())
     return redirect(p)
+
+
+@login_required
+@require_POST
+def proiect_status(request, pk):
+    """Cerere de schimbare a statusului investiției (se aplică doar după aprobarea administratorului)."""
+    p = _proiect_editabil(request, pk)
+    try:
+        c, aplicat = stinv.solicita(p, request.POST.get("status_nou", ""), request.user, request.POST.get("motiv", ""))
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        if aplicat:
+            messages.success(request, f"Statusul investiției a devenit „{c.status_nou}”.")
+        else:
+            apr = p.aprobator_status
+            messages.success(request, f"Cererea de schimbare a statusului în „{c.status_nou}” a fost trimisă spre aprobare "
+                                      f"{'administratorului ' + (apr.get_full_name() or apr.username) if apr else 'administratorului'}.")
+    return redirect(p)
+
+
+@login_required
+@require_POST
+def proiect_status_decizie(request, pk, cpk, decizie):
+    c = get_object_or_404(m.CerereStatus, pk=cpk, proiect_id=pk)
+    try:
+        stinv.decide(c, request.user, decizie == "aproba", request.POST.get("motiv", ""))
+    except PermissionError as e:
+        raise PermissionDenied(str(e))
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, f"{c.proiect.cod}: schimbarea statusului în „{c.status_nou}” a fost {'aprobată' if decizie == 'aproba' else 'respinsă'}.")
+    return redirect(request.POST.get("inapoi") or c.proiect.get_absolute_url())
 
 
 @login_required
@@ -2264,7 +2448,7 @@ def aprobari(request):
     for pl in plati:
         pl.actiuni = plati_mod.actiuni_posibile(request.user, pl)
     rz = m.Proiect.objects.filter(stare_rz="trimis") if poate_aviza_rz(request.user) else []
-    return render(request, "platforma/aprobari.html", {"plati": plati, "rz": rz})
+    return render(request, "platforma/aprobari.html", {"plati": plati, "rz": rz, "cereri_status": stinv.cereri_de_aprobat(request.user)})
 
 
 @login_required

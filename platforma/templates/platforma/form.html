@@ -4,6 +4,7 @@
 <div class="d-flex align-items-center mb-3">
   <a href="{{ inapoi }}" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
   <div><h4 class="mb-0">{{ titlu }}</h4>{% if subtitlu %}<div class="text-secondary small">{{ subtitlu }}</div>{% endif %}</div>
+  {% block antet_dreapta %}{% endblock %}
 </div>
 {% block inainte_form %}{% endblock %}
 {% if document_temp %}<div class="alert alert-info d-flex gap-3 align-items-start"><i class="bi bi-stars fs-4"></i><div>
@@ -12,8 +13,8 @@
 <div class="card"><div class="card-body">
 <form method="post" {% if multipart or form.is_multipart %}enctype="multipart/form-data"{% endif %}>{% csrf_token %}
   {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-  <div class="row g-3">
-  {% for field in form %}{% if field.name not in campuri_in_bloc %}
+  {% block campuri %}<div class="row g-3">
+  {% for field in form %}{% if not campuri_in_bloc or field.name not in campuri_in_bloc %}
     <div class="{% if field.field.widget.input_type == 'textarea' or field.name in 'descriere_lucrari necesar_achizitii obiect observatii motiv descriere conditii scop fragment_sursa' %}col-12{% else %}col-md-6 col-lg-4{% endif %}">
       {% if field.field.widget.input_type == 'checkbox' %}
         <div class="form-check mt-4">{{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
@@ -25,14 +26,14 @@
       {% for e in field.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
     </div>
   {% endif %}{% endfor %}
-  </div>
+  </div>{% endblock %}
   {% if document_temp %}<input type="hidden" name="document_temp" value="{{ document_temp.pk }}">{% endif %}
   {% block in_form %}{% endblock %}
   <div id="avertizareNesalvat" class="alert alert-danger mt-4 mb-0 d-none"></div>
   <div class="mt-4 d-flex gap-2">
     <button class="btn btn-primary"><i class="bi bi-check2"></i> Salvează</button>
     <a href="{{ inapoi }}" class="btn btn-outline-secondary">Renunță</a>
-    {% if poate_sterge %}<button name="sterge" value="1" class="btn btn-outline-danger ms-auto" formnovalidate onclick="return confirm('Ștergeți? Operația rămâne înregistrată în jurnalul de audit.')"><i class="bi bi-trash"></i> Șterge</button>{% endif %}
+    {% if poate_sterge %}<button name="sterge" value="1" class="btn btn-outline-danger ms-auto" formnovalidate data-confirm="Ștergeți? Operația rămâne înregistrată în jurnalul de audit."><i class="bi bi-trash"></i> Șterge</button>{% endif %}
   </div>
 </form>
 </div></div>

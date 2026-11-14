@@ -20,12 +20,12 @@
 
 {% if editabil_fin and c.status != 'aprobata' and c.status != 'respinsa' %}<div class="card mb-3 no-print"><div class="card-body d-flex flex-wrap gap-2 align-items-end">
   {% if c.status == 'ciorna' %}<form method="post">{% csrf_token %}<input type="hidden" name="actiune" value="transmite"><button class="btn btn-sm btn-primary"><i class="bi bi-send"></i> Marchează transmisă băncii</button></form>{% endif %}
-  <form method="post" class="d-flex gap-2 align-items-end" onsubmit="return confirm('Înregistrați tragerea? Suma se scade din disponibilul liniei de credit.')">{% csrf_token %}<input type="hidden" name="actiune" value="aproba">
+  <form method="post" class="d-flex gap-2 align-items-end" data-confirm="Înregistrați tragerea? Suma se scade din disponibilul liniei de credit.">{% csrf_token %}<input type="hidden" name="actiune" value="aproba">
     <div><label class="form-label small mb-0">Sumă trasă (RON)</label><input type="text" inputmode="decimal" name="suma_aprobata" class="form-control form-control-sm text-end" value="{{ c.total_solicitat|floatformat:'-2' }}" style="width:160px"></div>
     <div><label class="form-label small mb-0">Data tragerii</label><input type="date" name="data_tragere" class="form-control form-control-sm" value="{{ azi|date:'Y-m-d' }}"></div>
     <button class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i> Aprobată / trasă</button></form>
-  <form method="post" onsubmit="const m=prompt('Motivul respingerii:'); if(m===null) return false; this.motiv.value=m;">{% csrf_token %}<input type="hidden" name="actiune" value="respinge"><input type="hidden" name="motiv"><button class="btn btn-sm btn-outline-danger">Respinsă</button></form>
-  {% if c.status == 'ciorna' %}<form method="post" class="ms-auto" onsubmit="return confirm('Ștergeți ciorna cererii?')">{% csrf_token %}<input type="hidden" name="actiune" value="sterge"><button class="btn btn-sm btn-link text-danger"><i class="bi bi-trash"></i> Șterge ciorna</button></form>{% endif %}
+  <form method="post" data-prompt="Motivul respingerii:" data-prompt-camp="motiv">{% csrf_token %}<input type="hidden" name="actiune" value="respinge"><input type="hidden" name="motiv"><button class="btn btn-sm btn-outline-danger">Respinsă</button></form>
+  {% if c.status == 'ciorna' %}<form method="post" class="ms-auto" data-confirm="Ștergeți ciorna cererii?">{% csrf_token %}<input type="hidden" name="actiune" value="sterge"><button class="btn btn-sm btn-link text-danger"><i class="bi bi-trash"></i> Șterge ciorna</button></form>{% endif %}
 </div></div>{% endif %}
 
 <div class="card document-cerere"><div class="card-body p-4">

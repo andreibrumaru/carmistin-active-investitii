@@ -31,6 +31,16 @@ class UtilizatorAdmin(UserAdmin):
     def rol(self, obj):
         return getattr(getattr(obj, "profil", None), "get_rol_display", lambda: "")()
 
+    def save_formset(self, request, form, formset, change):
+        # Profilul se creează automat la salvarea utilizatorului (semnal); formularul îl completează pe acela, nu creează un al doilea.
+        if formset.model is m.Profil:
+            existent = m.Profil.objects.filter(user_id=formset.instance.pk).first() if formset.instance.pk else None
+            for f in formset.forms:
+                obj = f.instance
+                if obj.pk is None and existent:
+                    obj.pk, obj.user_id, obj._state.adding = existent.pk, formset.instance.pk, False
+        super().save_formset(request, form, formset, change)
+
 
 @admin.register(m.Locatie)
 class LocatieAdmin(admin.ModelAdmin):
@@ -281,7 +291,7 @@ class JurnalAdmin(admin.ModelAdmin):
 
 
 for model in (m.CursValutar, m.AccesProiect, m.RevizieRaportZero, m.LinieBuget, m.Contract, m.ActAditional, m.Factura, m.Plata,
-              m.CertificatUrbanism, m.Aviz, m.Finantare, m.Obligatie, m.Activitate, m.ExtragereAI, m.ConditieContract):
+              m.CertificatUrbanism, m.Aviz, m.Finantare, m.Obligatie, m.Activitate, m.ExtragereAI, m.ConditieContract, m.CerereStatus):
     admin.site.register(model)
 
 

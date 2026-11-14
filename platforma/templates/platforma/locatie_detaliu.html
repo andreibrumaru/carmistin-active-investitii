@@ -136,33 +136,54 @@
       <td class="small">{{ c.proprietar_tabular|default:"—" }}{% if c.sarcini %}<div class="text-danger">Sarcini: {{ c.sarcini|truncatechars:80 }}</div>{% endif %}</td>
       <td class="small">{% if x %}<span class="text-success"><i class="bi bi-check-circle"></i> atașat</span>{% if c.data_extras %} <span class="text-secondary">din {{ c.data_extras|date:"d.m.Y" }}</span>{% endif %}{% else %}<span class="badge text-bg-warning">fără extras</span>{% endif %}</td>
       <td class="text-nowrap">{% if e_admin %}<a class="btn btn-sm {% if x %}btn-outline-secondary{% else %}btn-primary{% endif %} py-0" href="{% url 'locatie_obiect_editare' loc.pk 'cf' c.pk %}">{% if x %}<i class="bi bi-arrow-repeat"></i> Extras nou / editează{% else %}<i class="bi bi-paperclip"></i> Atașează extras{% endif %}</a>
-        <div class="dropdown d-inline-block">
-          <button class="btn btn-sm btn-outline-danger py-0" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Șterge (încărcat greșit)"><i class="bi bi-trash"></i></button>
-          <div class="dropdown-menu dropdown-menu-end p-2 small" style="min-width:300px">
-            <div class="text-secondary mb-2">Ștergere CF {{ c.numar }} – doar administrator</div>
-            {% if x %}<form method="post" action="{% url 'cf_sterge' loc.pk %}" class="mb-2" onsubmit="return confirm('Ștergeți extrasul atașat la CF {{ c.numar }}?{% if x.inlocuieste_id %} Versiunea anterioară redevine cea curentă.{% endif %}')">{% csrf_token %}
-              <input type="hidden" name="ce" value="extras"><input type="hidden" name="cf" value="{{ c.pk }}">
-              <button class="btn btn-sm btn-outline-danger w-100 text-start"><i class="bi bi-file-earmark-x"></i> Doar extrasul (PDF greșit)</button>
-              <div class="form-text">Cartea funciară și datele ei rămân{% if x.inlocuieste_id %}; revine extrasul anterior{% endif %}.</div></form>{% endif %}
-            <form method="post" action="{% url 'cf_sterge' loc.pk %}" onsubmit="return confirm('Ștergeți complet CF {{ c.numar }} din fișa activului (date, extrase și numărul din registru)?')">{% csrf_token %}
-              <input type="hidden" name="ce" value="cf"><input type="hidden" name="cf" value="{{ c.pk }}">
-              <button class="btn btn-sm btn-danger w-100 text-start"><i class="bi bi-trash"></i> Toată cartea funciară</button>
-              <div class="form-text">Pentru un CF care nu aparține activului.</div></form>
-          </div></div>{% endif %}</td>
+        <button type="button" class="btn btn-sm btn-outline-danger py-0 btn-sterge-cf" title="Șterge (încărcat greșit)" data-cf="{{ c.pk }}" data-numar="{{ c.numar }}" data-extras="{% if x %}1{% endif %}" data-anterior="{% if x.inlocuieste_id %}1{% endif %}"><i class="bi bi-trash"></i></button>{% endif %}</td>
     {% else %}
       <td colspan="5" class="small text-secondary">identificată în registrul Excel, încă neînregistrată</td>
       <td class="small"><span class="badge text-bg-secondary">neînregistrată</span></td>
-      <td class="text-nowrap">{% if e_admin %}<a class="btn btn-sm btn-primary py-0" href="{% url 'locatie_obiect_nou' loc.pk 'cf' %}?numar={{ r.numar|urlencode }}"><i class="bi bi-plus-lg"></i> Adaugă și atașează extras</a>{% endif %}</td>
+      <td class="text-nowrap">{% if e_admin %}<a class="btn btn-sm btn-primary py-0" href="{% url 'locatie_obiect_nou' loc.pk 'cf' %}?numar={{ r.numar|urlencode }}"><i class="bi bi-plus-lg"></i> Adaugă și atașează extras</a>
+        <button type="button" class="btn btn-sm btn-outline-danger py-0 btn-sterge-cf" title="Elimină numărul CF din registru" data-cf="" data-numar="{{ r.numar }}"><i class="bi bi-trash"></i></button>{% endif %}</td>
     {% endif %}
   </tr>{% endwith %}{% empty %}<tr><td colspan="8" class="text-center text-secondary py-4">Nicio carte funciară identificată.{% if e_admin %} <a href="{% url 'locatie_obiect_nou' loc.pk 'cf' %}">Adăugați una</a>.{% endif %}</td></tr>{% endfor %}</tbody>
   {% if carti %}<tfoot><tr class="fw-bold"><td colspan="3">Total din extrasele CF</td><td class="num">{% if verif_cf.teren.cf %}{{ verif_cf.teren.cf|floatformat:"0g" }}{% else %}—{% endif %}</td><td class="num">{% if verif_cf.constructii.cf %}{{ verif_cf.constructii.cf|floatformat:"0g" }}{% else %}—{% endif %}</td><td colspan="3"></td></tr></tfoot>{% endif %}
   </table></div>
+  {% if e_admin %}<div class="modal fade" id="modalStergeCF" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title"><i class="bi bi-trash text-danger"></i> Ștergere CF <span id="stergeCfNumar"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <form method="post" action="{% url 'cf_sterge' loc.pk %}" class="mb-3" id="stergeCfExtras">{% csrf_token %}<input type="hidden" name="ce" value="extras"><input type="hidden" name="cf">
+        <button class="btn btn-outline-danger w-100 text-start"><i class="bi bi-file-earmark-x"></i> Doar extrasul (PDF greșit)</button>
+        <div class="form-text">Cartea funciară și datele ei rămân<span class="are-anterior">; revine extrasul anterior</span>.</div></form>
+      <form method="post" action="{% url 'cf_sterge' loc.pk %}" class="mb-1" id="stergeCfTot">{% csrf_token %}<input type="hidden" name="ce" value="cf"><input type="hidden" name="cf">
+        <button class="btn btn-danger w-100 text-start"><i class="bi bi-trash"></i> Toată cartea funciară</button>
+        <div class="form-text">Datele CF, extrasele ei și numărul din registru – pentru un CF care nu aparține activului.</div></form>
+      <form method="post" action="{% url 'cf_sterge' loc.pk %}" id="stergeCfRegistru">{% csrf_token %}<input type="hidden" name="ce" value="registru"><input type="hidden" name="numar">
+        <button class="btn btn-danger w-100 text-start"><i class="bi bi-trash"></i> Elimină numărul din registru</button>
+        <div class="form-text">CF-ul a fost identificat greșit în registrul Excel: numărul se scoate din câmpul „cărți funciare” al activului.</div></form>
+      <div class="small text-secondary mt-3">Fișierele șterse se păstrează în arhiva de ștergeri; operația rămâne în jurnalul de audit.</div>
+    </div></div></div></div>
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {  // Bootstrap se încarcă la finalul paginii
+    const modal = document.getElementById('modalStergeCF');
+    document.body.appendChild(modal);  // în afara tabelului cu derulare, ca să nu fie tăiată
+    const fer = new bootstrap.Modal(modal);
+    document.querySelectorAll('.btn-sterge-cf').forEach(b => b.addEventListener('click', () => {
+      const cf = b.dataset.cf, areCf = !!cf;
+      document.getElementById('stergeCfNumar').textContent = b.dataset.numar;
+      modal.querySelectorAll('[name=cf]').forEach(i => i.value = cf);
+      modal.querySelector('[name=numar]').value = b.dataset.numar;
+      document.getElementById('stergeCfExtras').classList.toggle('d-none', !(areCf && b.dataset.extras));
+      document.getElementById('stergeCfTot').classList.toggle('d-none', !areCf);
+      document.getElementById('stergeCfRegistru').classList.toggle('d-none', areCf);
+      modal.querySelector('.are-anterior').classList.toggle('d-none', !b.dataset.anterior);
+      fer.show();
+    }));
+  });
+  </script>{% endif %}
   {% if extrase_neatasate %}<div class="card-body border-top">
     <div class="small fw-semibold mb-1"><i class="bi bi-exclamation-triangle text-warning"></i> Extrase încărcate, dar neatașate la nicio carte funciară (numărul CF nu a putut fi citit)</div>
     <ul class="list-unstyled small mb-0">{% for d in extrase_neatasate %}<li class="py-1 border-bottom d-flex align-items-center gap-2">
       <a href="{% url 'document' d.pk %}" title="{{ d.titlu }}"><i class="bi bi-file-earmark-pdf text-danger"></i> {{ d.titlu }}</a>
       <span class="text-secondary">· {{ d.incarcat_la|date:"d.m.Y" }}</span>
-      {% if e_admin %}<form method="post" action="{% url 'cf_sterge' loc.pk %}" class="ms-auto" onsubmit="return confirm('Ștergeți acest extras?')">{% csrf_token %}
+      {% if e_admin %}<form method="post" action="{% url 'cf_sterge' loc.pk %}" class="ms-auto" data-confirm="Ștergeți acest extras?">{% csrf_token %}
         <input type="hidden" name="ce" value="neatasat"><input type="hidden" name="document" value="{{ d.pk }}">
         <button class="btn btn-sm btn-outline-danger py-0" title="Șterge"><i class="bi bi-trash"></i> Șterge</button></form>{% endif %}</li>{% endfor %}</ul>
   </div>{% endif %}
@@ -171,14 +192,14 @@
     <table class="table table-sm small mb-2" style="max-width:820px"><thead><tr><th></th><th class="num">În registru</th><th class="num">Din extrasele CF</th><th class="num">Diferență</th><th>Rezultat</th></tr></thead>
     {% for eticheta, v in verif_cf_randuri %}<tr><td class="fw-semibold">{{ eticheta }}</td>
       <td class="num">{% if v.registru %}{{ v.registru|floatformat:"0g" }} mp{% else %}—{% endif %}</td>
-      <td class="num">{% if v.cf %}{{ v.cf|floatformat:"0g" }} mp <span class="text-secondary">({{ v.n }} CF)</span>{% else %}—{% endif %}</td>
+      <td class="num">{% if v.cf %}{{ v.cf|floatformat:"0g" }} mp <span class="text-secondary">({{ v.n }} CF cu extras)</span>{% else %}—{% endif %}</td>
       <td class="num {% if v.stare == 'diferenta' %}text-danger fw-semibold{% endif %}">{% if v.diferenta is not None %}{% if v.diferenta > 0 %}+{% endif %}{{ v.diferenta|floatformat:"0g" }} mp{% else %}—{% endif %}</td>
       <td>{% if v.stare == 'ok' %}<span class="badge text-bg-success"><i class="bi bi-check-lg"></i> concordă</span>
         {% elif v.stare == 'diferenta' %}<span class="badge text-bg-danger">diferență</span>
         {% elif v.stare == 'lipsa_registru' %}<span class="badge text-bg-warning">lipsește din registru</span>
         {% else %}<span class="badge text-bg-light">fără date în extrase</span>{% endif %}</td></tr>{% endfor %}</table>
     {% if e_admin and verif_cf.teren.cf or e_admin and verif_cf.constructii.cf %}{% if verif_cf.teren.stare != 'ok' or verif_cf.constructii.stare != 'ok' %}
-      <form method="post" action="{% url 'preia_din_cf' loc.pk %}" class="d-inline" onsubmit="return confirm('Actualizați suprafețele din registru cu valorile din extrasele CF?')">{% csrf_token %}
+      <form method="post" action="{% url 'preia_din_cf' loc.pk %}" class="d-inline" data-confirm="Actualizați suprafețele din registru cu valorile din extrasele CF?">{% csrf_token %}
         <input type="hidden" name="camp" value="ambele"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-down-circle"></i> Preia în registru valorile din extrasele CF</button></form>{% endif %}{% endif %}
     <div class="form-text">Diferențele sub 1% sunt considerate concordante. Suprafețele din extrase se completează automat la încărcarea extrasului cu citire AI.</div>
   </div>
@@ -202,7 +223,7 @@
   <tr class="collapse" id="anexe-{{ k.pk }}"><td></td><td colspan="7" class="bg-light">
     <div class="small fw-semibold mb-1">Anexe la {{ k }}</div>
     {% if anexe %}<ul class="list-unstyled small mb-2">{% for x in anexe %}<li class="py-1 border-bottom"><a href="{% url 'document' x.pk %}" title="{{ x.titlu }}"><i class="bi bi-paperclip"></i> {{ x.titlu }}</a> <span class="text-secondary">· {{ x.incarcat_la|date:"d.m.Y" }}</span>
-      {% if e_admin %}<form class="d-inline" method="post" action="{% url 'document_arhiveaza' x.pk %}" onsubmit="return confirm('Arhivați anexa?')">{% csrf_token %}<button class="btn btn-link btn-sm p-0 ms-2" title="arhivează"><i class="bi bi-archive"></i></button></form>{% endif %}</li>{% endfor %}</ul>
+      {% if e_admin %}<form class="d-inline" method="post" action="{% url 'document_arhiveaza' x.pk %}" data-confirm="Arhivați anexa?">{% csrf_token %}<button class="btn btn-link btn-sm p-0 ms-2" title="arhivează"><i class="bi bi-archive"></i></button></form>{% endif %}</li>{% endfor %}</ul>
     {% else %}<div class="small text-secondary mb-2">Nicio anexă.</div>{% endif %}
     {% if e_admin %}<form method="post" enctype="multipart/form-data" action="{% url 'drept_anexe' loc.pk k.pk %}" class="d-flex gap-2">{% csrf_token %}
       <input type="file" name="anexe" multiple required class="form-control form-control-sm" style="max-width:420px">
@@ -225,7 +246,7 @@
   <thead><tr><th>Document</th><th>Tip</th><th>Încărcat</th><th></th></tr></thead>
   <tbody>{% for d in anexe %}<tr><td><a href="{% url 'document' d.pk %}" title="{{ d.titlu }}">{{ d.titlu }}</a></td><td class="small">{{ d.get_categorie_display }}</td>
     <td class="small">{{ d.incarcat_de }} · {{ d.incarcat_la|date:"d.m.Y H:i" }}</td>
-    <td>{% if e_admin %}<form class="d-inline" method="post" action="{% url 'document_arhiveaza' d.pk %}" onsubmit="return confirm('Arhivați documentul?')">{% csrf_token %}<button class="btn btn-link btn-sm p-0" title="arhivează"><i class="bi bi-archive"></i></button></form>{% endif %}</td></tr>
+    <td>{% if e_admin %}<form class="d-inline" method="post" action="{% url 'document_arhiveaza' d.pk %}" data-confirm="Arhivați documentul?">{% csrf_token %}<button class="btn btn-link btn-sm p-0" title="arhivează"><i class="bi bi-archive"></i></button></form>{% endif %}</td></tr>
   {% empty %}<tr><td colspan="4" class="text-center text-secondary py-4">Nicio anexă.</td></tr>{% endfor %}</tbody></table></div>
   {% if e_admin %}<div class="card-body border-top"><form method="post" enctype="multipart/form-data" action="{% url 'locatie_incarcare' loc.pk 'anexe' %}" class="row g-2 align-items-end">{% csrf_token %}
     <div class="col-md-3"><label class="form-label small fw-semibold">Tip</label><select name="categorie" class="form-select form-select-sm">{% for k, v in categorii_anexe %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
@@ -322,7 +343,7 @@
     <td class="text-nowrap">{% if e_admin %}
       {% if not a or r.stare == 'expirata' %}<a class="btn btn-sm {% if r.stare == 'lipsa' or r.stare == 'expirata' %}btn-danger{% else %}btn-outline-primary{% endif %} py-0" href="{% url 'locatie_din_scan' loc.pk 'autorizatie' %}?tip={{ t.cod }}"><i class="bi bi-paperclip"></i> Atașează</a>{% else %}<a class="btn btn-sm btn-outline-secondary py-0" href="{% url 'locatie_obiect_editare' loc.pk 'autorizatie' a.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}
       {% if not a %}{% if r.stare == 'nu_e_necesara' %}<form class="d-inline" method="post" action="{% url 'cerinta_autorizatie' loc.pk t.cod %}">{% csrf_token %}<input type="hidden" name="actiune" value="necesara"><button class="btn btn-sm btn-link py-0">e necesară</button></form>
-        {% else %}<form class="d-inline" method="post" action="{% url 'cerinta_autorizatie' loc.pk t.cod %}" onsubmit="const m=prompt('Motivul pentru care autorizația {{ t.scurt|escapejs }} nu e necesară la acest obiectiv:'); if(m===null) return false; this.motiv.value=m;">{% csrf_token %}<input type="hidden" name="actiune" value="nu_e_necesara"><input type="hidden" name="motiv">
+        {% else %}<form class="d-inline" method="post" action="{% url 'cerinta_autorizatie' loc.pk t.cod %}" data-prompt="Motivul pentru care autorizația {{ t.scurt|escapejs }} nu e necesară la acest obiectiv:" data-prompt-camp="motiv">{% csrf_token %}<input type="hidden" name="actiune" value="nu_e_necesara"><input type="hidden" name="motiv">
           <label class="form-check-label small ms-1"><input type="checkbox" class="form-check-input" onchange="this.form.requestSubmit()"> nu e necesară</label></form>{% endif %}{% endif %}{% endif %}</td>
   </tr>
   {% if a %}<tr class="collapse" id="suport-{{ t.cod }}"><td></td><td colspan="6" class="bg-light">
@@ -450,10 +471,10 @@
     form.addEventListener('submit', e => {
       e.preventDefault();
       const ids = bife.filter(b => b.checked).map(b => b.value);
-      if (ids.length && confirm(`Ștergeți DEFINITIV ${ids.length} fotografi${ids.length === 1 ? 'e' : 'i'}? Fișierele nu mai pot fi recuperate.`)) trimite(ids);
+      if (ids.length) confirmaApp(`Ștergeți DEFINITIV ${ids.length} fotografi${ids.length === 1 ? 'e' : 'i'}? Fișierele nu mai pot fi recuperate.`).then(da => { if (da) trimite(ids); });
     });
     document.getElementById('lbSterge')?.addEventListener('click', () => {
-      if (confirm('Ștergeți DEFINITIV această fotografie? Fișierul nu mai poate fi recuperat.')) trimite([items[i].dataset.pk]);
+      confirmaApp('Ștergeți DEFINITIV această fotografie? Fișierul nu mai poate fi recuperat.').then(da => { if (da) trimite([items[i].dataset.pk]); });
     });
   }
   document.getElementById('lbPrev').addEventListener('click', () => arata(i - 1));

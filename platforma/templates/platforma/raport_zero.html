@@ -33,47 +33,59 @@
   <button class="btn btn-sm btn-primary align-self-start">Deschide revizia {{ p.revizie_rz|add:1 }}</button></form></div>
 
 <div class="card" style="max-width:900px"><div class="card-body p-4">
-  <div class="text-center rz-antet pb-3 mb-3"><div style="letter-spacing:.3em;font-weight:700;font-size:1.4rem">CARMISTIN</div><div class="small text-secondary">THE FOOD COMPANY</div>
+  <div class="rz-antet pb-3 mb-3 rz-antet-grila">
+  <div></div>
+  <div class="text-center"><div style="letter-spacing:.3em;font-weight:700;font-size:1.4rem">CARMISTIN</div><div class="small text-secondary">THE FOOD COMPANY</div>
   <div class="fs-4 fw-bold mt-2" style="color:#1d4f91">RAPORT ZERO – INVESTIȚIE</div></div>
+  <div class="d-flex justify-content-end align-items-start"><div class="rz-cod-mare"><div class="eticheta">Cod Raport Zero</div><div class="valoare">{{ p.cod }}{% if p.revizie_rz %} <small>rev.{{ p.revizie_rz }}</small>{% endif %}</div><div class="nr">Nr. înreg. {{ p.nr_inregistrare }}</div></div></div>
+</div>
   <table class="table table-bordered rz-tabel">
     <tr><th>Nr. de înregistrare document</th><td>{{ p.nr_inregistrare }}</td></tr>
-    <tr><th>Denumire proiect</th><td>{{ p.denumire }}</td></tr>
-    <tr><th>Cod proiect</th><td class="cod">{{ p.cod }}{% if p.revizie_rz %} rev.{{ p.revizie_rz }}{% endif %}</td></tr>
-    <tr><th>Departament responsabil</th><td>{{ p.departament }}</td></tr>
-    <tr><th>Linie de business / divizie</th><td>{{ p.linie }}{% if p.divizie %} / {{ p.divizie }}{% endif %}</td></tr>
     <tr><th>Beneficiar</th><td>{{ p.beneficiar }}</td></tr>
-    <tr><th>Solicitant</th><td>{{ p.solicitant }}</td></tr>
-    <tr><th>Responsabil tehnic</th><td>{{ p.responsabil_tehnic }}</td></tr>
-    <tr><th>Responsabil implementare</th><td>{{ p.responsabil_implementare }}</td></tr>
+    <tr><th>Locație</th><td>{{ p.locatie.cod }} · {{ p.locatie.denumire }}</td></tr>
+    <tr><th>Linie de business / divizie</th><td>{{ p.linie }}{% if p.divizie %} / {{ p.divizie }}{% endif %}</td></tr>
+    <tr><th>Denumire proiect</th><td>{{ p.denumire }}</td></tr>
+    <tr><th>Tip investiție</th><td>{{ p.get_tip_investitie_display|default:"nedefinit" }}</td></tr>
+    <tr><th>Responsabil proiect</th><td>{% firstof p.pm.get_full_name p.pm.username p.coordonator.get_full_name p.coordonator.username "—" %}</td></tr>
+    <tr><th>Cod proiect</th><td class="cod">{{ p.cod }}{% if p.revizie_rz %} rev.{{ p.revizie_rz }}{% endif %}</td></tr>
+        <tr><th>Status investiție</th><td>{{ p.status_afisat }}</td></tr>
     {% if vizibil %}{% for c in p.contracte.all %}<tr><th>{% if c.tip == 'proiectare' %}Proiectant{% else %}{{ c.get_tip_display }}{% endif %} / contract</th><td>{{ c.partener }} · {{ c.numar }}/{{ c.data|date:"d.m.Y" }}</td></tr>{% endfor %}{% endif %}
-    <tr><th>Locație / obiectiv</th><td>{{ p.locatie.cod }} · {{ p.obiectiv|default:p.locatie.denumire }}</td></tr>
-    <tr><th>Clădire</th><td>{{ p.cladire }}</td></tr>
-    <tr><th>Descriere lucrări</th><td>{{ p.descriere_lucrari|linebreaksbr }}</td></tr>
-    <tr><th>Necesar achiziții</th><td>{{ p.necesar_achizitii|linebreaksbr }}</td></tr>
+    <tr><th>Descriere investiție</th><td>{{ p.descriere_lucrari|linebreaksbr }}</td></tr>
+    {% if p.necesar_achizitii %}<tr><th>Necesar achiziții (versiune veche)</th><td>{{ p.necesar_achizitii|linebreaksbr }}</td></tr>{% endif %}
     <tr><th>Valoare ofertă / buget</th><td><b>{{ p.valoare_rz|bani }} {{ p.moneda_rz }}</b>{% if p.moneda_rz == 'EUR' %} <span class="text-secondary small">(≈ {{ p.buget_rz_ron|bani }} RON la cursul {{ p.curs_rz }})</span>{% endif %}</td></tr>
+    <tr><th>Necesită autorizație de construire</th><td>{% if p.tip_autorizare == 'cu_ac' %}<b>Da</b>{% elif p.tip_autorizare %}Nu{% else %}nedefinit{% endif %}</td></tr>
     <tr><th>Structura de finanțare</th><td>{% include "platforma/_structura_finantare.html" with compact=1 %}</td></tr>
     <tr><th>Prioritate</th><td>{{ p.get_prioritate_display }}</td></tr>
     <tr><th>Data demarare</th><td>{{ p.data_demarare|date:"d.m.Y" }}</td></tr>
     <tr><th>Data finalizare</th><td>{{ p.data_finalizare|date:"d.m.Y" }}</td></tr>
   </table>
-  <div class="fw-bold mt-3 mb-1">BUGET – STRUCTURA DEVIZULUI GENERAL (HG 907/2016), RON fără TVA
+  {% if p.tip_investitie != 'echipamente' %}<div class="fw-bold mt-3 mb-1">BUGET – STRUCTURA DEVIZULUI GENERAL (HG 907/2016), {{ p.moneda_rz }} fără TVA
     {% if p.buget_blocat %}<span class="badge text-bg-success d-print-none"><i class="bi bi-lock"></i> fixat la avizare</span>{% elif p.stare_rz == 'ciorna' or p.stare_rz == 'respins' %}<span class="badge text-bg-warning d-print-none">în lucru</span>{% endif %}</div>
   <table class="table table-sm table-bordered small mb-1">
     {% for c in capitole_buget %}{% if c.total %}<tr class="capitol-row"><td style="width:60px">{{ c.cod }}</td><td>{{ c.denumire }}</td><td class="num" style="width:150px">{{ c.total|bani }}</td></tr>
       {% for l in c.linii %}{% if l.valoare %}<tr><td class="text-secondary">{{ l.cod }}</td><td>{{ l.denumire }}</td><td class="num">{{ l.valoare|bani }}</td></tr>{% endif %}{% endfor %}{% endif %}
     {% empty %}{% endfor %}
     <tr class="fw-bold"><td></td><td>TOTAL BUGET</td><td class="num">{{ total_buget|bani }}</td></tr>
-    {% with ron=p.buget_rz_ron %}{% if total_buget and ron %}<tr class="small"><td></td><td class="text-secondary">față de valoarea Raportului Zero ({{ ron|bani }} RON{% if p.moneda_rz == 'EUR' %}, la cursul {{ curs_rz }}{% endif %})</td>
+    {% with ron=p.valoare_rz %}{% if total_buget and ron %}<tr class="small"><td></td><td class="text-secondary">față de valoarea Raportului Zero ({{ ron|bani }} {{ p.moneda_rz }}{% if p.moneda_rz == 'EUR' %}, la cursul {{ curs_rz }}; ≈ {{ p.buget_rz_ron|bani }} RON{% endif %})</td>
       <td class="num {% if total_buget|procent:ron > 101 or total_buget|procent:ron < 99 %}text-danger{% else %}text-success{% endif %}">{{ total_buget|procent:ron }}%</td></tr>{% endif %}{% endwith %}
   </table>
-  <div class="fw-bold mt-3 mb-1">LISTA ECHIPAMENTELOR ȘI DOTĂRILOR (cap. 4.3, 4.4, 4.5), RON fără TVA</div>
+  {% endif %}
+  {% if p.are_echipamente or echipamente %}<div class="fw-bold mt-3 mb-1">LISTA ECHIPAMENTELOR ȘI DOTĂRILOR{% if p.tip_investitie == 'echipamente' %} – BUGETUL INVESTIȚIEI{% else %} (cap. 4.3, 4.4, 4.5){% endif %}, {{ p.moneda_rz }} fără TVA</div>
   {% if probleme_echipamente %}<div class="alert alert-danger py-2 small mb-1 d-print-none"><i class="bi bi-exclamation-triangle"></i> {{ probleme_echipamente|join:"; " }}. Raportul nu poate fi trimis spre avizare până nu se completează lista{% if poate_edita and p.stare_rz == 'ciorna' or poate_edita and p.stare_rz == 'respins' %} – <a href="{% url 'raport_zero_editare' p.pk %}#echipamente-rz">completează lista</a>{% endif %}.</div>{% endif %}
   {% if echipamente %}<table class="table table-sm table-bordered small mb-1">
     <tr class="text-secondary"><th>Linie</th><th>Echipament / dotare</th><th>Specificații</th><th class="num">Cant.</th><th class="num">Valoare estimată</th></tr>
-    {% for e in echipamente %}<tr><td style="width:60px">{{ e.linie_buget.capitol }}</td><td>{{ e.denumire }}</td><td class="text-secondary">{{ e.specificatii }}</td><td class="num">{{ e.cantitate|floatformat:"-2" }} {{ e.um }}</td><td class="num" style="width:150px">{{ e.valoare_estimata|bani }}</td></tr>{% endfor %}
+    {% for e in echipamente %}<tr><td style="width:60px">{{ e.linie_buget.capitol }}</td><td>{{ e.denumire }}</td><td class="text-secondary">{{ e.specificatii }}</td><td class="num">{{ e.cantitate|floatformat:"-2" }} {{ e.um }}</td><td class="num" style="width:150px">{{ e.valoare_afisata|bani }}</td></tr>{% endfor %}
     <tr class="fw-bold"><td></td><td colspan="3">TOTAL ECHIPAMENTE ȘI DOTĂRI</td><td class="num">{{ total_echipamente_rz|bani }}</td></tr>
-  </table>{% elif not probleme_echipamente %}<div class="small text-secondary mb-1">Investiția nu are echipamente sau dotări (liniile 4.3–4.5 fără buget).</div>{% endif %}
+  </table>{% elif not probleme_echipamente %}<div class="small text-secondary mb-1">Investiția nu are echipamente sau dotări (liniile 4.3–4.5 fără buget).</div>{% endif %}{% endif %}
+  <div class="fw-bold mt-3 mb-1">ANEXĂ – OFERTE PENTRU JUSTIFICAREA BUGETULUI</div>
+  {% if oferte %}<table class="table table-sm table-bordered small mb-1">
+    <tr class="text-secondary"><th>Furnizor</th><th>Obiect</th><th class="num">Valoare fără TVA</th><th>Data</th><th class="d-print-none">Document</th></tr>
+    {% for o in oferte %}<tr><td>{{ o.furnizor }}</td><td>{{ o.obiect }}</td><td class="num">{% if o.valoare is not None %}{{ o.valoare|bani }} {{ o.moneda }}{% else %}—{% endif %}</td><td>{{ o.data_oferta|date:"d.m.Y"|default:"—" }}</td>
+      <td class="d-print-none">{% with d=o.document %}{% if d %}<a href="{% url 'document' d.pk %}"><i class="bi bi-file-earmark-pdf text-danger"></i></a>{% else %}<span class="badge text-bg-warning">fără PDF</span>{% endif %}{% endwith %}</td></tr>{% endfor %}
+  </table>{% else %}<div class="small text-secondary mb-1">Nicio ofertă atașată.</div>{% endif %}
   {% if not total_buget %}<div class="small text-secondary">Bugetul nu a fost completat.{% if poate_edita and p.stare_rz == 'ciorna' or poate_edita and p.stare_rz == 'respins' %} Completați-l din „Editează”.{% endif %}</div>{% endif %}
+  <div class="fw-bold mt-3 mb-1">OBSERVAȚII, ALTE DETALII</div>
+  <div class="small mb-1">{% if p.observatii_rz %}{{ p.observatii_rz|linebreaksbr }}{% else %}<span class="text-secondary">—</span>{% endif %}</div>
   <div class="row mt-4 text-center">
     <div class="col"><div class="fw-semibold">ÎNTOCMIT,</div><div>{{ p.intocmit_de }}</div></div>
     <div class="col"><div class="fw-semibold">AVIZAT,</div><div>{{ p.avizat_de }}</div>

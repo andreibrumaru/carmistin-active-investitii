@@ -1,0 +1,9 @@
+{# Un câmp de formular: etichetă, control, ajutor, erori. Parametri: field, [fara_eticheta] #}
+{% if field.field.widget.input_type == 'checkbox' %}
+  <div class="form-check form-switch">{{ field }} <label class="form-check-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+{% else %}
+  {% if not fara_eticheta %}<label class="form-label small fw-semibold" for="{{ field.id_for_label }}">{{ field.label|capfirst }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}</label>{% endif %}
+  {{ field }}
+{% endif %}
+{% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+{% for e in field.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}

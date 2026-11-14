@@ -6,7 +6,7 @@
   <tr style="cursor:pointer" onclick="location='{% if p.pk in vizibile %}{{ p.get_absolute_url }}{% else %}{% url 'raport_zero' p.pk %}{% endif %}'">
     <td><span class="cod">{{ p.cod }}</span></td>
     <td>{{ p.denumire }}<div class="small text-secondary">{{ p.beneficiar }} · {{ p.finantare }}</div></td>
-    <td class="small"><span class="badge text-bg-light">{{ p.faza }}</span><div class="text-secondary">{{ p.status }}</div></td>
+    <td class="small"><span class="badge text-bg-light">{{ p.faza }}</span><div class="text-secondary">{{ p.status_afisat }}</div></td>
     <td class="small">{{ p.pm|default:"—" }}</td>
     <td class="num">{{ b|bani }}</td><td class="num">{{ p.facturat_ron|bani }}</td>
     <td><div class="progress" title="financiar"><div class="progress-bar" style="width:{{ p.procent_executie|plafon }}%"></div></div>

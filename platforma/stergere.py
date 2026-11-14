@@ -1,4 +1,5 @@
 """Ștergerea definitivă a unui proiect: arhivare completă înainte, apoi ștergerea în ordinea corectă a legăturilor."""
+from pathlib import Path
 import json
 import shutil
 
@@ -15,6 +16,8 @@ def obiecte_proiect(p):
     return [
         ("Documente", m.Document.objects.filter(proiect=p)),
         ("Extrageri AI", m.ExtragereAI.objects.filter(document__proiect=p)),
+        ("Procese-verbale de închidere", m.ProcesVerbalInchidere.objects.filter(proiect=p)),
+        ("Oferte (Raport Zero)", m.OfertaRZ.objects.filter(proiect=p)),
         ("Facturi în cereri de tragere", m.CerereTragereFactura.objects.filter(cerere__proiect=p)),
         ("Cereri de tragere", m.CerereTragere.objects.filter(proiect=p)),
         ("Rapoarte de progres (bancă)", m.RaportProgres.objects.filter(proiect=p)),
@@ -45,7 +48,8 @@ def rezumat(p):
 
 def arhiveaza(p):
     """Salvează toate datele proiectului (JSON) și fișierele lui în date/arhiva_stergeri/<cod>_<data-ora>/."""
-    dest = settings.BASE_DIR / "date" / "arhiva_stergeri" / f"{p.cod.replace('.', '_')}_{timezone.now():%Y%m%d-%H%M%S}"
+    # lângă folderul de fișiere al bazei de date folosite (date/arhiva_stergeri; la teste – în copia temporară)
+    dest = Path(settings.MEDIA_ROOT).parent / "arhiva_stergeri" / f"{p.cod.replace('.', '_')}_{timezone.now():%Y%m%d-%H%M%S}"
     (dest / "fisiere").mkdir(parents=True, exist_ok=True)
     date = {"proiect": json.loads(serializers.serialize("json", [p]))}
     for nume, qs in obiecte_proiect(p):

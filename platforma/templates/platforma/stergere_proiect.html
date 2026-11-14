@@ -17,7 +17,7 @@
   {% if rezumat %}<table class="table table-sm small" style="max-width:420px">{% for nume, n in rezumat %}<tr><td>{{ nume }}</td><td class="num fw-semibold">{{ n }}</td></tr>{% endfor %}</table>{% else %}<p class="small text-secondary">Proiectul nu are înregistrări asociate.</p>{% endif %}
   <form method="post" class="mb-3">{% csrf_token %}<input type="hidden" name="proiect" value="{{ p.pk }}"><input type="hidden" name="actiune" value="trimite_cod">
     <button class="btn btn-outline-danger"><i class="bi bi-phone"></i> {% if cod_trimis %}Retrimite codul{% else %}Trimite codul de verificare prin SMS{% endif %}</button></form>
-  {% if cod_trimis %}<form method="post" class="row g-2 align-items-end" onsubmit="return confirm('Ștergeți DEFINITIV proiectul {{ p.cod }}?')">{% csrf_token %}
+  {% if cod_trimis %}<form method="post" class="row g-2 align-items-end" data-confirm="Ștergeți DEFINITIV proiectul {{ p.cod }}?">{% csrf_token %}
     <input type="hidden" name="proiect" value="{{ p.pk }}"><input type="hidden" name="actiune" value="sterge">
     <div class="col-md-4"><label class="form-label small fw-semibold">Cod primit prin SMS</label><input name="cod_sms" class="form-control" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></div>
     <div class="col-md-4"><label class="form-label small fw-semibold">Scrieți codul proiectului: {{ p.cod }}</label><input name="confirmare_cod" class="form-control" required autocomplete="off"></div>

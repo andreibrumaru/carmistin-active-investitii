@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import views as v
 from . import views_finantare as vf
+from . import views_inchidere as vi
 
 urlpatterns = [
     path("", v.dashboard, name="dashboard"),
@@ -32,6 +33,7 @@ urlpatterns = [
     path("active/<int:pk>/<str:tip>/nou/", v.locatie_obiect_form, name="locatie_obiect_nou"),
     path("active/<int:pk>/<str:tip>/<int:obj_pk>/", v.locatie_obiect_form, name="locatie_obiect_editare"),
     path("rapoarte-zero/", v.rapoarte_zero, name="rapoarte_zero"),
+    path("rapoarte-zero/<int:pk>/sterge/", v.raport_zero_sterge, name="raport_zero_sterge"),
     path("rapoarte-zero/nou/", v.raport_zero_form, name="raport_zero_nou"),
     path("rapoarte-zero/<int:pk>/", v.raport_zero, name="raport_zero"),
     path("rapoarte-zero/<int:pk>/editare/", v.raport_zero_form, name="raport_zero_editare"),
@@ -43,7 +45,13 @@ urlpatterns = [
     path("proiecte/<int:pk>/tragere/noua/", vf.cerere_tragere_noua, name="cerere_tragere_noua"),
     path("proiecte/<int:pk>/tragere/<int:cpk>/", vf.cerere_tragere, name="cerere_tragere"),
     path("proiecte/<int:pk>/cu/incarca/", vf.cu_incarca, name="cu_incarca"),
+    path("proiecte/<int:pk>/inchidere/", vi.pv_formular, name="pv_nou"),
+    path("proiecte/<int:pk>/inchidere/<int:pvpk>/editare/", vi.pv_formular, name="pv_editare"),
+    path("proiecte/<int:pk>/inchidere/<int:pvpk>/", vi.pv_detaliu, name="pv_detaliu"),
+    path("proiecte/<int:pk>/inchidere/<int:pvpk>/actiune/", vi.pv_actiune, name="pv_actiune"),
     path("proiecte/<int:pk>/urmarire/", v.proiect_urmarire, name="proiect_urmarire"),
+    path("proiecte/<int:pk>/status/", v.proiect_status, name="proiect_status"),
+    path("proiecte/<int:pk>/status/<int:cpk>/<str:decizie>/", v.proiect_status_decizie, name="proiect_status_decizie"),
     path("proiecte/<int:pk>/buget-hg/", v.buget_hg, name="buget_hg"),
     path("proiecte/<int:pk>/buget-blocare/", v.buget_blocare, name="buget_blocare"),
     path("proiecte/<int:pk>/buget-salveaza/", v.buget_salveaza, name="buget_salveaza"),

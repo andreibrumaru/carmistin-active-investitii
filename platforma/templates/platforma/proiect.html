@@ -7,7 +7,10 @@
   <div><h4 class="mb-0"><span class="cod">{{ p.cod }}</span> · {{ p.denumire }}</h4>
     <div class="text-secondary small">Locație <a href="{{ p.locatie.get_absolute_url }}">{{ p.locatie }}</a> · beneficiar {{ p.beneficiar }} · PM {{ p.pm|default:"—" }} · coordonator {{ p.coordonator|default:"—" }}</div></div>
   <div class="ms-auto d-flex gap-2 align-items-center">
-    <span class="badge text-bg-light fs-6">{{ p.faza }}</span>
+    <span class="badge fs-6 {% if p.status == 'Finalizat' %}text-bg-success{% elif p.status == 'Anulat/Suspendat' %}text-bg-danger{% elif p.status == 'În execuție' %}text-bg-primary{% else %}text-bg-secondary{% endif %}" title="status investiție">{{ p.status_afisat }}</span>
+    <span class="badge text-bg-light fs-6" title="fază">{{ p.faza }}</span>
+    {% with pv=procese_verbale.0 %}{% if pv %}<a href="{% url 'pv_detaliu' p.pk pv.pk %}" class="btn btn-sm {% if pv.status == 'semnat' %}btn-outline-success{% else %}btn-outline-warning{% endif %}"><i class="bi bi-clipboard-check"></i> PV închidere <span class="small">({{ pv.get_status_display|lower }})</span></a>
+    {% elif editabil %}<a href="{% url 'pv_nou' p.pk %}" class="btn btn-sm btn-outline-success" title="Proces-verbal de recepție – la terminarea investiției"><i class="bi bi-clipboard-check"></i> Închide investiția</a>{% endif %}{% endwith %}
     <a href="{% url 'raport_zero' p.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-text"></i> Raport Zero <span class="badge badge-stare-{{ p.stare_rz }}">{{ p.get_stare_rz_display }}</span></a>
   </div>
 </div>
@@ -41,19 +44,39 @@
 <div class="tab-pane fade {% if tab == 'prezentare' %}show active{% endif %}" id="t-prezentare"><div class="row g-3">
   <div class="col-lg-7"><div class="card"><div class="card-header">Date din Raportul Zero</div><table class="table mb-0 rz-tabel">
     <tr><th>Nr. înregistrare</th><td>{{ p.nr_inregistrare }}</td></tr>
-    <tr><th>Departament / linie / divizie</th><td>{{ p.departament|default:"—" }} / {{ p.linie|default:"—" }} / {{ p.divizie|default:"—" }}</td></tr>
-    <tr><th>Solicitant / resp. tehnic / resp. implementare</th><td>{{ p.solicitant }} / {{ p.responsabil_tehnic }} / {{ p.responsabil_implementare }}</td></tr>
-    <tr><th>Obiectiv / clădire</th><td>{{ p.obiectiv }} / {{ p.cladire }}</td></tr>
-    <tr><th>Descriere lucrări</th><td>{{ p.descriere_lucrari|linebreaksbr }}</td></tr>
+    <tr><th>Linie / divizie</th><td>{{ p.linie|default:"—" }} / {{ p.divizie|default:"—" }}</td></tr>
+        <tr><th>Descriere investiție</th><td>{{ p.descriere_lucrari|linebreaksbr }}</td></tr>
     <tr><th>Finanțare</th><td>{% include "platforma/_structura_finantare.html" with compact=1 %}</td></tr>
+    {% if p.observatii_rz %}<tr><th>Observații, alte detalii</th><td>{{ p.observatii_rz|linebreaksbr }}</td></tr>{% endif %}
     <tr><th>Prioritate</th><td>{{ p.get_prioritate_display }}</td></tr>
+    <tr><th>Tip proiect</th><td>{% if p.tip_autorizare %}{{ p.get_tip_autorizare_display }}<div class="small text-secondary">document de închidere: {% if p.tip_autorizare == 'cu_ac' %}PV de recepție la terminarea lucrărilor (HG 343/2017){% else %}PV de recepție și punere în funcțiune{% endif %}</div>{% else %}<span class="badge text-bg-warning">nedefinit</span> <span class="small text-secondary">– alegeți în „Urmărire” (dreapta)</span>{% endif %}</td></tr>
+    {% for pv in procese_verbale %}<tr><th>{% if forloop.first %}Închiderea investiției{% endif %}</th><td><a href="{% url 'pv_detaliu' p.pk pv.pk %}">{{ pv.get_tip_display }} {{ pv.numar }}</a> · {{ pv.data|date:"d.m.Y" }} · <span class="badge {% if pv.status == 'semnat' %}text-bg-success{% else %}text-bg-warning{% endif %}">{{ pv.get_status_display }}</span> · {{ pv.get_decizie_display|lower }}</td></tr>{% endfor %}
     <tr><th>Perioadă planificată</th><td>{{ p.data_demarare|date:"d.m.Y" }} – {{ p.data_finalizare|date:"d.m.Y" }} {% if p.intarziat %}<span class="badge text-bg-danger">depășit</span>{% endif %}</td></tr>
   </table></div></div>
-  <div class="col-lg-5"><div class="card"><div class="card-header">Urmărire</div><div class="card-body">
+  <div class="col-lg-5"><div class="card mb-3"><div class="card-header d-flex align-items-center">Status investiție
+      <span class="ms-auto badge fs-6 {% if p.status == 'Finalizat' %}text-bg-success{% elif p.status == 'Anulat/Suspendat' %}text-bg-danger{% elif p.status == 'În execuție' %}text-bg-primary{% else %}text-bg-secondary{% endif %}">{{ p.status_afisat }}</span></div><div class="card-body">
+    {% with c=p.cerere_status_deschisa %}{% if c %}
+      <div class="alert alert-warning small py-2 mb-2"><i class="bi bi-hourglass-split"></i> Cerere: <b>{{ c.status_vechi|default:"—" }} → {{ c.status_nou }}</b>, de {{ c.cerut_de.get_full_name|default:c.cerut_de }} la {{ c.cerut_la|date:"d.m.Y H:i" }}<div>Motiv: {{ c.motiv }}</div>
+        <div class="mt-1">Se aprobă de {% if p.aprobator_status %}<b>{{ p.aprobator_status.get_full_name|default:p.aprobator_status }}</b> (a avizat Raportul Zero){% else %}administrator{% endif %}.</div>
+        {% if poate_aproba_status %}<div class="d-flex gap-2 mt-2"><form method="post" action="{% url 'proiect_status_decizie' p.pk c.pk 'aproba' %}">{% csrf_token %}<button class="btn btn-sm btn-success py-0"><i class="bi bi-check2"></i> Aprobă</button></form>
+          <form method="post" action="{% url 'proiect_status_decizie' p.pk c.pk 'respinge' %}" data-prompt="Motivul respingerii:" data-prompt-camp="motiv">{% csrf_token %}<input type="hidden" name="motiv"><button class="btn btn-sm btn-outline-danger py-0">Respinge</button></form></div>{% endif %}
+      </div>
+    {% elif editabil and p.status %}
+      <form method="post" action="{% url 'proiect_status' p.pk %}" class="row g-2 align-items-end">{% csrf_token %}
+        <div class="col-sm-5"><label class="form-label small fw-semibold mb-0">Status nou</label><select name="status_nou" class="form-select form-select-sm" required><option value="">—</option>{% for s in statusuri_investitie %}{% if s != p.status %}<option>{{ s }}</option>{% endif %}{% endfor %}</select></div>
+        <div class="col-sm-7"><label class="form-label small fw-semibold mb-0">Motiv</label><input name="motiv" class="form-control form-control-sm" required></div>
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary">{% if poate_aproba_status %}Schimbă statusul{% else %}Cere schimbarea statusului{% endif %}</button>
+          {% if not poate_aproba_status %}<span class="small text-secondary ms-1">se aplică după aprobarea {% if p.aprobator_status %}lui {{ p.aprobator_status.get_full_name|default:p.aprobator_status }}{% else %}administratorului{% endif %}</span>{% endif %}</div>
+      </form>
+    {% elif not p.status %}<div class="small text-secondary">Investiția intră „În execuție” la avizarea Raportului Zero.</div>{% endif %}{% endwith %}
+    {% if cereri_status %}<details class="small mt-2"><summary class="text-secondary">Istoricul statusului ({{ cereri_status|length }})</summary><ul class="mb-0 ps-3 mt-1">{% for c in cereri_status %}
+      <li>{{ c.cerut_la|date:"d.m.Y" }}: {{ c.status_vechi|default:"—" }} → <b>{{ c.status_nou }}</b> · <span class="{% if c.stare == 'aprobata' %}text-success{% elif c.stare == 'respinsa' %}text-danger{% else %}text-warning-emphasis{% endif %}">{{ c.get_stare_display|lower }}</span>{% if c.decis_de %} de {{ c.decis_de.get_full_name|default:c.decis_de }}{% endif %} – {{ c.motiv }}{% if c.motiv_decizie %} ({{ c.motiv_decizie }}){% endif %}</li>{% endfor %}</ul></details>{% endif %}
+  </div></div>
+  <div class="card"><div class="card-header">Urmărire</div><div class="card-body">
     {% if editabil %}<form method="post" action="{% url 'proiect_urmarire' p.pk %}">{% csrf_token %}
       {% for field in form_urmarire %}<div class="mb-2"><label class="form-label small fw-semibold">{{ field.label|capfirst }}</label>{{ field }}</div>{% endfor %}
       <button class="btn btn-primary btn-sm">Actualizează</button></form>
-    {% else %}<p>Status: <b>{{ p.status }}</b> · Fază: <b>{{ p.faza }}</b> · Progres fizic {{ p.progres_fizic }}%</p><p>{{ p.observatii|linebreaksbr }}</p>{% endif %}
+    {% else %}<p>Status: <b>{{ p.status_afisat }}</b> · Fază: <b>{{ p.faza }}</b> · Progres fizic {{ p.progres_fizic }}%</p><p>{{ p.observatii|linebreaksbr }}</p>{% endif %}
   </div></div></div>
 </div></div>
 
@@ -145,9 +168,9 @@
   <div class="table-responsive"><table class="table table-sm mb-0 align-middle tabel-filtrabil">
   <thead><tr><th>Plătită</th><th>Factură</th><th>Furnizor</th><th>Contract</th><th>Repartizare pe linii</th><th class="num">Valoare</th><th class="num">RON fără TVA</th><th class="num">Plătit</th><th class="num">În aprobare</th><th class="num">Rest</th><th>ERP</th><th></th></tr></thead>
   <tbody>{% for x in facturi %}<tr {% if x.achitata %}class="table-success"{% endif %}>
-    <td class="text-center">{% with prin_flux=x.platit_ron %}<form method="post" action="{% url 'factura_platita' p.pk x.pk %}" class="m-0">{% csrf_token %}<input type="hidden" name="platita" value="{% if x.achitata %}0{% else %}1{% endif %}">
+    <td class="text-center">{% with prin_flux=x.platit_ron %}<form method="post" action="{% url 'factura_platita' p.pk x.pk %}" class="m-0" data-revert="1" data-confirm="{% if x.achitata %}Anulați marcajul de plată pentru factura {{ x.numar }}?{% else %}Marcați factura {{ x.numar }} ca plătită integral?{% endif %}">{% csrf_token %}<input type="hidden" name="platita" value="{% if x.achitata %}0{% else %}1{% endif %}">
       <input class="form-check-input" type="checkbox" title="{% if x.achitata %}achitată – debifați pentru a anula marcajul{% else %}bifați pentru a marca factura plătită{% endif %}" {% if x.achitata %}checked{% endif %}
-        {% if not editabil_fin %}disabled{% endif %} onchange="if(confirm(this.checked ? 'Marcați factura {{ x.numar|escapejs }} ca plătită integral?' : 'Anulați marcajul de plată pentru factura {{ x.numar|escapejs }}?')) this.form.submit(); else this.checked = !this.checked;"></form>{% endwith %}</td>
+        {% if not editabil_fin %}disabled{% endif %} onchange="this.form.requestSubmit()"></form>{% endwith %}</td>
     <td>{{ x.numar }}<div class="small text-secondary">{{ x.data|date:"d.m.Y" }}</div></td>
     <td>{{ x.furnizor }}{% if x.intragrup %} <span class="badge text-bg-info" title="emisă de {{ x.furnizor_societate }}">intragrup</span>{% endif %}<div class="small text-secondary">{{ x.cui_furnizor }}</div></td>
     <td class="small">{% if x.contract %}{{ x.contract.numar }}<div class="text-secondary">{{ x.contract.partener|truncatechars:25 }}</div>{% else %}<span class="badge text-bg-secondary">fără contract</span>{% endif %}</td>
@@ -171,7 +194,7 @@
     <td><span class="badge {% if pl.stare == 'platita' %}text-bg-success{% elif pl.stare == 'respinsa' %}text-bg-danger{% elif pl.stare == 'exportata' %}text-bg-primary{% else %}text-bg-warning{% endif %}">{{ pl.get_stare_display }}</span>{% if pl.respinsa_motiv %}<div class="small text-danger">{{ pl.respinsa_motiv }}</div>{% endif %}</td>
     <td class="small">propusă: {{ pl.propusa_de|default:"—" }}{% if pl.aprobat_tehnic_de %}<br>tehnic: {{ pl.aprobat_tehnic_de }} {{ pl.aprobat_tehnic_la|date:"d.m.Y H:i" }}{% endif %}{% if pl.aprobat_financiar_de %}<br>financiar: {{ pl.aprobat_financiar_de }} {{ pl.aprobat_financiar_la|date:"d.m.Y H:i" }}{% endif %}{% if pl.aprobat_suplimentar_de %}<br>suplimentar: {{ pl.aprobat_suplimentar_de }}{% elif pl.necesita_aprobare_suplimentara %}<br><span class="text-warning-emphasis">necesită aprobare suplimentară</span>{% endif %}</td>
     <td class="small">{{ pl.lot_export|default:"" }} {{ pl.document_plata }}</td>
-    <td class="text-nowrap">{% for a, et in pl.actiuni %}<form class="d-inline" method="post" action="{% url 'plata_actiune' pl.pk a %}" {% if a == 'respinge' %}onsubmit="const m=prompt('Motivul respingerii:'); if(!m) return false; this.motiv.value=m;"{% endif %}>{% csrf_token %}<input type="hidden" name="motiv"><input type="hidden" name="inapoi" value="{{ request.path }}?tab=financiar"><button class="btn btn-sm {% if a == 'respinge' %}btn-outline-danger{% else %}btn-outline-success{% endif %} py-0">{{ et }}</button></form> {% endfor %}
+    <td class="text-nowrap">{% for a, et in pl.actiuni %}<form class="d-inline" method="post" action="{% url 'plata_actiune' pl.pk a %}" {% if a == 'respinge' %}data-prompt="Motivul respingerii:" data-prompt-camp="motiv" data-prompt-obligatoriu="1"{% endif %}>{% csrf_token %}<input type="hidden" name="motiv"><input type="hidden" name="inapoi" value="{{ request.path }}?tab=financiar"><button class="btn btn-sm {% if a == 'respinge' %}btn-outline-danger{% else %}btn-outline-success{% endif %} py-0">{{ et }}</button></form> {% endfor %}
       {% if editabil_fin and pl.stare == 'propusa' %}<a href="{% url 'obiect_editare' p.pk 'plata' pl.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}</td>
   </tr>{% empty %}<tr><td colspan="7" class="text-center text-secondary py-4">Nicio plată propusă.</td></tr>{% endfor %}</tbody></table></div>
  </div>
@@ -338,7 +361,7 @@
       {% elif d.categorie == 'contract' %}<form method="post" action="{% url 'ai_extrage' d.pk %}" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').innerText='Se analizează…'">{% csrf_token %}<input type="hidden" name="tip" value="contract"><button class="btn btn-sm btn-outline-primary" {% if not d.contract %}disabled title="Legați documentul de un contract"{% endif %}><i class="bi bi-stars"></i> Extrage condiții</button></form>
       {% elif d.categorie == 'finantare' %}<form method="post" action="{% url 'ai_extrage' d.pk %}" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').innerText='Se analizează…'">{% csrf_token %}<input type="hidden" name="tip" value="finantare"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-stars"></i> Extrage obligații</button></form>{% endif %}{% endif %}</td>
     <td class="text-nowrap">{% if editabil %}<a href="{% url 'obiect_nou' p.pk 'document' %}?inlocuieste={{ d.pk }}&categorie={{ d.categorie }}&titlu={{ d.titlu|urlencode }}" title="versiune nouă"><i class="bi bi-arrow-up-circle"></i></a>
-      <form class="d-inline" method="post" action="{% url 'document_arhiveaza' d.pk %}" onsubmit="return confirm('Arhivați documentul?')">{% csrf_token %}<button class="btn btn-link btn-sm p-0" title="arhivează"><i class="bi bi-archive"></i></button></form>{% endif %}</td>
+      <form class="d-inline" method="post" action="{% url 'document_arhiveaza' d.pk %}" data-confirm="Arhivați documentul?">{% csrf_token %}<button class="btn btn-link btn-sm p-0" title="arhivează"><i class="bi bi-archive"></i></button></form>{% endif %}</td>
   </tr>{% empty %}<tr><td colspan="6" class="text-center text-secondary py-4">Niciun document.</td></tr>{% endfor %}</tbody></table></div></div>
   {% if extrageri %}<div class="card mt-3"><div class="card-header">Extrageri AI</div><ul class="list-group list-group-flush">{% for e in extrageri %}<li class="list-group-item small"><a href="{% url 'ai_validare' e.pk %}">{{ e.get_tip_display }}</a> · {{ e.document.titlu }} · <span class="badge text-bg-light">{{ e.get_status_display }}</span> · {{ e.model_ai }} · {{ e.creat_la|date:"d.m.Y H:i" }}{% if e.validat_de %} · validat de {{ e.validat_de }}{% endif %}</li>{% endfor %}</ul></div>{% endif %}
   </div>
@@ -354,7 +377,7 @@
 <div class="tab-pane fade {% if tab == 'acces' %}show active{% endif %}" id="t-acces"><div class="card" style="max-width:800px">
   <div class="card-header d-flex">Cine are acces la acest proiect {% if e_admin or request.user == p.coordonator %}<a class="ms-auto small" href="{% url 'obiect_nou' p.pk 'acces' %}">+ acordă acces</a>{% endif %}</div>
   <ul class="list-group list-group-flush">
-    <li class="list-group-item">Administratori și management – toate proiectele</li>
+    <li class="list-group-item">Administratori, management și utilizatorii cu rol „Vizualizare” – toate proiectele (management și vizualizare: doar citire)</li>
     <li class="list-group-item">Coordonator: <b>{{ p.coordonator|default:"—" }}</b> (editare)</li>
     <li class="list-group-item">Project manager: <b>{{ p.pm|default:"—" }}</b> (editare){% if p.pm.profil.coordonator %} · coordonatorul PM-ului: {{ p.pm.profil.coordonator }}{% endif %}</li>
     {% for a in accese %}<li class="list-group-item d-flex">{{ a.user.get_full_name|default:a.user }} <span class="badge text-bg-light ms-2">{{ a.get_nivel_display }}</span>{% if e_admin or request.user == p.coordonator %}<a class="ms-auto small" href="{% url 'obiect_editare' p.pk 'acces' a.pk %}">modifică</a>{% endif %}</li>{% endfor %}

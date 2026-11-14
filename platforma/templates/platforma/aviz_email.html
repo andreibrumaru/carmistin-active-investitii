@@ -20,9 +20,9 @@
   <div class="text-secondary small mb-3">{{ p.nr_inregistrare }} · trimis spre avizare la {{ e.trimis_la|date:"d.m.Y H:i" }}{% if e.trimis_de %} de {{ e.trimis_de.get_full_name|default:e.trimis_de.username }}{% endif %}</div>
   <table class="table table-sm table-bordered small mb-3">
     <tr><th style="width:35%">Beneficiar</th><td>{{ p.beneficiar }}</td></tr>
-    <tr><th>Locație / obiectiv</th><td>{{ p.locatie.cod }} · {{ p.obiectiv|default:p.locatie.denumire }}</td></tr>
+    <tr><th>Locație</th><td>{{ p.locatie.cod }} · {{ p.locatie.denumire }}</td></tr>
     <tr><th>Linie / divizie</th><td>{{ p.linie }}{% if p.divizie %} / {{ p.divizie }}{% endif %}</td></tr>
-    <tr><th>Descriere lucrări</th><td>{{ p.descriere_lucrari|linebreaksbr }}</td></tr>
+    <tr><th>Descriere investiție</th><td>{{ p.descriere_lucrari|linebreaksbr }}</td></tr>
     <tr><th>Valoare ofertă / buget</th><td class="fw-bold">{{ p.valoare_rz|bani }} {{ p.moneda_rz }}{% if p.moneda_rz == 'EUR' %} <span class="fw-normal text-secondary">(≈ {{ p.buget_rz_ron|bani }} RON)</span>{% endif %}</td></tr>
     <tr><th>Finanțare · prioritate</th><td>{{ p.finantare|default:"—" }} · {{ p.get_prioritate_display }}</td></tr>
     <tr><th>Perioada</th><td>{{ p.data_demarare|date:"d.m.Y"|default:"—" }} – {{ p.data_finalizare|date:"d.m.Y"|default:"—" }}</td></tr>

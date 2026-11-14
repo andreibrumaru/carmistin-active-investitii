@@ -1,0 +1,12 @@
+{% extends "platforma/form.html" %}
+{% block titlu %}{{ eticheta_tip }} · {{ p.cod }}{% endblock %}
+{% block inainte_form %}
+<div class="alert alert-light border d-flex gap-3 align-items-start">
+  <i class="bi bi-clipboard-check fs-4 text-primary"></i>
+  <div><b>{{ eticheta_tip }}</b> – proiect {{ p.get_tip_autorizare_display|lower }}.
+    <div class="small text-secondary">{% if tip == 'terminare' %}Model conform Regulamentului privind recepția construcțiilor (HG nr. 343/2017).{% else %}Model conform formularului 14-2-5/b „Proces-verbal de recepție și punere în funcțiune” (OMFP nr. 2634/2015).{% endif %}
+    Situația financiară a investiției (buget, contracte, facturi, plăți, avize, echipamente) se preia automat din proiect la salvare.</div></div>
+</div>
+{% if verificari %}<div class="card mb-3 border-warning-subtle"><div class="card-header bg-warning-subtle small fw-semibold"><i class="bi bi-list-check"></i> Ce nu este încă închis în proiect</div>
+  <ul class="list-group list-group-flush small">{% for niv, t in verificari %}<li class="list-group-item d-flex gap-2"><span class="tag {% if niv == 'crit' %}t-crit{% elif niv == 'warn' %}t-warn{% else %}t-info{% endif %}">{% if niv == 'crit' %}de rezolvat{% elif niv == 'warn' %}atenție{% else %}info{% endif %}</span>{{ t }}</li>{% endfor %}</ul></div>{% endif %}
+{% endblock %}

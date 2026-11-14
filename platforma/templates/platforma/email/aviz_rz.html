@@ -11,10 +11,10 @@
 <tr><td style="border:1px solid #e5e7eb;background:#f8fafc;font-weight:600">Cod proiect</td><td style="border:1px solid #e5e7eb;font-family:monospace;font-weight:700">{{ p.cod }}{% if p.revizie_rz %} rev.{{ p.revizie_rz }}{% endif %}</td></tr>
 <tr><td style="border:1px solid #e5e7eb;background:#f8fafc;font-weight:600">Denumire proiect</td><td style="border:1px solid #e5e7eb">{{ p.denumire }}</td></tr>
 <tr><td style="border:1px solid #e5e7eb;background:#f8fafc;font-weight:600">Beneficiar</td><td style="border:1px solid #e5e7eb">{{ p.beneficiar }}</td></tr>
-<tr><td style="border:1px solid #e5e7eb;background:#f8fafc;font-weight:600">Locație / obiectiv</td><td style="border:1px solid #e5e7eb">{{ p.locatie.cod }} · {{ p.obiectiv|default:p.locatie.denumire }}</td></tr>
+<tr><td style="border:1px solid #e5e7eb;background:#f8fafc;font-weight:600">Locație</td><td style="border:1px solid #e5e7eb">{{ p.locatie.cod }} · {{ p.locatie.denumire }}</td></tr>
 <tr><td style="border:1px solid #e5e7eb;background:#f8fafc;font-weight:600">Linie / divizie</td><td style="border:1px solid #e5e7eb">{{ p.linie }}{% if p.divizie %} / {{ p.divizie }}{% endif %}</td></tr>
-<tr><td style="border:1px solid #e5e7eb;background:#f8fafc;font-weight:600">Solicitant · resp. tehnic · resp. implementare</td><td style="border:1px solid #e5e7eb">{{ p.solicitant|default:"—" }} · {{ p.responsabil_tehnic|default:"—" }} · {{ p.responsabil_implementare|default:"—" }}</td></tr>
-<tr><td style="border:1px solid #e5e7eb;background:#f8fafc;font-weight:600">Descriere lucrări</td><td style="border:1px solid #e5e7eb">{{ p.descriere_lucrari|linebreaksbr }}</td></tr>
+
+<tr><td style="border:1px solid #e5e7eb;background:#f8fafc;font-weight:600">Descriere investiție</td><td style="border:1px solid #e5e7eb">{{ p.descriere_lucrari|linebreaksbr }}</td></tr>
 {% if p.necesar_achizitii %}<tr><td style="border:1px solid #e5e7eb;background:#f8fafc;font-weight:600">Necesar achiziții</td><td style="border:1px solid #e5e7eb">{{ p.necesar_achizitii|linebreaksbr }}</td></tr>{% endif %}
 <tr><td style="border:1px solid #e5e7eb;background:#f8fafc;font-weight:600">Valoare ofertă / buget</td><td style="border:1px solid #e5e7eb;font-weight:700">{{ p.valoare_rz|bani }} {{ p.moneda_rz }}{% if p.moneda_rz == 'EUR' %} <span style="font-weight:400;color:#6b7280">(≈ {{ p.buget_rz_ron|bani }} RON)</span>{% endif %}</td></tr>
 <tr><td style="border:1px solid #e5e7eb;background:#f8fafc;font-weight:600">Finanțare · prioritate</td><td style="border:1px solid #e5e7eb">{{ p.finantare|default:"—" }} · {{ p.get_prioritate_display }}</td></tr>

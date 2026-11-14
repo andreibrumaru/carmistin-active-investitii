@@ -173,6 +173,11 @@ class LocatieSelect(forms.Select):
         if loc is not None:
             opt["attrs"]["data-beneficiar"] = loc.proprietar_id or ""
             opt["attrs"]["data-urmator"] = f"{loc.cod}.{(loc.max_ordine or 0) + 1:02d}"
+            linie = loc.linie_din_registru
+            if linie:  # activ funcțional: linia (și divizia, dacă e definită) vin din registrul activelor
+                opt["attrs"]["data-linie"] = linie
+                opt["attrs"]["data-divizie"] = loc.divizie or ""
+            opt["attrs"]["data-stare"] = loc.get_stare_activ_display()
         return opt
 
 
@@ -185,18 +190,27 @@ class RaportZeroForm(Baza):
         queryset=m.Locatie.objects.none(), label="Locație / activ", widget=LocatieSelect,
         help_text="Codul proiectului se generează automat: COD_LOCAȚIE.NN",
     )
+    necesita_ac = forms.BooleanField(
+        required=False, label="Necesită autorizație de construire",
+        help_text="Stabilește PV-ul de închidere: recepție la terminarea lucrărilor (bifat) sau recepție și punere în funcțiune.",
+    )
+    responsabil = forms.ModelChoiceField(
+        queryset=User.objects.none(), label="Responsabil proiect",
+        help_text="Odată ales, responsabilul primește acces la acest proiect (vede și lucrează pe el); aprobările urmează fluxul definit.",
+    )
 
     class Meta:
         model = m.Proiect
         fields = [
-            "beneficiar", "locatie", "denumire", "departament", "linie", "divizie", "solicitant", "responsabil_tehnic",
-            "responsabil_implementare", "obiectiv", "cladire", "descriere_lucrari", "necesar_achizitii", "valoare_rz",
-            "moneda_rz", "prioritate", "data_demarare", "data_finalizare", "intocmit_de", "avizat_de",
-            "coordonator", "pm",
+            "beneficiar", "locatie", "linie", "divizie", "denumire", "tip_investitie", "necesita_ac", "responsabil",
+            "descriere_lucrari",
+            "valoare_rz", "moneda_rz", "prioritate", "data_demarare", "data_finalizare",
             "fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "val_nerambursabil", "val_bancara",
+            "observatii_rz",
         ]
 
     CAMPURI_FINANTARE = ["fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "val_nerambursabil", "val_bancara"]
+    CAMPURI_IN_BLOC = CAMPURI_FINANTARE + ["observatii_rz"]  # afișate de șablon în blocurile lor (finanțare; observații la final)
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -210,20 +224,38 @@ class RaportZeroForm(Baza):
             self.fields["locatie"].disabled = True
             self.fields["beneficiar"].disabled = True
         campuri_linie_divizie(self)
-        for camp, tip in (("departament", "departament"),):
-            opt = [("", "—")] + [(o.valoare, o.valoare) for o in m.Nomenclator.optiuni(tip)]
-            val = self.initial.get(camp) or getattr(self.instance, camp, "")
-            if val and val not in dict(opt):
-                opt.append((val, val))
-            self.fields[camp] = forms.ChoiceField(choices=opt, required=False, label=self.fields[camp].label,
-                                                  widget=forms.Select(attrs={"class": "form-select"}))
-        self.fields["coordonator"].queryset = User.objects.filter(profil__rol__in=["coordonator", "admin"])
-        self.fields["pm"].queryset = User.objects.filter(profil__rol__in=["pm", "coordonator"])
-        # Valoarea RZ se calculează din bugetul HG de mai jos; se scrie de mână doar dacă bugetul e gol.
+        self.fields["tip_investitie"].required = True
+        self.fields["tip_investitie"].choices = [("", "— alegeți —")] + list(m.Proiect.TIP_INVESTITIE)
+        self.fields["tip_investitie"].help_text = "Achiziție echipamente: bugetul = lista de echipamente; celelalte: buget pe structura HG."
+        if self.instance.pk:
+            self.initial.setdefault("necesita_ac", self.instance.tip_autorizare == "cu_ac")
+        # liniile / diviziile fixate în registrul activelor trebuie să fie alegeri valide chiar dacă lipsesc din nomenclator
+        linii = dict(self.fields["linie"].choices)
+        div = self.fields["divizie"]
+        for loc in locatii:
+            l = loc.linie_din_registru
+            if l and l not in linii:
+                linii[l] = l
+            if l and loc.divizie and loc.divizie not in [v for v, _ in div.choices]:
+                div.widget.linii[len(div.choices)] = l
+                div.choices = list(div.choices) + [(loc.divizie, loc.divizie)]
+        self.fields["linie"].choices = list(linii.items())
+        self.fields["descriere_lucrari"].label = "Descriere investiție"
+        self.fields["descriere_lucrari"].widget.attrs["rows"] = 4
+        self.fields["moneda_rz"].label = "Moneda RZ"
+        r = self.fields["responsabil"]
+        r.queryset = User.objects.filter(is_active=True, profil__rol__in=["pm", "coordonator", "admin", "implementare"]).order_by("first_name", "username")
+        r.label_from_instance = lambda u: u.get_full_name() or u.username
+        r.widget.attrs["class"] = "form-select"
+        if self.instance.pk and not self.initial.get("responsabil"):
+            self.initial["responsabil"] = self.instance.pm_id or self.instance.coordonator_id
+        self.fields["observatii_rz"].label = "Observații, alte detalii"
+        self.fields["observatii_rz"].widget.attrs["rows"] = 4
+        # Valoarea RZ nu se completează manual: se calculează din bugetul investiției și din lista de echipamente.
         v = self.fields["valoare_rz"]
-        if self.is_bound and self.total_buget_post():
-            v.required = False  # se calculează la salvare din bugetul HG
-        v.help_text = "Se completează automat din totalul bugetului HG de mai jos (convertit în moneda RZ)."
+        v.required = False
+        v.widget.attrs.update({"readonly": "readonly", "tabindex": "-1", "class": "form-control camp-calculat"})
+        v.help_text = "Calculată automat din bugetul investiției și lista de echipamente."
 
     def total_buget_post(self):
         """Totalul bugetului HG trimis în formular (RON), sau 0 dacă e gol / invalid."""
@@ -246,10 +278,39 @@ class RaportZeroForm(Baza):
         for cod, eticheta in (("nerambursabil", "bugetul nerambursabil"), ("bancara", "valoarea finanțării bancare")):
             if date.get(f"fin_{cod}") and not date.get(f"val_{cod}"):
                 self.add_error(f"val_{cod}", f"Completați {eticheta}.")
+        if self.is_bound and not self.total_buget_post():
+            self.add_error(None, "Valoarea Raportului Zero se calculează din bugetul investiției și din lista de echipamente: "
+                                 "completați bugetul (sau lista de echipamente) – valoarea nu se introduce manual.")
+        date.pop("valoare_rz", None)  # orice valoare trimisă se ignoră; se recalculează la salvare
+        tip = date.get("tip_investitie")
+        ech = self.data.getlist("ech_denumire") if hasattr(self.data, "getlist") else self.data.get("ech_denumire", [])
+        are_ech = any(d.strip() for d in ([ech] if isinstance(ech, str) else ech))
+        if tip == "echipamente" and not are_ech:
+            self.add_error(None, "Achiziție echipamente: completați lista de echipamente (cel puțin un echipament).")
+        if tip and tip not in m.Proiect.TIPURI_CU_ECHIPAMENTE and are_ech:
+            contractate = self.instance.pk and self.instance.echipamente.exclude(contract=None).exists()
+            self.add_error("tip_investitie", f"Tipul „{dict(m.Proiect.TIP_INVESTITIE)[tip]}” nu are listă de echipamente: "
+                           + ("proiectul are echipamente contractate – alegeți Lucrări & echipamente sau Mentenanță." if contractate else
+                              "scoateți echipamentele din listă sau alegeți Achiziție echipamente / Lucrări & echipamente / Mentenanță."))
         ben, loc = date.get("beneficiar"), date.get("locatie")
         if ben and loc and loc.proprietar_id != ben.pk:
             self.add_error("locatie", f"Locația {loc.cod} aparține societății {loc.proprietar}, nu beneficiarului ales.")
+        loc = loc or self.instance.locatie if self.instance.pk else loc
+        linie_reg = loc.linie_din_registru if loc else ""
+        if linie_reg:  # activ funcțional: linia de business (și divizia definită) rămân cele din registrul activelor
+            date["linie"] = linie_reg
+            if loc.divizie:
+                date["divizie"] = loc.divizie
+        elif loc and not date.get("linie"):
+            self.add_error("linie", f"Activul {loc.cod} ({loc.get_stare_activ_display().lower()}) nu are linia de business definită în registru – completați-o.")
+        if date.get("linie") and not date.get("divizie") and not (linie_reg and not loc.divizie) \
+                and any(o.grup == date["linie"] for o in m.Nomenclator.optiuni("divizie")):
+            self.add_error("divizie", "Alegeți divizia.")
         return date
+
+    def save(self, commit=True):
+        self.instance.tip_autorizare = "cu_ac" if self.cleaned_data.get("necesita_ac") else "fara_ac"
+        return super().save(commit)
 
 
 class SocietateNouaForm(forms.ModelForm):
@@ -268,13 +329,14 @@ class SocietateNouaForm(forms.ModelForm):
 
 
 class UrmarireProiectForm(Baza):
+    """Statusul investiției NU se modifică aici: se schimbă doar prin cerere aprobată de administrator."""
     class Meta:
         model = m.Proiect
-        fields = ["status", "faza", "progres_fizic", "coordonator", "pm", "data_finalizare_reala", "observatii"]
+        fields = ["faza", "progres_fizic", "tip_autorizare", "coordonator", "pm", "data_finalizare_reala", "observatii"]
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        for camp, tip in (("status", "status_proiect"), ("faza", "faza_proiect")):
+        for camp, tip in (("faza", "faza_proiect"),):
             opt = [(o.valoare, o.valoare) for o in m.Nomenclator.optiuni(tip)]
             val = getattr(self.instance, camp, "")
             if val and val not in dict(opt):
@@ -456,6 +518,28 @@ FORMULARE_LOCATIE = {
 class ImportGanttForm(forms.Form):
     fisier = forms.FileField(help_text="Excel (.xlsx) cu coloanele: Activitate, Start, Sfârșit, Progres, Responsabil — sau MS Project XML (.xml)")
     inlocuieste = forms.BooleanField(required=False, initial=True, label="Înlocuiește activitățile existente")
+
+
+class ProcesVerbalForm(ScanSimplu, Baza):
+    eticheta_scan = "Procesul-verbal semnat (PDF scanat)"
+    CAMPURI_AC = ["nr_autorizatie", "data_autorizatie", "emitent_autorizatie", "proiectant", "diriginte"]
+
+    class Meta:
+        model = m.ProcesVerbalInchidere
+        fields = ["numar", "data", "loc_receptie", "nr_autorizatie", "data_autorizatie", "emitent_autorizatie",
+                  "data_incepere", "data_terminare", "executant", "proiectant", "diriginte",
+                  "presedinte_comisie", "membri_comisie", "alti_participanti",
+                  "documentatie_completa", "obiective_realizate", "constatari", "lipsuri", "termen_remediere", "decizie",
+                  "data_pif", "valoare_intrare_ron", "durata_amortizare_ani", "nr_inventar", "observatii"]
+
+    def __init__(self, *a, tip="terminare", **kw):
+        super().__init__(*a, **kw)
+        if tip == "pif":
+            for c in self.CAMPURI_AC:
+                self.fields.pop(c)
+            self.fields["documentatie_completa"].label = "documentele tehnice (cărți tehnice, garanții, certificate) sunt predate"
+        for c in ("membri_comisie", "alti_participanti", "obiective_realizate", "constatari", "lipsuri", "observatii"):
+            self.fields[c].widget.attrs["rows"] = 3
 
 
 FORMULARE = {

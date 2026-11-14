@@ -124,3 +124,50 @@ tr.linie-depasita-simpla > td { background-color: #fde8e6; }
 .chevron-contract { display: inline-block; transition: transform .15s; }
 .rand-contract[aria-expanded="true"] .chevron-contract { transform: rotate(90deg); }
 .rand-facturi > td { border-left: 3px solid var(--bs-primary); }
+
+/* Etichete de stare (verificări, proces-verbal) */
+.tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.t-crit { background: #fbe4e1; color: #9b1c12; } .t-warn { background: #fdf0d5; color: #8a5300; } .t-info { background: #e6edf7; color: #22508f; } .t-ok { background: #e1f2e6; color: #1d6b37; }
+
+/* Proces-verbal de închidere (document tipăribil) */
+.pv-doc { max-width: 980px; margin: 0 auto; background: #fff; border: 1px solid #ddd; padding: 40px 48px; font-size: 14px; line-height: 1.5; }
+.pv-doc h2 { font-size: 18px; text-align: center; text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 2px; }
+.pv-doc h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; margin: 22px 0 8px; border-bottom: 1px solid #222; padding-bottom: 3px; }
+.pv-doc table { font-size: 12.5px; }
+.pv-doc .semn { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 26px 32px; margin-top: 14px; }
+.pv-doc .semn div { border-top: 1px solid #555; padding-top: 4px; font-size: 12px; }
+@media print {
+  .no-print, nav, aside, .sidebar, .navbar, .alert { display: none !important; }
+  .pv-doc { border: 0; padding: 0; max-width: none; }
+  body, main { background: #fff !important; }
+}
+
+/* Formularul Raportului Zero: secțiuni și denumirea proiectului evidențiată */
+.rz-sectiune { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #e6ebf2; }
+.rz-sectiune.prima { margin-top: 0; padding-top: 0; border-top: 0; }
+.rz-titlu { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--c-primar); margin-bottom: .75rem; }
+.rz-titlu i { margin-right: .35rem; }
+.rz-denumire { margin-top: 1.25rem; padding: .9rem 1rem 1rem; border: 3px solid #8ec1f2; border-radius: 10px; background: #f1f7fe; }
+.rz-denumire > .form-label { font-weight: 700; color: var(--c-primar); }
+.rz-denumire .form-control, .rz-denumire .form-control:required { font-size: 1.1rem; font-weight: 700; border-color: #b9d7f6; background-color: #fff; }
+.rz-bifa { height: 100%; display: flex; flex-direction: column; justify-content: center; padding: .6rem .9rem; border: 1px solid #dfe5ee; border-radius: 8px; background: #fafbfd; }
+
+/* Codul Raportului Zero, mare, în colțul din dreapta sus */
+.rz-cod-mare { text-align: right; padding: .35rem .8rem; border: 2px solid #8ec1f2; border-radius: 10px; background: #f1f7fe; line-height: 1.15; }
+.rz-cod-mare .eticheta { font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6b7a90; }
+.rz-cod-mare .valoare { font-family: ui-monospace, Menlo, monospace; font-size: 1.7rem; font-weight: 800; color: var(--c-primar); white-space: nowrap; }
+.rz-cod-mare .valoare small { font-size: .9rem; font-weight: 600; }
+.rz-cod-mare .nr { font-size: .75rem; color: #6b7a90; white-space: nowrap; }
+@media print { .rz-cod-mare { background: #fff; } }
+.rz-antet-grila { display: grid; grid-template-columns: 1fr auto 1fr; gap: .75rem; align-items: start; }
+@media screen and (max-width: 900px) { .rz-antet-grila { grid-template-columns: 1fr; } .rz-antet-grila > div:first-child { display: none; } .rz-antet-grila > div:last-child { justify-content: center !important; } }
+
+/* Registrul investițiilor: stadiile (active / anulate-suspendate / finalizate) */
+.stadii-investitii .nav-link { color: #495a73; background: #fff; border: 1px solid #dfe5ee; padding: .35rem .8rem; }
+.stadii-investitii .nav-link .badge { background: #eef1f5; color: #495a73; }
+.stadii-investitii .nav-link.active { color: #fff; border-color: transparent; }
+.stadii-investitii .nav-link.active .badge { background: rgba(255,255,255,.25); color: #fff; }
+.stadii-investitii .stadiu-toate.active { background: #495a73; }
+.stadii-investitii .stadiu-active.active { background: var(--c-primar); }
+.stadii-investitii .stadiu-anulate.active { background: #c0392b; }
+.stadii-investitii .stadiu-finalizate.active { background: #2e8b57; }

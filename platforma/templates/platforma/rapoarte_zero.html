@@ -18,6 +18,9 @@
   <td>{{ p.denumire }}</td><td>{{ p.beneficiar }}</td><td class="num" data-sort="{{ p.buget_rz_ron|stringformat:'s' }}">{{ p.valoare_rz|bani }} {{ p.moneda_rz }}</td><td>{{ p.finantare }}</td>
   <td data-sort="{% if p.prioritate == 'mare' %}3{% elif p.prioritate == 'medie' %}2{% else %}1{% endif %}">{{ p.get_prioritate_display }}</td><td class="small" data-sort="{{ p.data_demarare|date:'Y-m-d' }}">{{ p.data_demarare|date:"d.m.Y" }} – {{ p.data_finalizare|date:"d.m.Y" }}</td>
   <td><span class="badge badge-stare-{{ p.stare_rz }}">{{ p.get_stare_rz_display }}</span></td>
-  <td>{% if p.pk in vizibile %}<a href="{{ p.get_absolute_url }}" class="btn btn-sm btn-outline-primary">Proiect</a>{% endif %}</td>
+  <td class="text-nowrap">{% if p.pk in vizibile %}<a href="{{ p.get_absolute_url }}" class="btn btn-sm btn-outline-primary">Proiect</a>{% endif %}
+    {% if e_admin %}<form method="post" action="{% url 'raport_zero_sterge' p.pk %}" class="d-inline" data-prompt-obligatoriu="1" data-prompt-camp="confirmare_cod"
+      data-prompt="Ștergeți definitiv Raportul Zero {{ p.cod }} ({{ p.nr_inregistrare }})? Se șterge tot proiectul: buget, contracte, facturi, plăți, documente (o arhivă completă rămâne pe server). Pentru confirmare scrieți codul proiectului: {{ p.cod }}">{% csrf_token %}
+      <input type="hidden" name="confirmare_cod"><button class="btn btn-sm btn-outline-danger" title="Șterge Raportul Zero (doar administrator)"><i class="bi bi-trash"></i></button></form>{% endif %}</td>
 </tr>{% empty %}<tr><td colspan="12" class="text-secondary text-center py-4">Niciun Raport Zero înregistrat.</td></tr>{% endfor %}</tbody></table></div></div>
 {% endblock %}
