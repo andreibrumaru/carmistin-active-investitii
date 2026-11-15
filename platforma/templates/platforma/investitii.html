@@ -3,15 +3,11 @@
 {% block continut %}
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
   <h4 class="mb-0">{% if doar_proiectele_lui and not categorie %}Proiectele mele{% else %}{{ titlu_registru }}{% endif %} <span class="text-secondary fs-6">({{ proiecte|length }})</span></h4>
-  <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Coloane">
-    <a href="{{ link_registru }}" class="btn {% if vedere == 'registru' %}btn-primary{% else %}btn-outline-primary{% endif %}"><i class="bi bi-journal-text"></i> Registru</a>
-    <a href="{{ link_financiar }}" class="btn {% if vedere == 'financiar' %}btn-primary{% else %}btn-outline-primary{% endif %}"><i class="bi bi-cash-coin"></i> Financiar</a>
-  </div>
-  <a href="{{ link_export }}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Export Excel</a>
+  <a href="{{ link_export }}" class="btn btn-sm btn-outline-success ms-auto"><i class="bi bi-file-earmark-excel"></i> Export Excel</a>
   {% if poate_crea_proiect %}<a href="{% url 'raport_zero_nou' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Raport Zero nou</a>{% endif %}
 </div>
 {% if categorie == 'aprobare' %}<div class="alert alert-light border small py-2"><i class="bi bi-hourglass-split"></i> Rapoarte Zero în flux de aprobare: încă neavizate (ciornă, trimise spre avizare sau respinse). Intră în registrul investițiilor după avizare.</div>{% endif %}
-<form class="card card-body mb-3">{% if categorie %}<input type="hidden" name="categorie" value="{{ categorie }}">{% endif %}{% if vedere == 'financiar' %}<input type="hidden" name="vedere" value="financiar">{% endif %}<div class="row g-2">
+<form class="card card-body mb-3">{% if categorie %}<input type="hidden" name="categorie" value="{{ categorie }}">{% endif %}<div class="row g-2">
   <div class="col-md-3"><select name="beneficiar" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Toți beneficiarii</option>{% for b in beneficiari %}<option value="{{ b.pk }}" {% if query.beneficiar == b.pk|stringformat:"s" %}selected{% endif %}>{{ b }}</option>{% endfor %}</select></div>
   <div class="col-md-3"><input name="q" value="{{ query.q }}" class="form-control form-control-sm" placeholder="Caută cod, denumire, beneficiar, responsabil, solicitant…"></div>
   <div class="col-md-2"><select name="responsabil" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Toți responsabilii</option>{% for r in responsabili %}<option value="{{ r.pk }}" {% if query.responsabil == r.pk|stringformat:"s" %}selected{% endif %}>{{ r.get_full_name|default:r.username }}</option>{% endfor %}</select></div>
@@ -21,41 +17,28 @@
   <div class="col-md-2"><select name="finantare" class="form-select form-select-sm"><option value="">Orice finanțare</option>{% for o in nom.tip_finantare %}<option {% if query.finantare == o.valoare %}selected{% endif %}>{{ o.valoare }}</option>{% endfor %}</select></div>
   <div class="col-auto"><button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Filtrează</button></div>
 </div></form>
-{% if not doar_proiectele_lui %}<p class="small text-secondary mb-2"><i class="bi bi-info-circle"></i> Fișa proiectului și cifrele financiare se deschid doar pentru proiectele la care aveți drept; celelalte poziții sunt marcate cu <i class="bi bi-lock"></i>. Apăsați pe capul unei coloane pentru sortare.</p>{% endif %}
+{% if not doar_proiectele_lui %}<p class="small text-secondary mb-2"><i class="bi bi-info-circle"></i> Fișa proiectului și cifrele financiare (angajat, facturat, plătit, stadiu) se văd doar pentru proiectele la care aveți drept; celelalte poziții sunt marcate cu <i class="bi bi-lock"></i>. Apăsați pe capul unei coloane pentru sortare.</p>{% endif %}
 <div class="card"><div class="table-responsive"><table class="table table-hover mb-0 align-middle tabel-filtrabil">
-{% if vedere == 'financiar' %}
-<thead><tr><th>Cod proiect</th><th>Proiect</th><th>Beneficiar</th><th>Responsabil proiect</th><th>Status / fază</th><th class="num">Buget</th><th class="num">Angajat</th><th class="num">Facturat</th><th class="num">Plătit</th><th style="width:130px">Execuție</th><th>Termen finalizare</th></tr></thead>
-<tbody>{% for p in proiecte %}{% with ok=vizibile|contine:p.pk %}{% with b=p.buget_actualizat_ron|default:p.buget_rz_ron %}
-<tr {% if ok %}onclick="location='{{ p.get_absolute_url }}'" style="cursor:pointer"{% else %}class="text-secondary" title="Nu aveți drept de acces la acest proiect"{% endif %}>
-  <td class="text-nowrap">{% if not ok %}<i class="bi bi-lock"></i> {% endif %}<span class="cod">{{ p.cod }}</span></td>
-  <td>{{ p.denumire }}<div class="small text-secondary">{{ p.linie }}{% if p.divizie %} / {{ p.divizie }}{% endif %}</div></td>
-  <td class="small">{{ p.beneficiar }}</td>
-  <td class="small">{{ p.responsabil_proiect|default:"—" }}</td>
-  <td>{% include "platforma/_status_investitie.html" %}<div><span class="badge text-bg-light">{{ p.faza }}</span></div></td>
-  {% if ok %}<td class="num">{{ b|bp:p }} <small class="text-secondary">{{ p.moneda_urmarire }}</small></td><td class="num">{{ p.angajat_ron|bp:p }}</td><td class="num">{{ p.facturat_ron|bp:p }}</td><td class="num">{{ p.platit_ron|bp:p }}</td>
-  <td><div class="progress" title="financiar {{ p.procent_executie }}%"><div class="progress-bar" style="width:{{ p.procent_executie|plafon }}%"></div></div>
-      <div class="progress mt-1" title="fizic {{ p.progres_fizic }}%"><div class="progress-bar bg-success" style="width:{{ p.progres_fizic }}%"></div></div>
-      <div class="small text-secondary">fin. {{ p.procent_executie }}% · fizic {{ p.progres_fizic }}%</div></td>
-  {% else %}<td class="num" colspan="5"><span class="small"><i class="bi bi-lock"></i> fără drept de acces</span></td>{% endif %}
-  <td class="small text-nowrap {% if p.intarziat %}text-danger fw-semibold{% endif %}" data-sort="{% if p.fara_termen %}9999-12-31{% else %}{{ p.data_finalizare|date:'Y-m-d' }}{% endif %}">{% if p.fara_termen %}<span class="badge text-bg-secondary" title="fără termen de finalizare">FT</span>{% else %}{{ p.data_finalizare|date:"d.m.Y"|default:"—" }}{% endif %}</td>
-</tr>{% endwith %}{% endwith %}{% empty %}<tr><td colspan="11" class="text-center text-secondary py-4">Nicio investiție.</td></tr>{% endfor %}</tbody>
-{% else %}
-<thead><tr><th>Cod proiect<div class="small fw-normal text-lowercase">nr. Raport Zero</div></th><th>Denumire</th><th>Beneficiar</th><th>Responsabil proiect</th><th class="num">Valoare totală</th><th>Data avizare</th><th>Termen finalizare</th><th style="width:150px" title="facturat raportat la valoarea totală a proiectului">Stadiu execuție</th><th>Stare RZ</th>{% if not categorie %}<th>Status</th>{% endif %}<th></th></tr></thead>
+<thead><tr><th>Cod proiect<div class="small fw-normal text-lowercase">nr. Raport Zero</div></th><th style="min-width:230px">Denumire</th><th style="min-width:130px">Beneficiar</th><th style="min-width:120px">Responsabil proiect</th>
+  <th class="num">Valoare totală</th><th class="num" title="valoarea contractelor (inclusiv acte adiționale)">Angajat</th><th class="num">Facturat</th><th class="num">Plătit</th>
+  <th>Data avizare</th><th>Termen finalizare</th><th style="width:150px" title="facturat raportat la valoarea totală a proiectului; dedesubt – progresul fizic">Stadiu execuție</th><th>Stare RZ</th>{% if not categorie %}<th>Status</th>{% endif %}<th></th></tr></thead>
 <tbody>{% for p in proiecte %}{% with ok=vizibile|contine:p.pk %}<tr {% if ok %}onclick="if(!event.target.closest('a,button,form'))location='{{ p.get_absolute_url }}'" style="cursor:pointer"{% else %}class="text-secondary" title="Nu aveți drept de acces la acest proiect"{% endif %}>
   <td class="text-nowrap">{% if ok %}<a class="cod" href="{% url 'raport_zero' p.pk %}" title="Raportul Zero">{{ p.cod }}</a>{% else %}<i class="bi bi-lock"></i> <span class="cod text-secondary">{{ p.cod }}</span>{% endif %}</td>
-  <td>{{ p.denumire }}<div class="small text-secondary">{{ p.linie }}{% if p.divizie %} / {{ p.divizie }}{% endif %}</div></td>
+  <td>{{ p.denumire }}<div class="small text-secondary">{{ p.linie }}{% if p.divizie %} / {{ p.divizie }}{% endif %}{% if p.faza %} · <span class="badge text-bg-light">{{ p.faza }}</span>{% endif %}{% if not p.locatie_id %} · <span class="badge text-bg-warning" title="nu se raportează (încă) la un activ din registrele de active">fără activ</span>{% endif %}</div></td>
   <td class="small">{{ p.beneficiar }}</td>
   <td class="small">{{ p.responsabil_proiect|default:"—" }}</td>
   <td class="num text-nowrap" data-sort="{{ p.buget_rz_ron|stringformat:'s' }}">{{ p.valoare_rz|bani }} <small class="text-secondary">{{ p.moneda_rz }}</small></td>
+  {% if ok %}<td class="num text-nowrap" data-sort="{{ p.angajat_ron|stringformat:'s' }}">{{ p.angajat_ron|bp:p }}</td><td class="num text-nowrap" data-sort="{{ p.facturat_ron|stringformat:'s' }}">{{ p.facturat_ron|bp:p }}</td><td class="num text-nowrap" data-sort="{{ p.platit_ron|stringformat:'s' }}">{{ p.platit_ron|bp:p }}</td>
+  {% else %}<td class="num" data-sort="-1"><i class="bi bi-lock small"></i></td><td class="num" data-sort="-1"><i class="bi bi-lock small"></i></td><td class="num" data-sort="-1"><i class="bi bi-lock small"></i></td>{% endif %}
   {% with av=p.ultima_avizare_rz %}<td class="small text-nowrap" data-sort="{% if av.0 %}{{ av.0|date:'Y-m-d H:i' }}{% endif %}">{% if av.0 %}{{ av.0|date:"d.m.Y" }}{% if av.1 %} <span class="badge text-bg-light">rev.{{ av.1 }}</span>{% endif %}{% else %}<span class="text-secondary">—</span>{% endif %}</td>{% endwith %}
   <td class="small text-nowrap {% if p.intarziat %}text-danger fw-semibold{% endif %}" data-sort="{% if p.fara_termen %}9999-12-31{% else %}{{ p.data_finalizare|date:'Y-m-d' }}{% endif %}">{% if p.fara_termen %}<span class="badge text-bg-secondary" title="fără termen de finalizare">FT</span>{% else %}{{ p.data_finalizare|date:"d.m.Y"|default:"—" }}{% endif %}</td>
-  <td data-sort="{% if ok %}{{ p.procent_executie|stringformat:'s' }}{% else %}-1{% endif %}">{% if ok %}<div class="d-flex align-items-center gap-2"><div class="progress flex-grow-1" style="height:7px"><div class="progress-bar {% if p.procent_executie >= 100 %}bg-success{% endif %}" style="width:{{ p.procent_executie|plafon }}%"></div></div><span class="small fw-semibold text-nowrap">{{ p.procent_executie }}%</span></div>{% else %}<span class="small"><i class="bi bi-lock"></i></span>{% endif %}</td>
+  <td data-sort="{% if ok %}{{ p.procent_executie|stringformat:'s' }}{% else %}-1{% endif %}">{% if ok %}<div class="d-flex align-items-center gap-2"><div class="progress flex-grow-1" style="height:7px" title="financiar {{ p.procent_executie }}%"><div class="progress-bar {% if p.procent_executie >= 100 %}bg-success{% endif %}" style="width:{{ p.procent_executie|plafon }}%"></div></div><span class="small fw-semibold text-nowrap">{{ p.procent_executie }}%</span></div>
+      <div class="small text-secondary text-nowrap">fizic {{ p.progres_fizic }}%</div>{% else %}<span class="small"><i class="bi bi-lock"></i></span>{% endif %}</td>
   <td class="small text-nowrap"><span class="badge {% if p.stare_rz == 'aprobat' %}badge-stare-aprobat{% elif p.stare_rz == 'trimis' %}badge-stare-trimis{% elif p.stare_rz == 'respins' %}badge-stare-respins{% else %}badge-stare-ciorna{% endif %}">{{ p.stare_rz_registru }}</span></td>
   {% if not categorie %}<td>{% include "platforma/_status_investitie.html" %}</td>{% endif %}
   <td class="text-nowrap">{% if e_admin %}<form method="post" action="{% url 'raport_zero_sterge' p.pk %}" class="d-inline" data-prompt-obligatoriu="1" data-prompt-camp="confirmare_cod"
       data-prompt="Ștergeți definitiv Raportul Zero {{ p.cod }}? Se șterge tot proiectul: buget, contracte, facturi, plăți, documente (o arhivă completă rămâne pe server). Pentru confirmare scrieți codul proiectului: {{ p.cod }}">{% csrf_token %}
       <input type="hidden" name="confirmare_cod"><button class="btn btn-sm btn-outline-danger py-0" title="Șterge Raportul Zero (doar administrator)"><i class="bi bi-trash"></i></button></form>{% endif %}</td>
-</tr>{% endwith %}{% empty %}<tr><td colspan="11" class="text-center text-secondary py-4">{% if categorie == 'aprobare' %}Niciun Raport Zero în aprobare.{% else %}Nicio investiție în această categorie.{% endif %}</td></tr>{% endfor %}</tbody>
-{% endif %}
+</tr>{% endwith %}{% empty %}<tr><td colspan="15" class="text-center text-secondary py-4">{% if categorie == 'aprobare' %}Niciun Raport Zero în aprobare.{% else %}Nicio investiție în această categorie.{% endif %}</td></tr>{% endfor %}</tbody>
 </table></div></div>
 {% endblock %}

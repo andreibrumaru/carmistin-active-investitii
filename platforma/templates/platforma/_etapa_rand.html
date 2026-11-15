@@ -1,0 +1,36 @@
+{# Un rând de etapă (principală sau subetapă): mâner, nr., denumire, status (modificabil), progres, termen, data finalizării, acțiuni #}
+<div class="et-rand {% if e.parinte_id %}et-copil{% else %}et-principala{% endif %} {% if e.status == 'finalizata' %}gata{% elif e.intarziata %}intarziata{% endif %}"
+     data-id="{{ e.pk }}" data-parinte="{{ e.parinte_id|default:'' }}" data-url="{% url 'etapa_modifica' p.pk e.pk %}">
+  <div class="et-linie">
+    {% if editabil %}<span class="et-maner" title="trageți pentru a muta {% if e.parinte_id %}subetapa{% else %}etapa (cu subetapele ei){% endif %}"><i class="bi bi-grip-vertical"></i></span>{% endif %}
+    <span class="et-cap-nr">
+      {% if not e.parinte_id %}<button type="button" class="et-caret{% if not e.copii %} gol{% endif %}" title="subetape"><i class="bi bi-chevron-right"></i></button>{% endif %}
+      <span class="et-nr">{% if e.status == 'finalizata' %}<i class="bi bi-check-lg"></i>{% else %}<span class="et-index"></span>{% endif %}</span>
+    </span>
+    <span class="et-nume" title="{{ e.descriere }}"><span class="et-nume-text">{{ e.denumire }}</span>{% if not e.parinte_id and e.copii %} <span class="et-nr-sub" title="subetape">{{ e.copii|length }}</span>{% endif %}</span>
+    <span class="et-resp-cel">{% if editabil %}<button type="button" class="et-resp-btn{% if not e.responsabil %} gol{% endif %}" data-membru="{{ e.responsabil_id|default:'' }}" title="alegeți responsabilul din echipa proiectului">{% endif %}
+      {% if e.responsabil %}<span class="sp-avatar{% if not e.responsabil.user_id %} extern{% endif %}" data-nume="{{ e.responsabil.nume_afisat }}">{{ e.responsabil.nume_afisat|slice:":1"|upper }}</span><span class="et-resp-nume">{{ e.responsabil.nume_afisat }}</span>{% elif editabil %}<i class="bi bi-person-plus"></i> <span class="et-resp-nume">responsabil</span>{% else %}<span class="text-secondary">—</span>{% endif %}
+    {% if editabil %}</button>{% endif %}</span>
+    {% if editabil %}<span class="dropdown et-status-loc">
+      <button type="button" class="badge etapa-st-{{ e.status }} et-status border-0" data-bs-toggle="dropdown" title="schimbă statusul">{% if e.intarziata %}<i class="bi bi-alarm"></i> {% endif %}{{ e.get_status_display }} <i class="bi bi-chevron-down"></i></button>
+      <ul class="dropdown-menu dropdown-menu-sm">{% for c, et in statusuri_etapa %}<li><button type="button" class="dropdown-item small et-alege-status {% if c == e.status %}active{% endif %}" data-status="{{ c }}"><span class="badge etapa-st-{{ c }}">{{ et }}</span></button></li>{% endfor %}</ul>
+    </span>{% else %}<span class="badge etapa-st-{{ e.status }} et-status">{{ e.get_status_display }}</span>{% endif %}
+    <span class="et-progres" title="progres {{ e.progres }}%{% if e.copii %} (media subetapelor){% endif %}"><span class="progress"><span class="progress-bar {% if e.status == 'blocata' %}bg-danger{% elif e.status == 'finalizata' %}bg-success{% endif %}" style="width:{{ e.progres }}%"></span></span><small>{{ e.progres }}%</small></span>
+    <span class="et-termen" title="termen planificat">{% if e.final_plan %}<i class="bi bi-flag"></i> {{ e.final_plan|date:"d.m.y" }}{% endif %}</span>
+    {% if editabil %}<input type="date" class="form-control form-control-sm et-data" value="{{ e.final_real|date:'Y-m-d' }}" title="data finalizării (golită = redevine în curs)">
+    <span class="et-actiuni">{% if not e.parinte_id %}<button type="button" class="btn btn-link btn-sm p-0 et-adauga-sub" title="adaugă o subetapă"><i class="bi bi-node-plus"></i></button>{% endif %}<button type="button" class="btn btn-link btn-sm p-0 text-secondary" data-bs-toggle="collapse" data-bs-target="#et-{{ e.pk }}" title="detalii"><i class="bi bi-three-dots"></i></button></span>
+    {% else %}<span class="et-data-text small">{% if e.final_real %}<i class="bi bi-check2"></i> {{ e.final_real|date:"d.m.Y" }}{% endif %}</span>{% endif %}
+  </div>
+  {% if editabil %}<button type="button" class="et-plus et-plus-intre" data-dupa="{{ e.pk }}" title="inserează {% if e.parinte_id %}o subetapă{% else %}o etapă{% endif %} după aceasta"><i class="bi bi-plus"></i></button>
+  <div class="collapse" id="et-{{ e.pk }}"><form method="post" action="{% url 'etapa_modifica' p.pk e.pk %}" class="row g-2 mt-1 mb-2 p-2 rounded bg-body-tertiary small et-form">{% csrf_token %}
+    <div class="col-md-6"><input name="denumire" value="{{ e.denumire }}" class="form-control form-control-sm" required></div>
+    <div class="col-md-6"><input name="descriere" value="{{ e.descriere }}" class="form-control form-control-sm" placeholder="Descriere scurtă"></div>
+    <div class="col-6 col-md-2"><label class="form-label mb-0">Progres %</label><input type="number" name="progres" min="0" max="100" value="{{ e.progres }}" class="form-control form-control-sm" {% if e.copii %}disabled title="media subetapelor"{% endif %}></div>
+    <div class="col-md-4"><label class="form-label mb-0">Responsabil</label><select name="responsabil" class="form-select form-select-sm"><option value="">—</option>{% for mb in echipa_membri %}<option value="{{ mb.pk }}" {% if mb.pk == e.responsabil_id %}selected{% endif %}>{{ mb.nume_afisat }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-3"><label class="form-label mb-0">Start plan</label><input type="date" name="start_plan" value="{{ e.start_plan|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md-3"><label class="form-label mb-0">Termen plan</label><input type="date" name="final_plan" value="{{ e.final_plan|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+    <div class="col-md-9"><input name="observatii" value="{{ e.observatii }}" class="form-control form-control-sm" placeholder="Observații"></div>
+    <div class="col-md-3 d-flex gap-1"><button class="btn btn-sm btn-primary flex-grow-1">Salvează</button>
+      <button type="button" class="btn btn-sm btn-outline-danger et-sterge" title="șterge"><i class="bi bi-trash"></i></button></div>
+  </form></div>{% endif %}
+</div>

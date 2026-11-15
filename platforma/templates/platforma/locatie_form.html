@@ -137,8 +137,11 @@
   const st = document.getElementById('id_stare_activ'), data = document.getElementById('id_data_schimbare_stare'), motiv = document.getElementById('id_motiv_schimbare_stare');
   if (!st || !data || !motiv) return;
   const initial = st.dataset.initial, cutie = el => el.closest('[class*="col-"]');
+  const etData = document.querySelector('label[for=id_data_schimbare_stare]'), textData = etData ? etData.innerHTML : '';
   const aplica = () => {
-    const schimbat = !!initial && st.value !== initial;
+    const reziliat = st.value === 'reziliat' && initial !== 'reziliat';
+    const schimbat = (!!initial && st.value !== initial) || reziliat;
+    if (etData) etData.innerHTML = reziliat ? 'Data rezilierii <span class="text-danger">*</span>' : textData;
     [data, motiv].forEach(el => cutie(el).classList.toggle('d-none', !schimbat));
     cutie(motiv).className = cutie(motiv).className.includes('d-none') ? 'col-12 d-none' : 'col-12';
     if (schimbat && !data.value) data.value = new Date().toISOString().slice(0, 10);

@@ -11,7 +11,7 @@
 <script>
 const h = L.map('harta').setView([45.0, 24.8], 7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '© OpenStreetMap'}).addTo(h);
-const culori = {functional: '#198754', nefunctional: '#6c757d', teren: '#a0682a', retail: '#1d4f91'};
+const culori = {functional: '#198754', nefunctional: '#6c757d', teren: '#a0682a', retail: '#1d4f91', reziliat: '#b02a37'};
 for (const p of JSON.parse(document.getElementById('puncte').textContent)) {
   L.circleMarker([p.lat, p.lng], {radius: 7, color: culori[p.tip] || '#555', fillOpacity: .8})
    .bindPopup(`<b>${p.cod}</b> ${p.den}<br>${p.status}<br><a href="/active/${p.id}/">Deschide</a>`).addTo(h);

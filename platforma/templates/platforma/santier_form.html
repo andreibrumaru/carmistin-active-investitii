@@ -1,0 +1,171 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Raport de șantier · {{ p.cod }}{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-start gap-2 mb-3">
+  <a href="{% url 'proiect_detaliu' p.pk %}?tab=monitorizare&sectiune=rapoarte" class="btn btn-sm btn-outline-secondary me-2"><i class="bi bi-arrow-left"></i></a>
+  <div><h4 class="mb-0">{% if r %}Raport de șantier – ciornă{% else %}Raport de șantier nou{% endif %}</h4>
+    <div class="small text-secondary"><span class="cod">{{ p.cod }}</span> · {{ p.denumire }} · întocmit de <b>{% if r %}{{ r.autor.get_full_name|default:r.autor.username }}{% else %}{{ request.user.get_full_name|default:request.user.username }}{% endif %}</b></div></div>
+</div>
+
+<form method="post" enctype="multipart/form-data" id="formSantier" class="raport-santier">{% csrf_token %}
+<div class="row g-3">
+ <div class="col-xl-8">
+
+  {# --- date generale --- #}
+  <div class="card mb-3"><div class="card-body row g-2">
+    <div class="col-md-4"><label class="form-label small fw-semibold mb-0">Data raportului</label><input type="date" name="data" value="{% if r %}{{ r.data|date:'Y-m-d' }}{% else %}{{ azi|date:'Y-m-d' }}{% endif %}" max="{{ azi|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+  </div></div>
+
+  {# --- personal în șantier (firmă / nr. persoane) --- #}
+  <div class="card mb-3 rs-sectiune"><div class="card-header d-flex align-items-center"><i class="bi bi-cone-striped me-2"></i><span class="fw-semibold">Personal în șantier</span>
+    <span class="ms-auto small">Total personal: <b id="rsTotal">0</b></span></div>
+    <div class="card-body p-2"><table class="table table-sm align-middle mb-1 rs-tabel" data-sablon="sablonCon"><thead><tr><th>Firmă / echipă</th><th style="width:150px">Nr. persoane</th><th style="width:34px"></th></tr></thead><tbody>
+    {% for c in constructori %}<tr><td><input name="con_firma" value="{{ c.firma }}" list="rsFirme" class="form-control form-control-sm" placeholder="ex. Constructii Moldova SRL"></td><td><input name="con_muncitori" type="number" min="0" value="{{ c.muncitori }}" class="form-control form-control-sm rs-muncitori"></td><td>{% include "platforma/_rs_sterge.html" %}</td></tr>{% endfor %}
+    </tbody></table><button type="button" class="btn btn-link btn-sm rs-adauga" data-tabel="0"><i class="bi bi-plus-lg"></i> firmă / echipă</button>
+    <datalist id="rsFirme">{% for f in firme %}<option value="{{ f }}">{% endfor %}</datalist></div></div>
+
+  {# --- activități realizate (listă cu buline) --- #}
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-list-check me-2"></i><span class="fw-semibold">Activități realizate</span> <span class="small text-secondary">– o activitate pe rând; Enter adaugă rândul următor</span></div>
+    <div class="card-body p-2"><ul class="rs-buline mb-1" id="rsActivitati">
+    {% for a in activitati %}<li><input name="activitate" value="{{ a }}" class="form-control form-control-sm" placeholder="ex. Turnare beton fundații axele A–D">{% include "platforma/_rs_sterge.html" %}</li>{% endfor %}
+    </ul><button type="button" class="btn btn-link btn-sm" id="rsAdaugaActivitate"><i class="bi bi-plus-lg"></i> activitate</button></div></div>
+
+  {# --- materiale aprovizionate --- #}
+  <div class="card mb-3 rs-sectiune"><div class="card-header"><i class="bi bi-box-seam me-2"></i><span class="fw-semibold">Materiale aprovizionate</span></div>
+    <div class="card-body p-2"><table class="table table-sm align-middle mb-1 rs-tabel rs-cheie" data-prefix="mat"><thead><tr><th>Material</th><th style="width:95px">Cantitate</th><th style="width:70px">UM</th><th>Furnizor / nr. aviz</th><th style="width:150px">Avize de însoțire</th><th style="width:34px"></th></tr></thead><tbody>
+    {% for x in materiale %}{% with k=forloop.counter %}<tr><td><input type="hidden" name="mat_key" value="{{ k }}"><input name="mat_denumire_{{ k }}" value="{{ x.denumire|default:'' }}" class="form-control form-control-sm" placeholder="ex. Beton C25/30"></td>
+      <td><input name="mat_cantitate_{{ k }}" value="{{ x.cantitate|default:'' }}" class="form-control form-control-sm"></td><td><input name="mat_um_{{ k }}" value="{{ x.um|default:'' }}" list="rsUM" class="form-control form-control-sm"></td>
+      <td><input name="mat_furnizor_{{ k }}" value="{{ x.furnizor|default:'' }}" class="form-control form-control-sm" placeholder="ex. Holcim, aviz 1234"></td>
+      <td><input type="hidden" name="mat_avize_ids_{{ k }}" value="{% for d in x.docs %}{{ d.pk }}{% if not forloop.last %},{% endif %}{% endfor %}">
+        <div class="rs-avize">{% for d in x.docs %}<span class="rs-aviz" data-id="{{ d.pk }}"><a href="{% url 'document' d.pk %}" title="{{ d.titlu }}"><i class="bi bi-file-earmark-text"></i> aviz {{ forloop.counter }}</a><button type="button" class="rs-aviz-x" title="scoate avizul">×</button></span>{% endfor %}</div>
+        <label class="btn btn-sm btn-outline-secondary mb-0 py-0 text-nowrap"><i class="bi bi-paperclip"></i> atașează<input type="file" name="mat_avize_{{ k }}" multiple accept=".pdf,image/*" data-redimensioneaza class="d-none rs-aviz-fisier"></label>
+        <span class="small text-secondary rs-aviz-nr"></span></td>
+      <td>{% include "platforma/_rs_sterge.html" %}</td></tr>{% endwith %}{% endfor %}
+    </tbody></table><button type="button" class="btn btn-link btn-sm rs-adauga"><i class="bi bi-plus-lg"></i> material</button>
+    <datalist id="rsUM"><option value="mc"><option value="mp"><option value="ml"><option value="kg"><option value="t"><option value="buc"><option value="set"><option value="l"><option value="sac"><option value="palet"></datalist></div></div>
+
+  {# --- utilaje --- #}
+  <div class="card mb-3 rs-sectiune"><div class="card-header"><i class="bi bi-truck me-2"></i><span class="fw-semibold">Utilaje pe șantier</span></div>
+    <div class="card-body p-2"><table class="table table-sm align-middle mb-1 rs-tabel"><thead><tr><th>Utilaj</th><th style="width:90px">Număr</th><th>Observații (ore, operator…)</th><th style="width:34px"></th></tr></thead><tbody>
+    {% for x in utilaje %}<tr><td><input name="util_denumire" value="{{ x.denumire }}" class="form-control form-control-sm" placeholder="ex. Excavator 20 t"></td><td><input name="util_numar" value="{{ x.numar }}" class="form-control form-control-sm"></td><td><input name="util_observatii" value="{{ x.observatii }}" class="form-control form-control-sm"></td><td>{% include "platforma/_rs_sterge.html" %}</td></tr>{% endfor %}
+    </tbody></table><button type="button" class="btn btn-link btn-sm rs-adauga"><i class="bi bi-plus-lg"></i> utilaj</button></div></div>
+
+  {# --- snag list cu poze --- #}
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-exclamation-diamond me-2"></i><span class="fw-semibold">Snag list</span> <span class="small text-secondary">– neconformități / lucrări de remediat, cu fotografii</span></div>
+    <div class="card-body p-2"><div id="rsSnag">
+    {% for s in snag %}{% include "platforma/_rs_snag.html" with k=forloop.counter s=s %}{% endfor %}
+    </div><button type="button" class="btn btn-link btn-sm" id="rsAdaugaSnag"><i class="bi bi-plus-lg"></i> punct snag list</button></div></div>
+
+  {# --- observații --- #}
+  <div class="card mb-3"><div class="card-body row g-2">
+    <div class="col-md-6"><label class="form-label small fw-semibold mb-0">Probleme / blocaje</label><textarea name="probleme" rows="2" class="form-control form-control-sm">{{ r.probleme }}</textarea></div>
+    <div class="col-md-6"><label class="form-label small fw-semibold mb-0">Pașii următori</label><textarea name="pasi_urmatori" rows="2" class="form-control form-control-sm">{{ r.pasi_urmatori }}</textarea></div>
+  </div></div>
+ </div>
+
+ <div class="col-xl-4">
+  <div class="rs-lateral">
+  {# --- vreme --- #}
+  <div class="card mb-3" id="rsVreme" data-url="{% url 'santier_meteo' p.pk %}" data-auto="{% if not r or not r.meteo %}1{% endif %}"><div class="card-header d-flex align-items-center"><i class="bi bi-cloud-sun me-2"></i><span class="fw-semibold">Vreme</span>
+    <button type="button" class="btn btn-sm btn-outline-primary ms-auto py-0" id="rsPreiaVreme" title="vremea zilei raportului, pentru locația activului"><i class="bi bi-cloud-download"></i> Preia vremea</button></div><div class="card-body">
+    <div class="rs-vreme mb-2">{% for v in vreme_optiuni %}<input type="radio" class="btn-check" name="vreme" id="vr{{ forloop.counter }}" value="{{ v }}" {% if v == vreme %}checked{% endif %}><label class="btn btn-sm btn-outline-secondary" for="vr{{ forloop.counter }}">{{ v }}</label>{% endfor %}</div>
+    <input name="temperatura" value="{{ temperatura }}" class="form-control form-control-sm" placeholder="Temperatură / detalii, ex. 14 °C, vânt slab">
+    <div class="form-text" id="rsVremeSursa">{% if p.locatie and p.locatie.lat is not None %}Se preia automat pentru {{ p.locatie.cod|default:p.locatie.denumire }} (Open-Meteo); o puteți corecta.{% else %}Proiectul nu are activ cu coordonate – completați manual.{% endif %}</div>
+  </div></div>
+
+  {# --- fotografii generale --- #}
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-camera me-2"></i><span class="fw-semibold">Fotografii</span></div><div class="card-body">
+    {% if poze_generale %}<div class="raport-poze mb-2">{% for d in poze_generale %}<a href="{% url 'document' d.pk %}" title="{{ d.titlu }}"><img src="{% url 'document' d.pk %}{% if d.miniatura %}?m=1{% endif %}" alt="" loading="lazy"></a>{% endfor %}</div>{% endif %}
+    <input type="file" name="poze" multiple accept="image/*" data-redimensioneaza class="form-control form-control-sm">
+    <div class="form-text">Se micșorează automat înainte de trimitere.</div>
+  </div></div>
+
+  <div class="card"><div class="card-body d-grid gap-2">
+    <button class="btn btn-outline-secondary" name="actiune" value="ciorna"><i class="bi bi-save"></i> Salvează ciorna</button>
+    <button class="btn btn-primary" name="actiune" value="finalizeaza" data-confirm="Finalizați raportul? Primește număr, nu se mai poate modifica, iar echipa proiectului este notificată (în aplicație și pe email)."><i class="bi bi-send-check"></i> Finalizează și notifică echipa</button>
+    <div class="small text-secondary">După finalizare, fiecare membru al echipei proiectului primește notificare cu link către raport.</div>
+  </div></div>
+  </div>
+ </div>
+</div>
+</form>
+
+<template id="sablonSnag">{% include "platforma/_rs_snag.html" with k="__K__" %}</template>
+{% endblock %}
+{% block scripturi %}
+<script>
+(() => {
+  const f = document.getElementById('formSantier');
+  // rânduri noi în tabele: copie a ultimului rând, golită
+  let cheieNoua = 500;
+  f.querySelectorAll('.rs-adauga').forEach(b => b.addEventListener('click', () => {
+    const tab = b.previousElementSibling, tb = tab.querySelector('tbody'), ult = tb.lastElementChild;
+    const nou = ult.cloneNode(true); nou.querySelectorAll('input').forEach(i => i.value = '');
+    if (tab.classList.contains('rs-cheie')) {  // rânduri cu cheie (materiale + avize): cheie nouă în numele câmpurilor
+      const vechi = ult.querySelector('[name$="_key"]').value, k = 'n' + (++cheieNoua);
+      nou.querySelectorAll('[name]').forEach(i => { i.name = i.name.endsWith('_key') ? i.name : i.name.replace(new RegExp('_' + vechi + '$'), '_' + k); });
+      nou.querySelector('[name$="_key"]').value = k;
+      nou.querySelectorAll('.rs-aviz').forEach(x => x.remove()); nou.querySelectorAll('.rs-aviz-nr').forEach(x => x.textContent = '');
+    }
+    tb.appendChild(nou); nou.querySelector('input:not([type=hidden])').focus(); total();
+  }));
+  f.addEventListener('click', e => {  // scoate un aviz deja atașat (rămâne arhivat în documentele proiectului)
+    const x = e.target.closest('.rs-aviz-x'); if (!x) return;
+    const sp = x.closest('.rs-aviz'), td = sp.closest('td'), h = td.querySelector('[name^="mat_avize_ids_"]');
+    h.value = h.value.split(',').filter(v => v && v !== sp.dataset.id).join(','); sp.remove();
+  });
+  f.addEventListener('change', e => {
+    if (!e.target.classList.contains('rs-aviz-fisier')) return;
+    const n = e.target.files.length; e.target.closest('td').querySelector('.rs-aviz-nr').textContent = n ? `${n} fișier${n === 1 ? '' : 'e'} nou${n === 1 ? '' : 'i'}` : '';
+  });
+  f.addEventListener('click', e => {
+    const x = e.target.closest('.rs-sterge'); if (!x) return;
+    const rand = x.closest('tr, li, .rs-snag'), parinte = rand.parentElement;
+    if (parinte.children.length > 1 || rand.classList.contains('rs-snag')) rand.remove(); else rand.querySelectorAll('input, textarea').forEach(i => i.value = '');
+    total();
+  });
+  // activități: Enter adaugă rândul următor
+  const lista = document.getElementById('rsActivitati');
+  const activitateNoua = (dupa) => { const li = lista.lastElementChild.cloneNode(true); li.querySelector('input').value = ''; dupa ? dupa.after(li) : lista.appendChild(li); li.querySelector('input').focus(); };
+  document.getElementById('rsAdaugaActivitate').addEventListener('click', () => activitateNoua());
+  lista.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.name === 'activitate') { e.preventDefault(); activitateNoua(e.target.closest('li')); } });
+  f.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.name !== 'activitate') e.preventDefault(); });
+  // snag list
+  let k = 1000;
+  document.getElementById('rsAdaugaSnag').addEventListener('click', () => {
+    const t = document.getElementById('sablonSnag').innerHTML.replaceAll('__K__', ++k);
+    document.getElementById('rsSnag').insertAdjacentHTML('beforeend', t);
+    document.getElementById('rsSnag').lastElementChild.querySelector('input').focus();
+  });
+  f.addEventListener('change', e => {  // câte poze s-au ales la un punct din snag list
+    if (!(e.target.name || '').startsWith('snag_poze_')) return;
+    const n = e.target.files.length; e.target.closest('.rs-snag').querySelector('.rs-snag-nr').textContent = n ? `${n} poz${n === 1 ? 'ă' : 'e'}` : '';
+  });
+  // vremea: preluată automat (raport nou / fără vreme) și la schimbarea datei, dacă nu a fost modificată de mână
+  const cardV = document.getElementById('rsVreme'), sursa = document.getElementById('rsVremeSursa'), temp = f.querySelector('[name=temperatura]');
+  let atinsDeMana = false;
+  f.querySelectorAll('[name=vreme]').forEach(x => x.addEventListener('change', () => { atinsDeMana = true; }));
+  temp.addEventListener('input', () => { atinsDeMana = true; });
+  async function preiaVremea(fortat) {
+    if (!fortat && atinsDeMana) return;
+    const data = f.querySelector('[name=data]').value;
+    sursa.textContent = 'Se preia vremea…';
+    try {
+      const j = await (await fetch(`${cardV.dataset.url}?data=${encodeURIComponent(data)}`, {headers: {'Accept': 'application/json'}})).json();
+      if (!j.ok) { sursa.textContent = j.mesaj; return; }
+      const opt = [...f.querySelectorAll('[name=vreme]')].find(x => x.value === j.vreme);
+      if (opt) opt.checked = true;
+      temp.value = j.detalii; atinsDeMana = false;
+      sursa.innerHTML = `<i class="bi bi-check2 text-success"></i> Preluat: ${j.sursa}. Puteți corecta.`;
+    } catch (e) { sursa.textContent = 'Serviciul meteo nu a răspuns – completați manual.'; }
+  }
+  document.getElementById('rsPreiaVreme').addEventListener('click', () => preiaVremea(true));
+  f.querySelector('[name=data]').addEventListener('change', () => preiaVremea(false));
+  if (cardV.dataset.auto) preiaVremea(false);
+  // total muncitori
+  const total = () => { document.getElementById('rsTotal').textContent = [...f.querySelectorAll('.rs-muncitori')].reduce((a, i) => a + (parseInt(i.value) || 0), 0); };
+  f.addEventListener('input', e => { if (e.target.classList.contains('rs-muncitori')) total(); });
+  total();
+})();
+</script>
+{% endblock %}

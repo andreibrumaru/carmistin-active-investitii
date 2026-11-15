@@ -5,3 +5,5 @@ requests>=2.31
 gunicorn>=21.2
 psycopg2-binary>=2.9
 django-auth-ldap>=4.6
+Pillow>=10.0
+fpdf2>=2.7,<3

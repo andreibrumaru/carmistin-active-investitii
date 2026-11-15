@@ -28,10 +28,13 @@ def normalizeaza_cod(text):
 
 
 def urmatorul_cod_locatie(prefix):
-    from .models import Locatie
+    from .models import CodLocatieRetras, Locatie
     prefix = prefix.upper()
     max_nr = 0
-    for c in Locatie.objects.filter(cod__startswith=prefix + ".").values_list("cod", flat=True):
+    # codurile activelor existente (inclusiv reziliate) și cele retrase nu se realocă niciodată
+    folosite = list(Locatie.objects.filter(cod__startswith=prefix + ".").values_list("cod", flat=True))
+    folosite += list(CodLocatieRetras.objects.filter(cod__startswith=prefix + ".").values_list("cod", flat=True))
+    for c in folosite:
         try:
             max_nr = max(max_nr, int(c.split(".")[1]))
         except (IndexError, ValueError):

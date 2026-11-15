@@ -45,6 +45,7 @@ def proiecte_vizibile(user):
         return qs
     return qs.filter(
         Q(pm=user) | Q(coordonator=user) | Q(pm__profil__coordonator=user) | Q(implementator=user) | Q(accese__user=user)
+        | Q(echipa__user=user)  # membrii echipei de proiect cu cont în aplicație
     ).distinct()
 
 
@@ -62,6 +63,28 @@ def poate_edita(user, proiect):
     if proiect.pm_id and getattr(getattr(proiect.pm, "profil", None), "coordonator_id", None) == user.pk:
         return True
     return proiect.accese.filter(user=user, nivel="editare").exists()
+
+
+def e_responsabil_proiect(user, proiect):
+    """Responsabilul proiectului: PM-ul sau coordonatorul proiectului."""
+    return bool(user.is_authenticated and user.pk in (proiect.pm_id, proiect.coordonator_id))
+
+
+def poate_setari(user, proiect):
+    """Setările proiectului (configurator, echipă, acces) – doar responsabilul proiectului și administratorii (pot fi mai mulți)."""
+    return e_admin(user) or (not doar_citire(user) and e_responsabil_proiect(user, proiect))
+
+
+def poate_gestiona_echipa(user, proiect):
+    """Echipa proiectului se stabilește din Setări: responsabilul proiectului și administratorii."""
+    return poate_setari(user, proiect)
+
+
+def poate_raporta(user, proiect):
+    """Raportul zilnic de activitate: cine editează proiectul și membrii echipei cu cont în aplicație."""
+    if doar_citire(user):
+        return False
+    return poate_edita(user, proiect) or proiect.echipa.filter(user=user).exists()
 
 
 def poate_edita_financiar(user, proiect):

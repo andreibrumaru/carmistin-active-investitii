@@ -1,0 +1,13 @@
+{# Investiție nealocată unui activ: badge + (pentru responsabil / admin) alocarea ulterioară la un activ al beneficiarului #}
+<span class="badge text-bg-warning" title="Investiția nu se raportează (încă) la un activ din registrele de active"><i class="bi bi-question-diamond"></i> fără activ alocat</span>
+{% if active_alocare is not None %}
+<form method="post" action="{% url 'proiect_aloca_activ' p.pk %}" class="d-inline-flex gap-1 align-items-center ms-2 mt-1"
+      data-confirm="Alocați investiția {{ p.cod }} activului ales? Codul proiectului rămâne {{ p.cod }}.">{% csrf_token %}
+  <input type="hidden" name="inapoi" value="{{ request.get_full_path }}">
+  <select name="locatie" class="form-select form-select-sm" style="max-width:320px" required>
+    <option value="">— alegeți activul ({{ p.beneficiar }}) —</option>
+    {% for l in active_alocare %}<option value="{{ l.pk }}">{{ l.cod }} · {{ l.denumire|truncatechars:60 }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-sm btn-outline-primary text-nowrap"><i class="bi bi-link-45deg"></i> Alocă unui activ</button>
+</form>
+{% endif %}

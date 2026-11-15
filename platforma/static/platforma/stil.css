@@ -1,14 +1,5 @@
 :root { --c-primar: #1d4f91; --c-accent: #e8a33d; --c-fundal: #f4f6f9; }
 body { background: var(--c-fundal); font-size: .92rem; }
-.sidebar { width: 245px; min-height: 100vh; background: #14233c; color: #c9d3e3; padding: 1rem .75rem; position: sticky; top: 0; flex-shrink: 0; display: flex; flex-direction: column; }
-.sidebar .brand { color: #fff; font-weight: 700; letter-spacing: .12em; text-decoration: none; display: block; padding: .25rem .5rem 1.25rem; }
-.sidebar .brand small { display: block; letter-spacing: 0; font-weight: 400; color: #8fa3c2; font-size: .78rem; }
-.sidebar .logo { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--c-accent); color: #14233c; margin-right: .25rem; }
-.sidebar .nav-item { display: block; color: #c9d3e3; text-decoration: none; padding: .55rem .75rem; border-radius: 8px; margin-bottom: 2px; }
-.sidebar .nav-item:hover { background: #1f3354; color: #fff; }
-.sidebar .nav-item.active { background: var(--c-primar); color: #fff; }
-.sidebar .nav-item i { margin-right: .5rem; }
-.sidebar .user-box { margin-top: auto; padding: .75rem; border-top: 1px solid #263b5e; font-size: .85rem; }
 .card { border: 0; box-shadow: 0 1px 3px rgba(20,35,60,.08); border-radius: 10px; }
 .card-header { background: #fff; font-weight: 600; border-bottom: 1px solid #eef1f5; }
 .kpi .val { font-size: 1.5rem; font-weight: 700; color: #14233c; }
@@ -77,16 +68,13 @@ tr.linie-depasita-simpla > td { background-color: #fde8e6; }
 .filtre-bara { background: #eef4fc; }
 
 /* Subcategoriile registrului de active în meniu */
-.sidebar .nav-subtree { margin: 0 0 4px .9rem; padding-left: .5rem; border-left: 1px solid #2c4269; }
-.sidebar .nav-sub { padding: .38rem .6rem; font-size: .86rem; display: flex; align-items: center; white-space: nowrap; }
-.sidebar .nav-sub .nav-sub-nr { margin-left: auto; background: #263b5e; color: #c9d3e3; font-weight: 500; margin-top: .1rem; }
-.sidebar .nav-sub.active .nav-sub-nr { background: rgba(255,255,255,.25); color: #fff; }
 
 /* Categoriile activelor */
 .badge-categorie-functional { background: #198754; color: #fff; }
 .badge-categorie-nefunctional { background: #6c757d; color: #fff; }
 .badge-categorie-teren { background: #a0682a; color: #fff; }
 .badge-categorie-retail { background: #1d4f91; color: #fff; }
+.badge-categorie-reziliat { background: #f1e3e3; color: #842029; border: 1px dashed #b02a37; }
 
 /* ---- Registrul activelor ---- */
 .cat-pastila { display: inline-flex; align-items: center; gap: .4rem; padding: .38rem .8rem; border-radius: 999px; background: #fff;
@@ -189,10 +177,306 @@ tr.rz-modificat > th + td { box-shadow: none; }
 @media print { .rz-modificat, tr.rz-modificat > td, tr.rz-modificat > th { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 
 /* Logo Carmistin: semnul (negru pe alb) devine alb pe fundalul închis al meniului */
-.sidebar .brand { display: flex; align-items: center; gap: .6rem; }
-.sidebar .brand .logo-semn { width: 34px; height: 34px; filter: invert(1); mix-blend-mode: screen; flex-shrink: 0; }
-.sidebar .brand small { margin-top: 1px; }
 .logo-document { height: 78px; width: auto; }
 @media print { .logo-document { height: 70px; } }
 .logo-document { mix-blend-mode: multiply; }
 .stadii-investitii .stadiu-pregatire.active { background: #8a96a8; }
+
+/* ---------- Meniul lateral: bară de icoane + panou (pin pus = rămâne deschis) – paleta „verde-petrol” ---------- */
+.meniu { --m-rail: #12322e; --m-rail-hover: #1d4a43; --m-acc: #1d9e75; --m-icon: #9cc7bd; --m-tint: #e3f4ee; --m-text-acc: #0b5a46;
+  --m-lat-rail: 60px; --m-lat-panou: 248px;
+  position: sticky; top: 0; height: 100vh; flex-shrink: 0; display: flex; z-index: 1030; width: var(--m-lat-rail); }
+.meniu.fixat { width: calc(var(--m-lat-rail) + var(--m-lat-panou)); }
+.meniu .rail { width: var(--m-lat-rail); background: var(--m-rail); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 0; height: 100vh; overflow-y: auto; flex-shrink: 0; }
+.meniu .rail-logo { margin-bottom: 12px; }
+.meniu .rail-logo img { width: 34px; height: 34px; filter: invert(1); mix-blend-mode: screen; }
+.meniu .rail-btn { width: 42px; height: 40px; flex-shrink: 0; border-radius: 10px; display: grid; place-items: center; color: var(--m-icon); font-size: 1.2rem; position: relative; text-decoration: none; transition: background .12s, color .12s; }
+.meniu .rail-btn:hover, .meniu .rail-btn.arata { background: var(--m-rail-hover); color: #fff; }
+.meniu .rail-btn.curent { background: var(--m-acc); color: #fff; }
+.meniu .rail-punct { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #e8a33d; box-shadow: 0 0 0 2px var(--m-rail); }
+.meniu .rail-cont { width: 34px; height: 34px; border-radius: 50%; font-size: .78rem; font-weight: 600; background: var(--m-rail-hover); color: #d8eee8; }
+.meniu .panou { position: absolute; left: var(--m-lat-rail); top: 0; height: 100vh; width: var(--m-lat-panou); background: #fff; border-right: 1px solid #dde7e4;
+  box-shadow: 8px 0 24px rgba(18, 50, 46, .14); overflow-y: auto; padding: 12px 10px 16px; display: none; }
+.meniu.deschis .panou, .meniu.fixat .panou { display: block; }
+.meniu.fixat .panou { box-shadow: none; }
+.meniu .panou-cap { display: flex; align-items: flex-start; justify-content: space-between; padding: 2px 4px 12px 8px; margin-bottom: 8px; border-bottom: 1px solid #eef3f1; }
+.meniu .panou-marca { font-weight: 700; letter-spacing: .12em; font-size: .8rem; color: var(--m-rail); }
+.meniu .panou-mic { font-size: .75rem; color: #6b7c78; }
+.meniu .btn-pin { border: 0; background: transparent; color: #6b7c78; border-radius: 7px; padding: 3px 7px; font-size: 1rem; line-height: 1; }
+.meniu .btn-pin:hover { background: var(--m-tint); color: var(--m-text-acc); }
+.meniu .btn-pin .bi-pin-angle-fill, .meniu.fixat .btn-pin .bi-pin-angle { display: none; }
+.meniu.fixat .btn-pin .bi-pin-angle-fill { display: inline; }
+.meniu.fixat .btn-pin { background: var(--m-tint); color: var(--m-text-acc); }
+.meniu .panou-titlu { font-weight: 600; font-size: .95rem; padding: 0 8px; color: #1d2b28; }
+.meniu .panou-desc { font-size: .76rem; color: #6b7c78; padding: 0 8px 10px; }
+.meniu .panou-sep { border-top: 1px solid #eef3f1; margin: 8px 6px; }
+.meniu .pl { display: flex; align-items: center; gap: .55rem; padding: .42rem .6rem; border-radius: 8px; color: #33413e; text-decoration: none; font-size: .87rem; white-space: nowrap; }
+.meniu .pl:hover { background: #f0f6f4; color: #12322e; }
+.meniu .pl.active { background: var(--m-tint); color: var(--m-text-acc); font-weight: 600; }
+.meniu .pl .nav-sub-nr { margin-left: auto; background: #eef2f1; color: #4d5d59; font-weight: 500; }
+.meniu .pl.active .nav-sub-nr { background: #fff; color: var(--m-text-acc); }
+.meniu .punct-cat { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin: 0 .2rem; }
+.cat-functionale { background: #198754; } .cat-nefunctionale { background: #6c757d; } .cat-teren { background: #a0682a; }
+.cat-retail { background: #1d4f91; } .cat-reziliate { background: #f1e3e3; border: 1px dashed #b02a37; }
+@media (max-width: 768px) { .meniu.fixat { width: var(--m-lat-rail); } .meniu.fixat .panou { box-shadow: 8px 0 24px rgba(18,50,46,.14); } }
+/* ---------- Echipa proiectului, monitorizare (etape) și rapoarte de activitate ---------- */
+.echipa-avatar { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: inline-grid; place-items: center; font-size: .75rem; font-weight: 600; background: #eef2f1; color: #5b6b67; border: 1px dashed #b9c6c2; }
+.echipa-avatar.cont { background: #e3f4ee; color: #0b5a46; border: 0; }
+.echipa-goala .card-header { color: #7a8784; }
+.etapa { padding: .6rem 0; border-bottom: 1px solid #eef2f1; }
+.etapa:last-of-type { border-bottom: 0; }
+.etapa-nr { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; font-size: .78rem; font-weight: 600; background: #eef2f1; color: #4d5d59; margin-top: 1px; }
+.etapa-gata .etapa-nr { background: #198754; color: #fff; }
+.etapa-intarziata .etapa-nr { background: #f8d7da; color: #842029; }
+.etapa-gata .fw-semibold { color: #4d5d59; }
+.etapa-st-neinceputa { background: #eef2f1; color: #4d5d59; } .etapa-st-in_curs { background: #cfe2ff; color: #084298; }
+.etapa-st-finalizata { background: #d1e7dd; color: #0f5132; } .etapa-st-blocata { background: #f8d7da; color: #842029; }
+.min-w-0 { min-width: 0; }
+.raport-zi { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #6b7c78; margin: .9rem 0 .4rem; }
+.raport-zi:first-child { margin-top: 0; }
+.raport-activitate { border: 1px solid #e6ecea; border-radius: 10px; padding: .7rem .85rem; margin-bottom: .6rem; background: #fff; }
+.raport-probleme { color: #8a5300; }
+.raport-poze { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.raport-poze img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; display: block; background: #eef2f1; }
+.tabel-echipe td { vertical-align: top; }
+
+/* ---------- Selector de persoane (echipa proiectului) ---------- */
+.selector-persoane { position: relative; }
+.sp-camp { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-height: 40px; padding: 5px; border: 1px solid #dfe5e3; border-radius: 9px; background: #fff; cursor: text; }
+.selector-persoane.doar-citire .sp-camp { border-color: transparent; cursor: default; padding-left: 0; }
+.sp-camp:focus-within { border-color: #1d9e75; box-shadow: 0 0 0 3px rgba(29, 158, 117, .15); }
+.sp-input { flex: 1; min-width: 90px; border: 0; outline: 0; font-size: .87rem; padding: 3px 4px; background: transparent; }
+.sp-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 2px 6px 2px 2px; border-radius: 999px; background: #e3f4ee; color: #0b5a46; font-size: .82rem; }
+.sp-chip.extern { background: #f1f3f2; color: #3f4d4a; border: 1px dashed #c3cecb; }
+.sp-chip .sp-nume { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-x { border: 0; background: transparent; color: inherit; opacity: .55; font-size: 1rem; line-height: 1; padding: 0 2px; }
+.sp-x:hover { opacity: 1; color: #b02a37; }
+.sp-avatar { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: inline-grid; place-items: center; font-size: .68rem; font-weight: 600; color: #fff; }
+.sp-avatar.extern { background: #fff; color: #5b6b67; border: 1px dashed #b9c6c2; }
+.sp-lista { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 1050; background: #fff; border-radius: 14px; box-shadow: 0 12px 32px rgba(18, 50, 46, .18), 0 2px 6px rgba(18, 50, 46, .08); padding: 6px; max-height: 340px; overflow-y: auto; min-width: 260px; }
+.sp-optiune { display: flex; align-items: center; gap: 10px; padding: 7px 9px; border-radius: 9px; cursor: pointer; font-size: .9rem; }
+.sp-optiune .sp-avatar { width: 30px; height: 30px; font-size: .75rem; }
+.sp-optiune.activ { background: #f0f6f4; }
+.sp-optiune mark { background: #fbe98c; padding: 0 1px; border-radius: 2px; }
+.sp-rol { margin-left: auto; font-size: .72rem; color: #8a9794; white-space: nowrap; }
+.sp-gol { padding: 8px 10px; color: #8a9794; font-size: .85rem; }
+.sp-extern { display: flex; align-items: center; gap: 10px; margin: 6px -6px -6px; padding: 10px 14px; background: #eaf3fb; color: #185fa5; font-size: .87rem; cursor: pointer; border-radius: 0 0 14px 14px; }
+.sp-extern:hover { background: #dcebf8; }
+.sp-plus { width: 24px; height: 24px; border-radius: 50%; background: #378add; color: #fff; display: grid; place-items: center; font-size: 1rem; line-height: 1; }
+.echipa-cat .card-body { overflow: visible; }
+.echipa-cat { overflow: visible; }
+.sp-mesaj { position: fixed; bottom: 18px; left: 50%; transform: translate(-50%, 20px); background: #12322e; color: #fff; padding: 9px 16px; border-radius: 10px; font-size: .87rem; opacity: 0; pointer-events: none; transition: all .2s; z-index: 2000; max-width: 90vw; }
+.sp-mesaj.vizibil { opacity: 1; transform: translate(-50%, 0); }
+.sp-mesaj.eroare { background: #b02a37; }
+
+/* echipa proiectului: categoriile pe rânduri, persoanele în continuare, pe același rând */
+.echipa-tabel { overflow: visible; }
+.echipa-rand { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 12px; align-items: start; padding: 10px 14px; border-bottom: 1px solid #eef2f1; }
+.echipa-rand:last-child { border-bottom: 0; }
+.echipa-eticheta { font-weight: 600; font-size: .88rem; color: #33413e; padding-top: 9px; display: flex; align-items: center; gap: 7px; }
+.echipa-eticheta i { color: #1d9e75; }
+.echipa-eticheta .badge { font-weight: 500; }
+@media (max-width: 640px) { .echipa-rand { grid-template-columns: 1fr; gap: 4px; } .echipa-eticheta { padding-top: 0; } }
+
+.lista-rapoarte .rand-raport { cursor: pointer; }
+.lista-rapoarte th { font-weight: 600; font-size: .78rem; color: #6b7c78; white-space: nowrap; }
+
+/* ---------- Managementul documentelor ---------- */
+.dm-arbore .list-group-item { border: 0; padding-top: .38rem; padding-bottom: .38rem; }
+.dm-arbore .list-group-item.active { background: #e3f4ee; color: #0b5a46; font-weight: 600; }
+.dm-arbore .list-group-item.active .badge { background: #fff !important; }
+.dm-arbore .dm-ic, .dm-folder { color: #e0a526; }
+.dm-cale a { text-decoration: none; }
+.dm-zona { border: 2px dashed #c9d6d2; border-radius: 12px; padding: 14px; text-align: center; color: #4d5d59; background: #fafcfb; transition: all .15s; }
+.dm-zona.peste { border-color: #1d9e75; background: #e3f4ee; }
+.dm-zona.incarca { opacity: .6; pointer-events: none; }
+.dm-tabel th { font-weight: 600; font-size: .78rem; color: #6b7c78; white-space: nowrap; }
+.dm-rand-folder { cursor: pointer; }
+.dm-arhivat a { color: #8a9794 !important; }
+
+/* notificări (clopoțelul din meniu) */
+.meniu .rail-nr { position: absolute; top: 3px; right: 2px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: #e8a33d; color: #12322e; font-size: .65rem; font-weight: 700; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--m-rail); }
+.meniu .pl.notif { align-items: flex-start; white-space: normal; }
+.meniu .pl.notif .notif-text { min-width: 0; flex: 1; }
+.meniu .pl.notif.noua { background: #fff8eb; }
+.meniu .pl.notif.noua .notif-text > span { font-weight: 600; }
+/* raport de șantier */
+.rs-buline { list-style: none; padding-left: 0; }
+.rs-buline li { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.rs-buline li::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #1d9e75; flex-shrink: 0; margin-left: 4px; }
+.rs-tabel th { font-weight: 600; font-size: .76rem; color: #6b7c78; }
+.rs-snag { border: 1px solid #e6ecea; border-left: 3px solid #e8a33d; border-radius: 0 8px 8px 0; padding: 8px; margin-bottom: 8px; background: #fffdf8; }
+.rs-snag-vedere { padding: .5rem 0; border-bottom: 1px solid #eef2f1; } .rs-snag-vedere:last-child { border-bottom: 0; }
+.rs-vreme { display: flex; flex-wrap: wrap; gap: 4px; }
+@media (min-width: 1200px) { .rs-lateral { position: sticky; top: 16px; } }
+
+/* ---------- Etapele proiectului: listă compactă, mutare cu mouse-ul, „+” pentru inserare ---------- */
+.et-cap, .et-linie { display: grid; grid-template-columns: 18px 26px minmax(0, 1fr) 96px 110px 70px 132px 22px; align-items: center; gap: 8px; }
+.et-cap { padding: 6px 14px 4px; border-bottom: 1px solid #eef2f1; font-weight: 600; font-size: .74rem; }
+.et-lista { padding: 0 14px; }
+.et-rand { position: relative; border-bottom: 1px solid #f0f3f2; }
+.et-linie { padding: 5px 0; min-height: 36px; }
+.et-maner { cursor: grab; color: #a9b6b2; font-size: 1rem; line-height: 1; }
+.et-maner:active { cursor: grabbing; }
+.et-rand.tras { opacity: .45; background: #e3f4ee; }
+.et-nr { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .72rem; font-weight: 600; background: #eef2f1; color: #4d5d59; }
+.et-rand.gata .et-nr { background: #198754; color: #fff; }
+.et-rand.intarziata .et-nr { background: #f8d7da; color: #842029; }
+.et-nume { font-size: .88rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.et-rand.gata .et-nume { color: #6b7c78; }
+.et-resp { color: #8a9794; font-weight: 400; font-size: .78rem; }
+.et-status { font-size: .7rem; font-weight: 600; justify-self: start; }
+.et-progres { display: flex; align-items: center; gap: 5px; }
+.et-progres .progress { flex: 1; height: 5px; }
+.et-progres small { color: #6b7c78; min-width: 28px; text-align: right; }
+.et-termen { font-size: .76rem; color: #6b7c78; white-space: nowrap; }
+.et-rand.intarziata .et-termen { color: #b02a37; font-weight: 600; }
+.et-data { height: 28px; padding: 2px 6px; font-size: .78rem; }
+.et-rand.gata .et-data { border-color: #a3cfbb; background: #f1faf5; }
+.et-plus-intre { position: absolute; left: -11px; bottom: -10px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: #1d9e75; color: #fff; display: grid; place-items: center; font-size: .95rem; line-height: 1; padding: 0; opacity: 0; transition: opacity .12s; z-index: 2; }
+.et-rand:hover .et-plus-intre { opacity: 1; }
+.et-nou { display: flex; align-items: center; gap: 8px; padding: 6px 0 6px 26px; border-bottom: 1px solid #f0f3f2; }
+.et-adauga-final { display: flex; align-items: center; padding: 10px 14px; }
+@media (max-width: 768px) { .et-cap { display: none; } .et-linie { grid-template-columns: 18px 24px minmax(0, 1fr) 132px 22px; } .et-status, .et-progres, .et-termen { display: none; } }
+.et-ro .et-cap, .et-ro .et-linie { grid-template-columns: 26px minmax(0, 1fr) 96px 110px 70px 132px; }
+
+/* ---------- Etape / subetape (arbore) ---------- */
+.et-cap, .et-linie { grid-template-columns: 18px 54px minmax(0, 1fr) 118px 110px 70px 132px 44px; }
+.et-ro .et-cap, .et-ro .et-linie { grid-template-columns: 54px minmax(0, 1fr) 118px 110px 70px 132px; }
+.et-cap-nr { display: flex; align-items: center; gap: 4px; }
+.et-caret { border: 0; background: transparent; padding: 0; width: 18px; color: #4d5d59; line-height: 1; transition: transform .15s; }
+.et-caret.gol { color: #c9d3d0; }
+.et-grup.deschis > .et-rand .et-caret { transform: rotate(90deg); }
+.et-sub { display: none; }
+.et-grup.deschis > .et-sub { display: block; background: #fafcfb; border-left: 2px solid #cfe6dd; margin-left: 30px; }
+.et-grup { border-bottom: 1px solid #eef2f1; }
+.et-grup > .et-rand { border-bottom: 0; }
+.et-copil { border-bottom: 1px solid #f0f3f2; }
+.et-copil:last-child { border-bottom: 0; }
+.et-copil .et-linie { min-height: 32px; padding: 3px 0; }
+.et-copil .et-nume { font-weight: 400; font-size: .84rem; }
+.et-copil .et-nr { width: auto; min-width: 26px; height: 20px; padding: 0 4px; border-radius: 10px; font-size: .68rem; background: #fff; border: 1px solid #dfe7e4; }
+.et-copil.gata .et-nr { background: #198754; border-color: #198754; }
+.et-copil .et-cap-nr { padding-left: 4px; }
+.et-grup.deschis > .et-sub .et-copil .et-linie { grid-template-columns: 18px 50px minmax(0, 1fr) 118px 110px 70px 132px 44px; }
+.et-principala .et-nume-text { font-weight: 600; }
+.et-nr-sub { display: inline-block; font-size: .66rem; font-weight: 600; color: #0b5a46; background: #e3f4ee; border-radius: 8px; padding: 0 5px; margin-left: 2px; vertical-align: 1px; }
+.et-status { cursor: pointer; font-size: .7rem; font-weight: 600; }
+.et-status .bi-chevron-down { font-size: .55rem; opacity: .6; }
+.et-actiuni { display: flex; gap: 6px; justify-content: flex-end; }
+.et-adauga-sub { color: #1d9e75; }
+.et-nou.sub { padding-left: 60px; background: #fafcfb; }
+.et-unelte { display: flex; align-items: center; gap: 6px; padding: 4px 14px; color: #6b7c78; border-bottom: 1px solid #eef2f1; }
+.et-grup.tras, .et-copil.tras { opacity: .45; background: #e3f4ee; }
+.dropdown-menu-sm .dropdown-item { padding: .2rem .7rem; }
+@media (max-width: 768px) { .et-linie, .et-grup.deschis > .et-sub .et-copil .et-linie { grid-template-columns: 18px 48px minmax(0, 1fr) 118px 132px 44px; } }
+@media (max-width: 768px) { .et-status { display: inline-block !important; } }
+
+/* responsabilul etapei (coloană după denumire) */
+.et-cap, .et-linie { grid-template-columns: 18px 54px minmax(0, 1fr) 160px 118px 110px 70px 132px 44px; }
+.et-grup.deschis > .et-sub .et-copil .et-linie { grid-template-columns: 18px 50px minmax(0, 1fr) 160px 118px 110px 70px 132px 44px; }
+.et-ro .et-cap, .et-ro .et-linie { grid-template-columns: 54px minmax(0, 1fr) 160px 118px 110px 70px 132px; }
+.et-resp-cel { min-width: 0; font-size: .8rem; }
+.et-resp-btn { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; border: 1px solid transparent; background: transparent; border-radius: 999px; padding: 1px 8px 1px 1px; color: #33413e; }
+.et-resp-btn:hover { border-color: #cfe6dd; background: #f0f6f4; }
+.et-resp-btn.gol { color: #8a9794; padding-left: 8px; border: 1px dashed #c9d6d2; }
+.et-resp-btn .sp-avatar { width: 22px; height: 22px; font-size: .62rem; }
+.et-resp-nume { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.et-resp-lista { position: absolute; width: 320px; right: auto; z-index: 1060; }
+.et-resp-titlu { font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: #8a9794; padding: 6px 9px 2px; }
+.sp-optiune.ales { font-weight: 600; }
+@media (max-width: 768px) { .et-linie, .et-grup.deschis > .et-sub .et-copil .et-linie { grid-template-columns: 18px 48px minmax(0, 1fr) 118px 118px 132px 44px; } }
+.et-resp-lista input { position: sticky; top: -6px; z-index: 1; }
+
+/* ---------- Sarcinile mele ---------- */
+.sarcina { display: flex; align-items: center; gap: 12px; }
+.sarcina.gata { background: #f6fbf8; }
+.sarcina.gata .fw-semibold { color: #6b7c78; }
+.sarcina.intarziata { background: #fff6f6; }
+.sarcina-ic { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center; font-size: 1rem; }
+.sarcina-ic.raport { background: #fff3dc; color: #8a5300; }
+.sarcina-ic.etapa { background: #e3f4ee; color: #0b5a46; }
+.sarcina-ic.ok { background: #198754; color: #fff; }
+.sarcina.intarziata .sarcina-ic.etapa { background: #f8d7da; color: #842029; }
+.sarcini-widget-col + .sarcini-widget-col { border-left: 1px solid #eef2f1; }
+
+.rs-avize { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 3px; }
+.rs-aviz { display: inline-flex; align-items: center; gap: 2px; font-size: .74rem; background: #eef5ff; border-radius: 6px; padding: 0 2px 0 6px; }
+.rs-aviz a { text-decoration: none; }
+.rs-aviz-x { border: 0; background: transparent; color: #8a9794; padding: 0 3px; line-height: 1; }
+.rs-aviz-x:hover { color: #b02a37; }
+
+/* ---------- Mărimea afișării (setare pe cont): toată interfața se scalează cu --scara ---------- */
+html { zoom: var(--scara, 1); }
+.meniu, .meniu .rail, .meniu .panou { height: calc(100vh / var(--scara, 1)); }
+#vizualizator .modal-content { height: calc(92vh / var(--scara, 1)) !important; }
+.af-varianta { cursor: pointer; transition: border-color .12s, box-shadow .12s; }
+.af-varianta:hover { border-color: #a3cfbb; }
+.af-varianta.ales { border: 2px solid #1d9e75; box-shadow: 0 0 0 3px rgba(29, 158, 117, .12); }
+.af-mostra { border: 1px solid #e6ecea; border-radius: 8px; background: #fafcfb; padding: 8px 10px; overflow: hidden; height: 78px; }
+.af-mostra-in { font-size: 100%; }
+.af-m-titlu { font-weight: 600; font-size: .78em; color: #12322e; margin-bottom: 4px; white-space: nowrap; }
+.af-m-rand { display: flex; justify-content: space-between; align-items: center; font-size: .72em; color: #4d5d59; padding: 1px 0; }
+.af-m-bara { width: 50%; height: .5em; background: #eef2f1; border-radius: 4px; overflow: hidden; }
+.af-m-bara i { display: block; height: 100%; background: #1d9e75; }
+
+/* ---------- CU & avize: tabel simplu ---------- */
+.av-tabel th { font-weight: 600; font-size: .76rem; color: #6b7c78; white-space: nowrap; }
+.av-cu { background: #f3faf6; }
+.av-cu.lipsa { background: #fff8eb; }
+.av-cu + .av-cu td { border-top: 0; }
+.av-nume-cel { position: relative; }
+.av-nume { border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 2px 6px; margin-left: -6px; width: calc(100% - 22px); font-size: .9rem; font-weight: 500; color: #1d2b28; text-overflow: ellipsis; }
+.av-nume:hover { border-color: #dfe7e4; background: #fff; }
+.av-nume:focus { border-color: #1d9e75; background: #fff; outline: 0; box-shadow: 0 0 0 3px rgba(29, 158, 117, .15); }
+.av-nume.salvat { border-color: #198754; background: #f1faf5; }
+.av-emitent { max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.av-status { cursor: pointer; font-size: .72rem; font-weight: 600; }
+.av-status .bi-chevron-down { font-size: .55rem; opacity: .6; }
+.av-st-nedepus { background: #eef2f1; color: #4d5d59; } .av-st-depus { background: #fff3cd; color: #8a5300; } .av-st-obtinut { background: #d1e7dd; color: #0f5132; }
+.av-valabil { height: 28px; padding: 2px 6px; font-size: .78rem; }
+.av-plus { position: absolute; left: -12px; bottom: -9px; width: 18px; height: 18px; border-radius: 50%; border: 0; background: #1d9e75; color: #fff; display: grid; place-items: center; font-size: .9rem; line-height: 1; padding: 0; opacity: 0; transition: opacity .12s; z-index: 2; }
+.av-rand:hover .av-plus { opacity: 1; }
+.av-tabel td:first-child { padding-left: 14px; }
+
+/* ---------- Alocare sarcini: linii simple cu bulină ---------- */
+.sa-nou { display: grid; grid-template-columns: 14px minmax(0, 1fr) 220px 200px 140px auto; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid #eef2f1; background: #fafcfb; }
+.sa-linie { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto 110px auto; gap: 10px; align-items: center; padding: 7px 14px; border-bottom: 1px solid #f0f3f2; font-size: .88rem; }
+.sa-lista .sa-linie:last-child { border-bottom: 0; }
+.list-group .sa-linie { grid-template-columns: 14px minmax(0, 1fr) auto 110px auto; padding: .6rem 1rem; }
+.sa-bulina { width: 9px; height: 9px; border-radius: 50%; background: #1d9e75; justify-self: center; }
+.sa-linie.intarziata .sa-bulina { background: #dc3545; }
+.sa-linie.gata .sa-bulina { background: #c9d3d0; }
+.sa-linie.gata .sa-desc { text-decoration: line-through; color: #8a9794; }
+.sa-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sa-proiect { font-size: .78rem; text-decoration: none; }
+.sa-oameni { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.sa-om { display: inline-flex; align-items: center; gap: 4px; background: #f0f6f4; border-radius: 999px; padding: 1px 8px 1px 1px; font-size: .76rem; white-space: nowrap; }
+.sa-om .sp-avatar { width: 20px; height: 20px; font-size: .58rem; }
+.sa-termen { font-size: .78rem; color: #4d5d59; white-space: nowrap; }
+.sa-linie.intarziata .sa-termen { color: #b02a37; font-weight: 600; }
+.sa-actiuni { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+.sa-linie.nou { background: #e3f4ee; transition: background 1s; }
+.sa-oameni-btn { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+@media (max-width: 900px) { .sa-nou, .sa-linie { grid-template-columns: 14px minmax(0, 1fr); } .sa-nou > *:not(.sa-bulina):not(.sa-desc-in), .sa-linie > *:not(.sa-bulina):not(.sa-desc) { grid-column: 2; } }
+.av-link { font-weight: 500; text-decoration: none; }
+.av-link:hover { text-decoration: underline; }
+.av-cu .av-link { color: #0b5a46; }
+
+.sa-nou { grid-template-columns: 14px minmax(0, 1fr) 210px 280px 140px auto; }
+.sa-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 31px; padding: 2px 4px; border: 1px solid #dee2e6; border-radius: 6px; background: #fff; cursor: text; }
+.sa-picker:focus-within { border-color: #1d9e75; box-shadow: 0 0 0 3px rgba(29, 158, 117, .15); }
+.sa-chips { display: contents; }
+.sa-picker-in { flex: 1; min-width: 90px; border: 0; outline: 0; font-size: .85rem; padding: 2px; background: transparent; }
+.sa-x { border: 0; background: transparent; color: #8a9794; padding: 0 2px; line-height: 1; }
+.sa-x:hover { color: #b02a37; }
+.av-maner { cursor: grab; color: #a9b6b2; margin-right: 6px; }
+.av-maner:active { cursor: grabbing; }
+.av-rand.tras { opacity: .45; background: #e3f4ee; }
+
+/* tablou de bord: activitate pe șantiere, legenda hărții */
+.santier-zi .kpi .val { font-size: 1.35rem; }
+.santier-zi .kpi .val small { font-size: .75rem; font-weight: 600; }
+.harta-pct { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+.harta-pct.harta-inv { background: #fff; border: 3px solid #e8a33d; width: 12px; height: 12px; }
+#hartaDashboard { border-radius: 0 0 10px 10px; }

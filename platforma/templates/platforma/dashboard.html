@@ -1,16 +1,39 @@
 {% extends "platforma/base.html" %}{% load fmt %}
 {% block titlu %}Tablou de bord{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
 {% block continut %}
 <div class="d-flex align-items-center mb-3">
   <h4 class="mb-0">Tablou de bord</h4>
   {% if poate_crea_proiect %}<a href="{% url 'raport_zero_nou' %}" class="btn btn-primary ms-auto"><i class="bi bi-plus-lg"></i> Raport Zero nou</a>{% endif %}
 </div>
+{% with s=sarcinile_mele %}{% if s.grupuri %}
+<div class="card mb-3 sarcini-widget"><div class="card-header d-flex align-items-center gap-2"><i class="bi bi-list-check text-success"></i> <span class="fw-semibold">Sarcinile mele</span>
+  <span class="small text-secondary">{{ s.total }} deschis{{ s.total|pluralize:"ă,e" }}{% if s.rapoarte_azi %} · <span class="text-warning-emphasis fw-semibold">{{ s.rapoarte_azi }} raport{{ s.rapoarte_azi|pluralize:",e" }} de șantier de întocmit azi</span>{% endif %}{% if s.intarziate %} · <span class="text-danger fw-semibold">{{ s.intarziate }} întârziat{{ s.intarziate|pluralize:"ă,e" }}</span>{% endif %}</span>
+  <a class="small ms-auto" href="{% url 'sarcini' %}">toate sarcinile</a></div>
+  <div class="row g-0">{% for g in s.grupuri|slice:":4" %}<div class="col-md-6 col-xl-3 sarcini-widget-col"><div class="p-3">
+    <a href="{% url 'proiect_detaliu' g.proiect.pk %}?tab=monitorizare" class="cod small text-decoration-none">{{ g.proiect.cod }}</a> <span class="small text-secondary">{{ g.roluri|join:", " }}</span>
+    <ul class="list-unstyled small mb-0 mt-1">{% for x in g.sarcini|slice:":4" %}<li class="d-flex gap-2 align-items-start py-1">
+      {% if x.tip == 'raport' %}<i class="bi {% if x.stare == 'gata' %}bi-check-circle-fill text-success{% else %}bi-clipboard2-check text-warning-emphasis{% endif %}"></i><span>{% if x.stare == 'gata' %}Raport de șantier azi – emis{% else %}<a href="{% if x.stare == 'ciorna' %}{% url 'santier_editare' g.proiect.pk x.raport.pk %}{% else %}{% url 'santier_nou' g.proiect.pk %}{% endif %}">Raport de șantier – azi</a>{% endif %}</span>
+      {% else %}<i class="bi bi-signpost-split {% if x.intarziata %}text-danger{% else %}text-secondary{% endif %}"></i><span class="{% if x.intarziata %}text-danger{% endif %}">{{ x.titlu|truncatechars:40 }}{% if x.termen %} <span class="text-secondary">· {{ x.termen|date:"d.m" }}</span>{% endif %}</span>{% endif %}
+    </li>{% endfor %}{% if g.sarcini|length > 4 %}<li class="text-secondary">+ încă {{ g.sarcini|length|add:"-4" }}</li>{% endif %}</ul>
+  </div></div>{% endfor %}</div>
+</div>{% endif %}{% endwith %}
 <div class="row g-3 mb-3">
   <div class="col-md-3"><div class="card kpi"><div class="card-body"><div class="lbl">Locații în registru</div><div class="val">{{ nr_locatii }}</div><a class="small" href="{% url 'locatii' %}?cod=fara">{{ nr_fara_cod }} fără cod alocat</a></div></div></div>
   <div class="col-md-3"><div class="card kpi"><div class="card-body"><div class="lbl">Proiecte (vizibile mie)</div><div class="val">{{ nr_proiecte }}</div><span class="small text-secondary">{{ nr_active }} active</span></div></div></div>
   <div class="col-md-3"><div class="card kpi"><div class="card-body"><div class="lbl">Buget total (RON)</div><div class="val">{{ buget_total|bani }}</div><span class="small text-secondary">facturat {{ facturat_total|bani }}</span></div></div></div>
   <div class="col-md-3"><div class="card kpi"><div class="card-body"><div class="lbl">Plătit (RON)</div><div class="val">{{ platit_total|bani }}</div><span class="small text-secondary">{{ platit_total|procent:buget_total }}% din buget</span></div></div></div>
 </div>
+{% with z=santier_zi %}{% if z %}
+<div class="card mb-3 santier-zi"><div class="card-body py-2 d-flex align-items-center gap-4 flex-wrap">
+  <div class="d-flex align-items-center gap-2"><i class="bi bi-cone-striped fs-4 text-warning-emphasis"></i><div><div class="fw-semibold">Activitate pe șantiere</div><div class="small text-secondary">{{ z.zi|date:"l, d.m.Y"|capfirst }} (ziua lucrătoare anterioară)</div></div></div>
+  <div class="kpi"><div class="lbl">Personal în șantiere</div><div class="val">{{ z.personal }}{% if z.dif is not None %} <small class="{% if z.dif >= 0 %}text-success{% else %}text-danger{% endif %}" title="față de {{ z.zi_prec|date:'d.m.Y' }}">{% if z.dif >= 0 %}+{% endif %}{{ z.dif }}</small>{% endif %}</div></div>
+  <div class="kpi"><div class="lbl">Rapoarte de șantier emise</div><div class="val">{{ z.rapoarte }}</div></div>
+  <div class="kpi"><div class="lbl">Proiecte raportate</div><div class="val">{{ z.proiecte }}{% if z.de_raportat %} <small class="text-secondary">din {{ z.de_raportat }} în execuție</small>{% endif %}</div></div>
+  <div class="kpi"><div class="lbl">Puncte noi în snag list</div><div class="val">{{ z.snag }}</div></div>
+  {% if vede_rapoarte_activitate %}<a class="small ms-auto" href="{% url 'rapoarte_activitate' %}?zi={{ z.zi|date:'Y-m-d' }}">registrul rapoartelor din {{ z.zi|date:"d.m" }} <i class="bi bi-arrow-right"></i></a>{% endif %}
+</div></div>
+{% endif %}{% endwith %}
 <div class="row g-3 mb-3">
  <div class="col-lg-6"><div class="card h-100"><div class="card-header d-flex align-items-center"><i class="bi bi-building-check me-1 text-primary"></i> Active proprietate grup
    <a class="small ms-auto" href="{% url 'locatii' %}?detinut=grup">registru</a></div>
@@ -76,6 +99,14 @@
  </table></div>
  <div class="card-footer small text-secondary">Suprafețele provin din registrul activelor; liniile cu „—” nu au date completate. Completarea se face din „Editează activul”.</div>
 </div>
+{% if harta_puncte %}
+<div class="card mb-3"><div class="card-header d-flex align-items-center gap-2 flex-wrap"><i class="bi bi-geo-alt me-1"></i> Harta activelor
+  <span class="small text-secondary">{{ harta_puncte|length }} active operate cu coordonate{% if harta_fara %} · {{ harta_fara }} fără coordonate{% endif %}</span>
+  <span class="ms-auto d-flex gap-3 small harta-legenda">{% for cod, et, culoare, n in harta_legenda %}<span><span class="harta-pct" style="background:{{ culoare }}"></span>{{ et }} {{ n }}</span>{% endfor %}<span><span class="harta-pct harta-inv"></span>cu investiții în execuție</span></span>
+  <a class="small" href="{% url 'locatii_harta' %}">hartă mare</a></div>
+  <div id="hartaDashboard" style="height:540px"></div></div>
+{{ harta_puncte|json_script:"hartaPuncte" }}
+{% endif %}
 <div class="row g-3">
   {% if rz_de_avizat %}
   <div class="col-12"><div class="card border-warning"><div class="card-header text-warning-emphasis"><i class="bi bi-hourglass-split"></i> Rapoarte Zero de avizat</div>
@@ -93,4 +124,24 @@
     {% for r in pe_faza %}<div class="d-flex justify-content-between border-bottom py-1"><span>{{ r.faza|default:"—" }}</span><b>{{ r.n }}</b></div>{% empty %}<span class="text-secondary">Niciun proiect.</span>{% endfor %}
   </div></div></div>
 </div>
+{% endblock %}
+{% block scripturi %}
+{% if harta_puncte %}<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+  const puncte = JSON.parse(document.getElementById('hartaPuncte').textContent);
+  const h = L.map('hartaDashboard', {scrollWheelZoom: false}).setView([45.9, 24.9], 7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '© OpenStreetMap', maxZoom: 18}).addTo(h);
+  const culori = {functional: '#198754', nefunctional: '#6c757d', teren: '#a0682a', retail: '#1d4f91'};
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const grup = [];
+  for (const p of puncte) {
+    const m = L.circleMarker([p.lat, p.lng], {radius: p.inv ? 8 : 6, color: p.inv ? '#e8a33d' : '#fff', weight: p.inv ? 3 : 1, fillColor: culori[p.tip] || '#555', fillOpacity: .9})
+      .bindPopup(`<b>${esc(p.cod)}</b> ${esc(p.den)}<br><span style="color:#6b7c78">${esc(p.categorie)}${p.linie ? ' · ' + esc(p.linie) : ''}</span>` +
+                 (p.inv ? `<br>${p.inv} investiți${p.inv === 1 ? 'e' : 'i'} în execuție` : '') + `<br><a href="/active/${p.id}/">Deschide activul</a>`).addTo(h);
+    grup.push(m);
+  }
+  if (grup.length) h.fitBounds(L.featureGroup(grup).getBounds().pad(0.08));
+})();
+</script>{% endif %}
 {% endblock %}

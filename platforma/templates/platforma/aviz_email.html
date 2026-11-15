@@ -28,7 +28,7 @@
   </table>{% endif %}{% endif %}
   <table class="table table-sm table-bordered small mb-3">
     <tr><th style="width:35%">Beneficiar</th><td>{{ p.beneficiar }}</td></tr>
-    <tr><th>Locație</th><td>{{ p.locatie.cod }} · {{ p.locatie.denumire }}</td></tr>
+    <tr><th>Locație</th><td>{% if p.locatie %}{{ p.locatie.cod }} · {{ p.locatie.denumire }}{% else %}fără activ alocat (obiectiv nou){% endif %}</td></tr>
     <tr{% if 'linie' in rev_modificate or 'divizie' in rev_modificate %} class="rz-modificat"{% endif %}><th>Linie / divizie</th><td>{{ p.linie }}{% if p.divizie %} / {{ p.divizie }}{% endif %}</td></tr>
     <tr{% if 'denumire' in rev_modificate %} class="rz-modificat"{% endif %}><th>Denumire proiect</th><td>{{ p.denumire }}</td></tr>
     <tr{% if 'tip_investitie' in rev_modificate %} class="rz-modificat"{% endif %}><th>Tip investiție</th><td>{{ p.get_tip_investitie_display|default:"—" }}</td></tr>

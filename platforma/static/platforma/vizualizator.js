@@ -81,7 +81,8 @@
     const a = e.target.closest('a[href]');
     if (!a || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const url = new URL(a.href, location.href);
-    if (url.origin !== location.origin || !/^\/documente\/\d+\/$/.test(url.pathname) || url.searchParams.get('dl') === '1') return;
+    const marcat = a.hasAttribute('data-vizualizeaza');  // ex. PDF-urile generate (rapoarte de activitate)
+    if (url.origin !== location.origin || (!marcat && !/^\/documente\/\d+\/$/.test(url.pathname)) || url.searchParams.get('dl') === '1') return;
     if (a.closest('#vizualizator')) return;
     e.preventDefault();
     const nume = a.getAttribute('title') || a.textContent.trim() || 'Document';

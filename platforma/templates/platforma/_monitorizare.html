@@ -1,0 +1,71 @@
+{# Monitorizarea proiectului: etapele (generate + inserate manual) și raportul zilnic de activitate, cu fotografii. #}
+<ul class="nav nav-pills nav-pills-setari mb-3">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#m-etape" type="button" id="pillEtape"><i class="bi bi-signpost-split"></i> Etape proiect{% if etape %} <span class="badge rounded-pill text-bg-light">{{ etape_finalizate }}/{{ etape|length }}</span>{% endif %}</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#m-rapoarte" type="button" id="pillRapoarte"><i class="bi bi-clipboard2-check"></i> Rapoarte de șantier <span class="badge rounded-pill text-bg-light">{{ rapoarte_emise }}</span>{% if ciorne_mele %} <span class="badge rounded-pill text-bg-warning" title="ciornele dumneavoastră">{{ ciorne_mele|length }} ciorn{{ ciorne_mele|length|pluralize:"ă,e" }}</span>{% endif %}</button></li>
+</ul>
+<div class="tab-content">
+<div class="tab-pane fade show active" id="m-etape" style="max-width:1100px">
+ <div class="card{% if not editabil %} et-ro{% endif %}">
+  <div class="card-header d-flex align-items-center gap-2 py-2"><i class="bi bi-signpost-split"></i> <span class="fw-semibold">Etapele proiectului</span>
+    {% if etape %}<span class="small text-secondary">{{ etape_finalizate }}/{{ etape|length }} finalizate{% if etape_intarziate %} · <span class="text-danger fw-semibold">{{ etape_intarziate }} întârziat{{ etape_intarziate|pluralize:"ă,e" }}</span>{% endif %}</span>
+      <span class="ms-auto d-flex align-items-center gap-2 small" style="min-width:200px"><span class="progress flex-grow-1" style="height:7px"><span class="progress-bar bg-success" style="width:{{ progres_etape }}%"></span></span><b>{{ progres_etape }}%</b></span>{% endif %}
+  </div>
+  {% if etape %}
+  <div class="et-cap small text-secondary">{% if editabil %}<span class="et-maner-loc"></span>{% endif %}<span class="et-nr-loc">#</span><span class="et-nume">Etapă / subetapă</span><span class="et-resp-cap">Responsabil</span><span class="et-status-loc">Status</span><span class="et-progres">Progres</span><span class="et-termen">Termen</span><span class="et-data-cap">Finalizată la</span>{% if editabil %}<span class="et-detalii-loc"></span>{% endif %}</div>
+  {% if etape|length %}<div class="et-unelte small">{% if editabil %}<span class="text-secondary"><i class="bi bi-info-circle"></i> ⋮⋮ mutați · <i class="bi bi-node-plus"></i> subetapă · click pe status îl schimbă</span>{% endif %}
+    <button type="button" class="btn btn-link btn-sm p-0 ms-auto" id="etDeschideToate">deschide toate</button> · <button type="button" class="btn btn-link btn-sm p-0" id="etInchideToate">închide toate</button></div>{% endif %}
+  {{ echipa_membri_json|json_script:"etEchipa" }}{% if poate_echipa %}{{ utilizatori_json|json_script:"etUtilizatori" }}{% endif %}
+  <div class="et-lista" id="etLista" data-setari="{% url 'proiect_detaliu' p.pk %}?tab=echipa" data-ordine="{% url 'etape_ordine' p.pk %}" data-adauga="{% url 'etapa_adauga' p.pk %}">
+    {% for e in etape %}<div class="et-grup" data-id="{{ e.pk }}">{% include "platforma/_etapa_rand.html" %}
+      <div class="et-sub" data-parinte="{{ e.pk }}">{% for e in e.copii %}{% include "platforma/_etapa_rand.html" %}{% endfor %}</div></div>{% endfor %}
+  </div>
+  {% if editabil %}<div class="et-adauga-final"><button type="button" class="btn btn-sm btn-outline-primary et-plus" data-dupa="" title="adaugă o etapă la final"><i class="bi bi-plus-lg"></i> Etapă nouă</button>
+    <form method="post" action="{% url 'etape_genereaza' p.pk %}" class="ms-auto">{% csrf_token %}<button class="btn btn-link btn-sm p-0 small" title="adaugă etapele principale care lipsesc">+ etapele principale lipsă</button></form></div>{% endif %}
+  {% else %}
+  <div class="card-body text-center py-4">
+    <i class="bi bi-signpost-split fs-2 text-secondary"></i>
+    <p class="text-secondary small mb-3">Proiectul nu are încă etape de monitorizare.</p>
+    {% if editabil %}<form method="post" action="{% url 'etape_genereaza' p.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-primary"><i class="bi bi-magic"></i> Generează etapele principale</button></form>
+      <div class="small text-secondary mt-2">Se propun după tipul investiției ({{ p.get_tip_investitie_display|default:"nedefinit"|lower }}, {% if p.tip_autorizare == 'cu_ac' %}cu{% else %}fără{% endif %} autorizație de construire), cu termene între demarare și termenul de finalizare.</div>
+      {% if gantt_vechi %}<form method="post" action="{% url 'etape_din_gantt' p.pk %}" class="mt-2">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-repeat"></i> Preia cele {{ gantt_vechi }} activități din vechiul grafic Gantt</button></form>{% endif %}
+      <form method="post" action="{% url 'etapa_adauga' p.pk %}" class="d-flex gap-2 justify-content-center mt-3">{% csrf_token %}<input name="denumire" class="form-control form-control-sm" style="max-width:320px" placeholder="sau scrieți prima etapă…" required><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i></button></form>
+    {% endif %}
+  </div>
+  {% endif %}
+ </div>
+</div>
+
+<div class="tab-pane fade" id="m-rapoarte">
+ <div class="card">
+  <div class="card-header d-flex align-items-center gap-2"><i class="bi bi-clipboard2-check"></i> <span class="fw-semibold">Rapoarte de șantier</span>
+    <span class="small text-secondary">{{ rapoarte_emise }} emis{{ rapoarte_emise|pluralize:",e" }}</span>
+    {% if poate_raporta %}<a href="{% url 'santier_nou' p.pk %}" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-plus-lg"></i> Raport de șantier nou</a>{% endif %}</div>
+  {% if rapoarte_activitate %}<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0 lista-rapoarte">
+    <thead><tr><th>Nr.</th><th>Data</th><th>Întocmit de</th><th class="text-center" title="personal în șantier"><i class="bi bi-people"></i></th><th>Activități</th><th class="text-center" title="puncte snag list"><i class="bi bi-exclamation-diamond"></i></th><th class="text-center" title="fotografii"><i class="bi bi-camera"></i></th><th></th></tr></thead>
+    <tbody>{% for r in rapoarte_activitate %}{% url 'santier_detaliu' p.pk r.pk as url_r %}{% url 'raport_activitate_pdf' p.pk r.pk as url_pdf %}
+    <tr class="rand-raport {% if r.stare == 'ciorna' %}table-warning{% endif %}" data-href="{% if r.stare == 'ciorna' %}{% url 'santier_editare' p.pk r.pk %}{% else %}{{ url_r }}{% endif %}">
+      <td class="text-nowrap fw-semibold">{% if r.stare == 'ciorna' %}<span class="badge text-bg-warning">ciornă</span>{% else %}{{ r.cod_raport }}{% endif %}</td>
+      <td class="text-nowrap">{{ r.data|date:"d.m.Y" }}<div class="small text-secondary">{% if r.data == azi %}azi{% else %}{{ r.data|date:"l"|lower }}{% endif %}</div></td>
+      <td class="small text-nowrap"><i class="bi bi-person"></i> {{ r.autor.get_full_name|default:r.autor.username|default:"—" }}</td>
+      <td class="text-center small">{{ r.total_muncitori|default:"–" }}</td>
+      <td class="small">{% with a=r.lista_activitati %}{% if a %}• {{ a.0|truncatechars:60 }}{% if a|length > 1 %} <span class="text-secondary">+{{ a|length|add:"-1" }}</span>{% endif %}{% else %}<span class="text-secondary">—</span>{% endif %}{% endwith %}</td>
+      <td class="text-center small">{{ r.nr_snag|default:"–" }}</td>
+      <td class="text-center small">{{ r.nr_poze|default:"–" }}</td>
+      <td class="text-end text-nowrap">{% if r.stare == 'emis' %}<a href="{{ url_pdf }}" data-vizualizeaza title="Raport de șantier {{ r.cod_raport }} – {{ p.cod }}" class="btn btn-link btn-sm p-0 text-danger me-2" title="PDF"><i class="bi bi-file-earmark-pdf"></i></a>
+        <a href="{{ url_pdf }}?dl=1" class="btn btn-link btn-sm p-0 text-secondary me-2" title="Descarcă PDF"><i class="bi bi-download"></i></a>{% endif %}
+        {% if e_admin or r.autor_id == request.user.pk and r.stare == 'ciorna' %}<form method="post" action="{% url 'raport_activitate_sterge' p.pk r.pk %}" class="d-inline" data-confirm="Ștergeți {% if r.stare == 'ciorna' %}ciorna{% else %}raportul {{ r.cod_raport }}{% endif %} din {{ r.data|date:'d.m.Y' }}?">{% csrf_token %}<button class="btn btn-link btn-sm text-danger p-0" title="șterge"><i class="bi bi-trash"></i></button></form>{% endif %}
+      </td>
+    </tr>{% endfor %}</tbody></table></div>
+  {% else %}<div class="card-body text-center py-4"><i class="bi bi-clipboard2-check fs-2 text-secondary"></i><p class="text-secondary small mb-2">Niciun raport de șantier încă.</p>
+    {% if poate_raporta %}<a href="{% url 'santier_nou' p.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Primul raport de șantier</a>{% endif %}</div>{% endif %}
+ </div>
+</div>
+</div>
+<script>
+document.querySelectorAll('.rand-raport').forEach(tr => tr.addEventListener('click', e => {
+  if (e.target.closest('a, button, form')) return;
+  location.href = tr.dataset.href;
+}));
+(() => { if (new URLSearchParams(location.search).get('sectiune') === 'rapoarte' && window.bootstrap) bootstrap.Tab.getOrCreateInstance(document.getElementById('pillRapoarte')).show(); })();
+</script>
+{% if etape %}<script src="/static/platforma/etape.js?v=20261115g"></script>{% endif %}

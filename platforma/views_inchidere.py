@@ -64,7 +64,7 @@ def verificari(p, tip):
     if active:
         v.append(("warn", f"{active} contracte încă „în derulare” / „în negociere”"))
     if tip == "terminare":
-        lipsa = p.avize.exclude(status__in=["obtinut", "nu_e_cazul"]).count()
+        lipsa = p.avize.exclude(status="obtinut").count()
         if lipsa:
             v.append(("crit", f"{lipsa} avize / acorduri neobținute"))
     nerec = p.echipamente.exclude(status="receptionat").count()
@@ -92,7 +92,7 @@ def _initial(p, tip):
     membri = [f"{u.get_full_name() or u.username} – {et}" for u, et in ((p.coordonator, "coordonator"), (p.pm, "project manager")) if u]
     n = p.procese_verbale.count() + 1
     ini = {
-        "numar": f"{p.cod}/PV-{n:02d}", "data": timezone.localdate(), "loc_receptie": p.locatie.adresa or str(p.locatie),
+        "numar": f"{p.cod}/PV-{n:02d}", "data": timezone.localdate(), "loc_receptie": (p.locatie.adresa or str(p.locatie)) if p.locatie else (p.obiectiv or ""),
         "data_incepere": p.data_demarare, "data_terminare": p.data_finalizare_reala or timezone.localdate(),
         "executant": ", ".join(parteneri[:3]), "membri_comisie": "\n".join(membri),
         "obiective_realizate": p.descriere_lucrari, "data_pif": timezone.localdate(), "decizie": "admisa",

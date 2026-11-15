@@ -59,4 +59,14 @@
       if (buton) f.requestSubmit(buton); else f.requestSubmit();
     });
   }, true);
+
+  // un formular trimis o dată nu se mai poate retrimite prin dublu-clic (ex. „Trimite spre avizare” cât pleacă emailul)
+  document.addEventListener('submit', e => {
+    const f = e.target;
+    if (e.defaultPrevented || f.method.toLowerCase() !== 'post' || f.target === '_blank' || f.dataset.faraBlocare) return;
+    if (f._trimis) { e.preventDefault(); return; }
+    f._trimis = true;
+    setTimeout(() => f.querySelectorAll('button[type=submit], button:not([type])').forEach(b => { b.disabled = true; b.classList.add('opacity-75'); }));
+    setTimeout(() => { f._trimis = false; f.querySelectorAll('button').forEach(b => { b.disabled = false; b.classList.remove('opacity-75'); }); }, 15000);
+  });
 })();

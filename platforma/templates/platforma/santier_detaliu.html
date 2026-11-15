@@ -1,0 +1,62 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}{{ r.cod_raport }} · {{ p.cod }}{% endblock %}
+{% block continut %}
+{% url 'raport_activitate_pdf' p.pk r.pk as url_pdf %}
+<div class="d-flex align-items-start gap-2 mb-3 flex-wrap">
+  <a href="{% url 'proiect_detaliu' p.pk %}?tab=monitorizare&sectiune=rapoarte" class="btn btn-sm btn-outline-secondary me-2"><i class="bi bi-arrow-left"></i></a>
+  <div><h4 class="mb-0">Raport de șantier {{ r.cod_raport }} <span class="text-secondary fw-normal">· {{ r.data|date:"d.m.Y" }}</span>
+      {% if r.stare == 'ciorna' %}<span class="badge text-bg-warning">ciornă</span>{% endif %}</h4>
+    <div class="small text-secondary"><span class="cod">{{ p.cod }}</span> · {{ p.denumire }} · <i class="bi bi-person"></i> întocmit de <b>{{ r.autor.get_full_name|default:r.autor.username|default:"—" }}</b>
+      {% if r.emis_la %} · emis la {{ r.emis_la|date:"d.m.Y H:i" }}{% endif %}</div></div>
+  <div class="ms-auto d-flex gap-2">
+    {% if poate_modifica %}<a href="{% url 'santier_editare' p.pk r.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-pencil"></i> Continuă ciorna</a>{% endif %}
+    <a href="{{ url_pdf }}" data-vizualizeaza title="Raport de șantier {{ r.cod_raport }} – {{ p.cod }}" class="btn btn-sm btn-outline-danger"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+    <a href="{{ url_pdf }}?dl=1" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download"></i> Descarcă</a>
+  </div>
+</div>
+
+<div class="row g-3">
+ <div class="col-xl-8">
+  <div class="card mb-3"><div class="card-body small d-flex flex-wrap gap-4">
+    <div><div class="text-secondary">Vreme</div><b>{{ r.meteo|default:"—" }}</b></div>
+    <div><div class="text-secondary">Personal în șantier</div><b>{{ r.total_muncitori }}</b></div>
+  </div></div>
+
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-cone-striped me-2"></i><span class="fw-semibold">Personal în șantier</span></div>
+   {% if r.constructori %}<table class="table table-sm mb-0"><thead><tr><th>Firmă / echipă</th><th class="text-end">Nr. persoane</th></tr></thead>
+   {% for c in r.constructori %}<tr><td>{{ c.firma }}</td><td class="text-end">{{ c.muncitori }}</td></tr>{% endfor %}
+   <tr class="fw-semibold"><td>Total</td><td class="text-end">{{ r.total_muncitori }}</td></tr></table>{% else %}<div class="card-body small text-secondary">—</div>{% endif %}</div>
+
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-list-check me-2"></i><span class="fw-semibold">Activități realizate</span></div>
+   <div class="card-body">{% if r.lista_activitati %}<ul class="mb-0">{% for a in r.lista_activitati %}<li>{{ a }}</li>{% endfor %}</ul>{% else %}<span class="small text-secondary">—</span>{% endif %}</div></div>
+
+  <div class="row g-3 mb-3">
+   <div class="col-md-6"><div class="card h-100"><div class="card-header"><i class="bi bi-box-seam me-2"></i><span class="fw-semibold">Materiale aprovizionate</span></div>
+    {% if materiale %}<table class="table table-sm small mb-0"><thead><tr><th>Material</th><th class="text-end">Cantitate</th><th>Furnizor</th><th>Avize</th></tr></thead>
+    {% for x in materiale %}<tr><td>{{ x.denumire }}</td><td class="text-end text-nowrap">{{ x.cantitate }} {{ x.um }}</td><td>{{ x.furnizor }}</td>
+      <td class="text-nowrap">{% for d in x.docs %}<a href="{% url 'document' d.pk %}" title="{{ d.titlu }}" class="me-1"><i class="bi bi-file-earmark-text"></i> aviz{% if x.docs|length > 1 %} {{ forloop.counter }}{% endif %}</a>{% empty %}<span class="text-secondary">—</span>{% endfor %}</td></tr>{% endfor %}</table>{% else %}<div class="card-body small text-secondary">—</div>{% endif %}</div></div>
+   <div class="col-md-6"><div class="card h-100"><div class="card-header"><i class="bi bi-truck me-2"></i><span class="fw-semibold">Utilaje</span></div>
+    {% if r.utilaje %}<table class="table table-sm small mb-0"><thead><tr><th>Utilaj</th><th class="text-end">Nr.</th><th>Observații</th></tr></thead>
+    {% for x in r.utilaje %}<tr><td>{{ x.denumire }}</td><td class="text-end">{{ x.numar }}</td><td>{{ x.observatii }}</td></tr>{% endfor %}</table>{% else %}<div class="card-body small text-secondary">—</div>{% endif %}</div></div>
+  </div>
+
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-exclamation-diamond me-2"></i><span class="fw-semibold">Snag list</span> <span class="badge rounded-pill text-bg-light">{{ snag|length }}</span></div>
+   <div class="card-body">{% for s in snag %}<div class="rs-snag-vedere">
+     <div class="d-flex gap-2"><span class="etapa-nr">{{ forloop.counter }}</span><div class="flex-grow-1"><div class="fw-semibold">{{ s.descriere }}</div>
+       <div class="small text-secondary">{% if s.zona %}<i class="bi bi-geo-alt"></i> {{ s.zona }} {% endif %}{% if s.responsabil %}· <i class="bi bi-person"></i> {{ s.responsabil }} {% endif %}{% if s.termen %}· <i class="bi bi-calendar3"></i> termen {{ s.termen|date:"d.m.Y" }}{% endif %}</div>
+       {% if s.poze.all %}<div class="raport-poze mt-2">{% for d in s.poze.all %}<a href="{% url 'document' d.pk %}" title="{{ d.titlu }}"><img src="{% url 'document' d.pk %}{% if d.miniatura %}?m=1{% endif %}" alt="" loading="lazy"></a>{% endfor %}</div>{% endif %}</div></div>
+   </div>{% empty %}<span class="small text-secondary">Niciun punct.</span>{% endfor %}</div></div>
+
+  {% if r.probleme or r.pasi_urmatori %}<div class="card mb-3"><div class="card-body small">
+    {% if r.probleme %}<div class="raport-probleme mb-2"><i class="bi bi-exclamation-triangle"></i> <b>Probleme / blocaje:</b> {{ r.probleme|linebreaksbr }}</div>{% endif %}
+    {% if r.pasi_urmatori %}<div><i class="bi bi-arrow-right-circle"></i> <b>Pașii următori:</b> {{ r.pasi_urmatori|linebreaksbr }}</div>{% endif %}
+  </div></div>{% endif %}
+ </div>
+ <div class="col-xl-4">
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-camera me-2"></i><span class="fw-semibold">Fotografii</span> <span class="badge rounded-pill text-bg-light">{{ poze_generale|length }}</span></div>
+   <div class="card-body">{% if poze_generale %}<div class="raport-poze">{% for d in poze_generale %}<a href="{% url 'document' d.pk %}" title="{{ d.titlu }}"><img src="{% url 'document' d.pk %}{% if d.miniatura %}?m=1{% endif %}" alt="" loading="lazy"></a>{% endfor %}</div>{% else %}<span class="small text-secondary">Fără fotografii.</span>{% endif %}</div></div>
+  {% if r.stare == 'emis' %}<div class="card"><div class="card-header"><i class="bi bi-bell me-2"></i><span class="fw-semibold">Echipa notificată</span></div>
+   <ul class="list-group list-group-flush small">{% for n in notificati %}<li class="list-group-item d-flex">{{ n.user.get_full_name|default:n.user.username }}<span class="ms-auto {% if n.citita_la %}text-success{% else %}text-secondary{% endif %}">{% if n.citita_la %}<i class="bi bi-check2-all"></i> văzut {{ n.citita_la|date:"d.m H:i" }}{% else %}nevăzut{% endif %}</span></li>{% empty %}<li class="list-group-item text-secondary">Nimeni (echipa nu avea alți membri cu cont).</li>{% endfor %}</ul></div>{% endif %}
+ </div>
+</div>
+{% endblock %}

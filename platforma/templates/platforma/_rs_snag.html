@@ -1,0 +1,13 @@
+{# Un punct din snag list (în formularul raportului de șantier); k = cheia rândului, s = punctul existent (opțional) #}
+<div class="rs-snag">
+  <input type="hidden" name="snag_key" value="{{ k }}"><input type="hidden" name="snag_id_{{ k }}" value="{{ s.pk|default:'' }}">
+  <div class="row g-2">
+    <div class="col-md-7"><input name="snag_descriere_{{ k }}" value="{{ s.descriere|default:'' }}" class="form-control form-control-sm" placeholder="Ce trebuie remediat, ex. fisură perete axa C"></div>
+    <div class="col-md-5"><input name="snag_zona_{{ k }}" value="{{ s.zona|default:'' }}" class="form-control form-control-sm" placeholder="Zonă / amplasament"></div>
+    <div class="col-md-5"><input name="snag_responsabil_{{ k }}" value="{{ s.responsabil|default:'' }}" list="rsFirme" class="form-control form-control-sm" placeholder="Responsabil remediere"></div>
+    <div class="col-md-3"><input type="date" name="snag_termen_{{ k }}" value="{{ s.termen|date:'Y-m-d' }}" class="form-control form-control-sm" title="termen de remediere"></div>
+    <div class="col-md-4 d-flex gap-1 align-items-center"><label class="btn btn-sm btn-outline-secondary mb-0 text-nowrap"><i class="bi bi-camera"></i> poze<input type="file" name="snag_poze_{{ k }}" multiple accept="image/*" data-redimensioneaza class="d-none"></label>
+      <span class="small text-secondary rs-snag-nr"></span><span class="ms-auto">{% include "platforma/_rs_sterge.html" %}</span></div>
+  </div>
+  {% if s.poze.all %}<div class="raport-poze mt-2">{% for d in s.poze.all %}<a href="{% url 'document' d.pk %}" title="{{ d.titlu }}"><img src="{% url 'document' d.pk %}{% if d.miniatura %}?m=1{% endif %}" alt="" loading="lazy"></a>{% endfor %}</div>{% endif %}
+</div>

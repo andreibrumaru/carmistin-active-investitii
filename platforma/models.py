@@ -22,7 +22,24 @@ ZERO = Decimal("0")
 
 
 def suma(qs, camp):
+    """Suma unui câmp. Dacă rândurile sunt deja încărcate (prefetch), adună în memorie, fără o nouă interogare."""
+    if getattr(qs, "_result_cache", None) is not None:
+        return sum((getattr(o, camp) or ZERO for o in qs), ZERO)
     return qs.aggregate(s=Sum(camp))["s"] or ZERO
+
+
+def randuri(manager, *select):
+    """Rândurile unei relații: cele deja încărcate (prefetch), altfel o interogare (cu select_related, dacă e cerut)."""
+    qs = manager.all()
+    if qs._result_cache is not None:
+        return qs
+    return qs.select_related(*select) if select else qs
+
+
+def incarcate(manager):
+    """Lista rândurilor unei relații dacă au fost încărcate prin prefetch, altfel None."""
+    qs = manager.all()
+    return qs._result_cache
 
 
 # ---------------------------------------------------------------------------
@@ -47,6 +64,12 @@ class Profil(models.Model):
     )
     telefon = models.CharField(max_length=40, blank=True)
     functie = models.CharField(max_length=120, blank=True)
+    # Afișare (setare personală, reținută pe cont): mărimea interfeței în procente; 0 = automat după ecran
+    SCARI_AFISARE = [
+        (0, "Automat (după ecran)"), (85, "Compact – 85%"), (90, "Mai mic – 90%"), (100, "Recomandat – 100%"),
+        (110, "Mărit – 110%"), (125, "Mare – 125%"), (140, "Foarte mare – 140%"),
+    ]
+    scara_afisare = models.PositiveSmallIntegerField("mărime afișare (%)", choices=SCARI_AFISARE, default=100)
 
     class Meta:
         verbose_name = "profil utilizator"
@@ -130,9 +153,13 @@ class Nomenclator(models.Model):
     def optiuni(cls, tip):
         return cls.objects.filter(tip=tip, activ=True)
 
+    _cache_valori = {}  # valorile active pe tip, golit la orice modificare a nomenclatorului (semnalele de mai jos)
+
     @classmethod
     def valori(cls, tip):
-        return set(cls.optiuni(tip).values_list("valoare", flat=True))
+        if tip not in cls._cache_valori:
+            cls._cache_valori[tip] = frozenset(cls.optiuni(tip).values_list("valoare", flat=True))
+        return set(cls._cache_valori[tip])
 
 
 class CursValutar(models.Model):
@@ -208,7 +235,9 @@ def judet_din_adresa(adresa):
 
 class Locatie(models.Model):
     TIP = [("activ", "Activ"), ("teren", "Teren"), ("obiectiv", "Obiectiv funcțional")]
-    STARE = [("functional", "Activ funcțional"), ("nefunctional", "Activ nefuncțional"), ("teren", "Teren investiții"), ("retail", "Retail")]
+    STARE = [("functional", "Activ funcțional"), ("nefunctional", "Activ nefuncțional"), ("teren", "Teren investiții"), ("retail", "Retail"),
+             ("reziliat", "Activ reziliat")]
+    OPERATE = ("functional", "nefunctional", "teren", "retail")  # activele operate de grup (fără cele reziliate)
     DETINERE = [("owned", "Proprietate"), ("concesiune", "Concesiune"), ("inchiriat", "Închiriat (RENT)"), ("altul", "Altul")]
 
     cod = models.CharField("cod locație", max_length=30, unique=True, null=True, blank=True,
@@ -221,6 +250,8 @@ class Locatie(models.Model):
     tip = models.CharField(max_length=20, choices=TIP, default="activ")
     stare_activ = models.CharField("categorie activ", max_length=15, choices=STARE, default="functional",
                                    help_text="Se schimbă doar de administrator; fiecare schimbare rămâne în istoricul activului")
+    data_reziliere = models.DateField("data rezilierii", null=True, blank=True,
+                                      help_text="Activ operat în trecut de grup, reziliat la această dată; nu mai intră în activele operate.")
     utilizator = models.CharField(max_length=200, blank=True)
     proprietar = models.ForeignKey(Societate, null=True, blank=True, on_delete=models.PROTECT, related_name="locatii",
                                    help_text="Firma din grup care deține locația; la închirierea externă, firma din grup care o închiriază")
@@ -319,6 +350,8 @@ class Locatie(models.Model):
     @property
     def in_lista_autorizatii(self):
         """Lista standard de autorizații se aplică activelor funcționale (sau celor activate manual)."""
+        if self.stare_activ == "reziliat":
+            return False
         if self.urmareste_autorizatii is not None:
             return self.urmareste_autorizatii
         return self.stare_activ in ("functional", "retail")
@@ -336,6 +369,8 @@ class Locatie(models.Model):
         """(se include?, motiv) – valoarea de piață intră în valoarea consolidată doar pentru activele deținute de grup.
         Activele deținute de grup și închiriate între firmele grupului se adună o singură dată (la proprietar);
         cele doar exploatate de grup prin contracte cu terți nu se adună."""
+        if self.stare_activ == "reziliat":
+            return False, f"activ reziliat{f' la {self.data_reziliere:%d.%m.%Y}' if self.data_reziliere else ''} – nu mai e operat de grup"
         if self.consolideaza_valoare is not None:
             return self.consolideaza_valoare, "setat manual: " + ("se include" if self.consolideaza_valoare else "nu se include")
         if self.inchiriere_externa:
@@ -444,6 +479,22 @@ class ContractFolosinta(models.Model):
     @property
     def anexe(self):
         return self.documente.filter(arhivat=False, categorie="anexa_drept").order_by("incarcat_la")
+
+
+class CodLocatieRetras(models.Model):
+    """Codurile activelor reziliate care au fost șterse din registru: rămân rezervate și nu se realocă altui activ."""
+    cod = models.CharField(max_length=30, unique=True)
+    denumire = models.CharField("denumire activ", max_length=255, blank=True)
+    data_reziliere = models.DateField(null=True, blank=True)
+    retras_la = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["cod"]
+        verbose_name = "cod de activ retras"
+        verbose_name_plural = "coduri de active retrase"
+
+    def __str__(self):
+        return f"{self.cod} · {self.denumire}"
 
 
 class IstoricStareActiv(models.Model):
@@ -702,7 +753,8 @@ class Proiect(models.Model):
     MONEDE = [("RON", "RON"), ("EUR", "EUR")]
 
     # Identificare / Raport Zero
-    locatie = models.ForeignKey(Locatie, on_delete=models.PROTECT, related_name="proiecte")
+    locatie = models.ForeignKey(Locatie, null=True, blank=True, on_delete=models.PROTECT, related_name="proiecte",
+                                help_text="Gol = investiție nealocată unui activ (obiectiv nou); se poate aloca ulterior.")
     nr_ordine = models.PositiveIntegerField()
     cod = models.CharField("cod proiect", max_length=40, unique=True)
     nr_inregistrare = models.CharField("nr. înregistrare document", max_length=60, unique=True)
@@ -820,6 +872,11 @@ class Proiect(models.Model):
         return (u.get_full_name() or u.username) if u else ""
 
     @property
+    def nealocat(self):
+        """Investiție care nu se raportează (încă) la un activ din registrul activelor."""
+        return not self.locatie_id
+
+    @property
     def stare_rz_registru(self):
         """Starea Raportului Zero văzută din registru: avizat / revizie în lucru / revizie în avizare."""
         if self.stare_rz == "aprobat":
@@ -914,6 +971,44 @@ class Proiect(models.Model):
 
     ETICHETE_NOMENCLATOR = {"nerambursabil": "Fonduri Nerambursabile", "bancara": "Bancara", "proprii": "Fonduri Proprii"}
 
+    PREFIX_NEALOCAT = "NA"  # cod proiect nealocat unui activ: ACRONIM_BENEFICIAR.NA.NN
+
+    @classmethod
+    def coduri_nealocate_urmatoare(cls, societati):
+        """{pk societate: următorul cod ACRONIM.NA.NN} pentru mai multe societăți, dintr-o singură interogare."""
+        existente = set(cls.objects.filter(cod__contains=f".{cls.PREFIX_NEALOCAT}.").values_list("cod", flat=True))
+        rez = {}
+        for soc in societati:
+            prefix = (soc.prefix_cod or "").strip().upper()
+            if not prefix:
+                continue
+            baza = f"{prefix}.{cls.PREFIX_NEALOCAT}."
+            n = max([int(c[len(baza):]) for c in existente if c.startswith(baza) and c[len(baza):].isdigit()] or [0]) + 1
+            while f"{baza}{n:02d}" in existente:
+                n += 1
+            rez[soc.pk] = f"{baza}{n:02d}"
+        return rez
+
+    @classmethod
+    def urmatorul_cod_nealocat(cls, societate):
+        """Codul unei investiții nealocate unui activ: ACRONIM.NA.NN (numerotare pe beneficiar)."""
+        prefix = (societate.prefix_cod or "").strip().upper() if societate else ""
+        if not prefix:
+            return None
+        baza = f"{prefix}.{cls.PREFIX_NEALOCAT}."
+        n = max([int(c[len(baza):]) for c in cls.objects.filter(cod__startswith=baza).values_list("cod", flat=True)
+                 if c[len(baza):].isdigit()] or [0]) + 1
+        while cls.objects.filter(cod=f"{baza}{n:02d}").exists():
+            n += 1
+        return f"{baza}{n:02d}", n
+
+    def aloca_activ(self, locatie):
+        """Leagă ulterior o investiție nealocată de un activ din registru. Codul proiectului rămâne neschimbat
+        (e folosit deja în documente, centrul de cost și jurnal)."""
+        self.locatie = locatie
+        self.nr_ordine = (locatie.proiecte.exclude(pk=self.pk).aggregate(m=models.Max("nr_ordine"))["m"] or 0) + 1
+        self.save(update_fields=["locatie", "nr_ordine", "modificat_la"])
+
     def actualizeaza_structura_finantare(self):
         """După salvarea RZ: fondurile proprii = restul până la valoarea RZ; textul „finanțare” (filtre, liste) se
         sincronizează cu bifele. Întoarce un avertisment (text) dacă structura nu acoperă exact valoarea RZ."""
@@ -975,6 +1070,9 @@ class Proiect(models.Model):
 
     @property
     def platit_ron(self):
+        facturi = incarcate(self.facturi)
+        if facturi is not None and all(incarcate(f.plati) is not None for f in facturi):
+            return sum((f.platit_ron for f in facturi), ZERO)
         return suma(Plata.objects.filter(factura__proiect=self, stare="platita"), "suma_ron")
 
     @property
@@ -1109,10 +1207,13 @@ class LinieBuget(models.Model):
     @property
     def angajat(self):
         """Contracte alocate pe linie + acte adiționale (pe linia lor sau proporțional cu alocarea contractului)."""
-        total = suma(self.alocari_contracte.all(), "valoare_ron") + suma(self.acte_aditionale.all(), "diferenta_ron")
-        for a in self.alocari_contracte.select_related("contract"):
+        alocari = randuri(self.alocari_contracte, "contract")
+        total = suma(alocari, "valoare_ron") + suma(self.acte_aditionale.all(), "diferenta_ron")
+        for a in alocari:
             c = a.contract
-            fara_linie = suma(c.acte_aditionale.filter(linie_buget__isnull=True), "diferenta_ron")
+            acte = incarcate(c.acte_aditionale)
+            fara_linie = (sum((x.diferenta_ron or ZERO for x in acte if x.linie_buget_id is None), ZERO) if acte is not None
+                          else suma(c.acte_aditionale.filter(linie_buget__isnull=True), "diferenta_ron"))
             alocat = c.alocat_ron
             if fara_linie and alocat:
                 total += (fara_linie * a.valoare_ron / alocat).quantize(Decimal("0.01"))
@@ -1126,7 +1227,7 @@ class LinieBuget(models.Model):
     def platit(self):
         """Plățile se repartizează pe linii proporțional cu alocarea facturii."""
         total = ZERO
-        for a in self.alocari.select_related("factura"):
+        for a in randuri(self.alocari, "factura"):
             f = a.factura
             if f.valoare_ron:
                 total += a.valoare_ron * f.platit_ron / f.valoare_ron
@@ -1449,10 +1550,16 @@ class Factura(models.Model):
 
     @property
     def platit_ron(self):
+        plati = incarcate(self.plati)
+        if plati is not None:
+            return sum((x.suma_ron or ZERO for x in plati if x.stare == "platita"), ZERO)
         return suma(self.plati.filter(stare="platita"), "suma_ron")
 
     @property
     def in_aprobare_ron(self):
+        plati = incarcate(self.plati)
+        if plati is not None:
+            return sum((x.suma_ron or ZERO for x in plati if x.stare not in ("platita", "respinsa")), ZERO)
         return suma(self.plati.exclude(stare__in=["platita", "respinsa"]), "suma_ron")
 
     @property
@@ -1564,10 +1671,8 @@ class CertificatUrbanism(models.Model):
 
 
 class Aviz(models.Model):
-    STATUS = [
-        ("necesar", "Necesar"), ("in_pregatire", "În pregătire"), ("depus", "Depus"),
-        ("obtinut", "Obținut"), ("respins", "Respins"), ("nu_e_cazul", "Nu e cazul"),
-    ]
+    # statusul simplificat: datele de depunere / obținere rezultă din schimbarea statusului
+    STATUS = [("nedepus", "Nedepus"), ("depus", "Depus"), ("obtinut", "Obținut")]
     TIP = [("aviz", "Aviz"), ("acord", "Acord"), ("studiu", "Studiu"), ("autorizatie", "Autorizație"), ("alt", "Alt document")]
     ORIGINE = [("cu", "Cerut prin CU"), ("intermediar", "Intermediar"), ("suplimentar", "Suplimentar")]
     proiect = models.ForeignKey(Proiect, on_delete=models.CASCADE, related_name="avize")
@@ -1575,9 +1680,12 @@ class Aviz(models.Model):
     tip = models.CharField(max_length=20, choices=TIP, default="aviz")
     origine = models.CharField("origine", max_length=20, choices=ORIGINE, default="cu",
                                help_text="Cerut prin CU, sau aviz / studiu intermediar ori suplimentar (cerut ulterior).")
+    ordine = models.PositiveIntegerField(default=0)
     denumire = models.CharField(max_length=255)
+    denumire_completa = models.CharField("denumirea completă (din CU)", max_length=500, blank=True,
+                                         help_text="Denumirea lungă extrasă din certificat, păstrată când denumirea se prescurtează.")
     emitent = models.CharField(max_length=200, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS, default="necesar")
+    status = models.CharField(max_length=20, choices=STATUS, default="nedepus")
     responsabil = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     data_depunere = models.DateField(null=True, blank=True)
     termen_estimat = models.DateField(null=True, blank=True)
@@ -1590,7 +1698,7 @@ class Aviz(models.Model):
     extras_ai = models.BooleanField(default=False)
 
     class Meta:
-        ordering = ["proiect", "denumire"]
+        ordering = ["proiect", "ordine", "pk"]
         verbose_name_plural = "avize"
 
     def __str__(self):
@@ -1851,6 +1959,235 @@ class Activitate(models.Model):
 # ---------------------------------------------------------------------------
 # Documente (versionate, fără ștergere definitivă)
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Echipa proiectului, monitorizare (etape) și raportul zilnic de activitate
+# ---------------------------------------------------------------------------
+class MembruEchipa(models.Model):
+    """Membru al echipei de proiect, pe categorii. Poate fi un utilizator al aplicației (vede proiectul și scrie
+    rapoarte de activitate) sau o persoană externă (doar contact)."""
+    CATEGORII = [
+        ("echipa", "Echipa proiect", "bi-people"),
+        ("teren", "Responsabil teren", "bi-geo-alt"),
+        ("financiar", "Dep. Financiar", "bi-cash-coin"),
+        ("contabilitate", "Dep. Contabilitate", "bi-calculator"),
+        ("autorizatii", "Autorizații proiect", "bi-file-earmark-check"),
+        ("altii", "Alții", "bi-three-dots"),
+    ]
+    proiect = models.ForeignKey(Proiect, on_delete=models.CASCADE, related_name="echipa")
+    categorie = models.CharField(max_length=20, choices=[(c, e) for c, e, _ in CATEGORII])
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE, related_name="echipe_proiecte",
+                             verbose_name="utilizator al aplicației")
+    nume = models.CharField("nume (persoană externă)", max_length=150, blank=True)
+    functie = models.CharField("funcție / rol în proiect", max_length=150, blank=True)
+    firma = models.CharField("firmă", max_length=150, blank=True)
+    telefon = models.CharField(max_length=40, blank=True)
+    email = models.EmailField(blank=True)
+    adaugat_de = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    adaugat_la = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["proiect", "categorie", "pk"]
+        verbose_name = "membru echipă proiect"
+        verbose_name_plural = "echipe de proiect"
+
+    def __str__(self):
+        return f"{self.nume_afisat} – {self.get_categorie_display()} ({self.proiect.cod})"
+
+    @property
+    def nume_afisat(self):
+        if self.user_id:
+            return self.user.get_full_name() or self.user.username
+        return self.nume
+
+    @property
+    def iconita(self):
+        return {c: i for c, _, i in self.CATEGORII}.get(self.categorie, "bi-person")
+
+
+class EtapaProiect(models.Model):
+    """Etapă de monitorizare a proiectului (generată din etapele principale sau adăugată manual)."""
+    STATUS = [("neinceputa", "Neîncepută"), ("in_curs", "În curs"), ("finalizata", "Finalizată"), ("blocata", "Blocată")]
+    proiect = models.ForeignKey(Proiect, on_delete=models.CASCADE, related_name="etape")
+    parinte = models.ForeignKey("self", null=True, blank=True, on_delete=models.CASCADE, related_name="subetape",
+                                verbose_name="etapa principală", help_text="Gol = etapă principală; altfel subetapă a ei.")
+    ordine = models.PositiveIntegerField(default=0)
+    denumire = models.CharField(max_length=200)
+    descriere = models.CharField(max_length=300, blank=True)
+    start_plan = models.DateField("start planificat", null=True, blank=True)
+    final_plan = models.DateField("termen planificat", null=True, blank=True)
+    start_real = models.DateField("start efectiv", null=True, blank=True)
+    final_real = models.DateField("finalizată la", null=True, blank=True)
+    progres = models.PositiveIntegerField("progres (%)", default=0)
+    status = models.CharField(max_length=12, choices=STATUS, default="neinceputa")
+    responsabil = models.ForeignKey(MembruEchipa, null=True, blank=True, on_delete=models.SET_NULL, related_name="etape")
+    observatii = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["proiect", "ordine", "pk"]
+        verbose_name = "etapă proiect"
+        verbose_name_plural = "etape proiect"
+
+    def __str__(self):
+        return f"{self.proiect.cod} · {self.denumire}"
+
+    @property
+    def intarziata(self):
+        return self.status != "finalizata" and self.final_plan and self.final_plan < timezone.localdate()
+
+    def actualizeaza_din_subetape(self):
+        """Etapa principală cu subetape: progresul = media subetapelor; finalizată când toate subetapele sunt finalizate."""
+        sub = list(self.subetape.all())
+        if not sub:
+            return
+        self.progres = round(sum(x.progres for x in sub) / len(sub))
+        if all(x.status == "finalizata" for x in sub):
+            self.status = "finalizata"
+            self.final_real = max((x.final_real for x in sub if x.final_real), default=None) or self.final_real or timezone.localdate()
+        elif self.status == "finalizata":
+            self.status, self.final_real = "in_curs", None
+        elif self.status == "neinceputa" and any(x.status in ("in_curs", "finalizata") for x in sub):
+            self.status = "in_curs"
+        if self.status in ("in_curs", "finalizata") and not self.start_real:
+            self.start_real = min((x.start_real for x in sub if x.start_real), default=None) or timezone.localdate()
+        self.save(update_fields=["progres", "status", "final_real", "start_real"])
+
+
+class RaportActivitate(models.Model):
+    """Raport de șantier (zilnic): constructori și muncitori, activități, vreme, materiale, utilaje, snag list, fotografii.
+    Se salvează ca ciornă; la finalizare primește număr (RS-NN) și echipa proiectului este notificată."""
+    STARE = [("ciorna", "Ciornă"), ("emis", "Emis")]
+    proiect = models.ForeignKey(Proiect, on_delete=models.CASCADE, related_name="rapoarte_activitate")
+    numar = models.PositiveIntegerField("nr. raport", null=True, blank=True)
+    stare = models.CharField(max_length=10, choices=STARE, default="emis")
+    emis_la = models.DateTimeField(null=True, blank=True)
+    constructori = models.JSONField("constructori pe șantier", default=list, blank=True)  # [{"firma", "muncitori"}]
+    materiale = models.JSONField("materiale aprovizionate", default=list, blank=True)  # [{"denumire", "cantitate", "um", "furnizor"}]
+    utilaje = models.JSONField("utilaje", default=list, blank=True)  # [{"denumire", "numar", "observatii"}]
+    data = models.DateField("data", default=timezone.localdate)
+    autor = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="+")
+    etapa = models.ForeignKey(EtapaProiect, null=True, blank=True, on_delete=models.SET_NULL, related_name="rapoarte",
+                              verbose_name="etapa la care s-a lucrat")
+    activitati = models.TextField("activități realizate", blank=True, help_text="O activitate pe rând (listă cu buline).")
+    probleme = models.TextField("probleme / blocaje", blank=True)
+    pasi_urmatori = models.TextField("pașii următori", blank=True)
+    personal = models.PositiveIntegerField("personal pe șantier", null=True, blank=True)
+    meteo = models.CharField("vreme", max_length=60, blank=True)
+    creat_la = models.DateTimeField(auto_now_add=True)
+    modificat_la = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data", "-creat_la"]
+        verbose_name = "raport de șantier"
+        verbose_name_plural = "rapoarte de șantier"
+
+    def __str__(self):
+        return f"{self.proiect.cod} · {self.cod_raport} · {self.data:%d.%m.%Y}"
+
+    @property
+    def cod_raport(self):
+        return f"RS-{self.numar:02d}" if self.numar else "ciornă"
+
+    @property
+    def lista_activitati(self):
+        return [x.strip(" •-\t") for x in (self.activitati or "").splitlines() if x.strip(" •-\t")]
+
+    @property
+    def total_muncitori(self):
+        return sum(int(c.get("muncitori") or 0) for c in self.constructori or [])
+
+
+class PunctSnag(models.Model):
+    """Punct din snag list: neconformitate / lucrare de remediat constatată pe șantier, cu fotografii."""
+    raport = models.ForeignKey(RaportActivitate, on_delete=models.CASCADE, related_name="snag")
+    ordine = models.PositiveIntegerField(default=0)
+    descriere = models.CharField(max_length=300)
+    zona = models.CharField("zonă / amplasament", max_length=150, blank=True)
+    responsabil = models.CharField("responsabil remediere", max_length=150, blank=True)
+    termen = models.DateField(null=True, blank=True)
+    rezolvat = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["raport", "ordine", "pk"]
+        verbose_name = "punct snag list"
+        verbose_name_plural = "snag list"
+
+    def __str__(self):
+        return self.descriere
+
+
+class SarcinaAlocata(models.Model):
+    """Sarcină pusă de responsabilul proiectului pentru unul sau mai mulți membri ai echipei (apare la „Sarcinile mele”)."""
+    STARE = [("deschisa", "Deschisă"), ("finalizata", "Finalizată")]
+    proiect = models.ForeignKey(Proiect, on_delete=models.CASCADE, related_name="sarcini_alocate")
+    descriere = models.CharField(max_length=300)
+    termen = models.DateField("data de implementare", null=True, blank=True)
+    responsabili = models.ManyToManyField(User, related_name="sarcini_alocate", verbose_name="responsabili")
+    stare = models.CharField(max_length=12, choices=STARE, default="deschisa")
+    creat_de = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="sarcini_create")
+    creat_la = models.DateTimeField(auto_now_add=True)
+    finalizata_de = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    finalizata_la = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["stare", "termen", "pk"]
+        verbose_name = "sarcină alocată"
+        verbose_name_plural = "sarcini alocate"
+
+    def __str__(self):
+        return f"{self.proiect.cod} · {self.descriere}"
+
+    @property
+    def intarziata(self):
+        return self.stare == "deschisa" and self.termen and self.termen < timezone.localdate()
+
+
+class Notificare(models.Model):
+    """Notificare în aplicație (clopoțelul din meniu), cu link către ce trebuie văzut."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notificari")
+    proiect = models.ForeignKey(Proiect, null=True, blank=True, on_delete=models.CASCADE, related_name="+")
+    titlu = models.CharField(max_length=200)
+    text = models.CharField(max_length=300, blank=True)
+    link = models.CharField(max_length=300)
+    creat_la = models.DateTimeField(auto_now_add=True)
+    citita_la = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-creat_la"]
+        verbose_name = "notificare"
+        verbose_name_plural = "notificări"
+
+    def __str__(self):
+        return f"{self.user} · {self.titlu}"
+
+
+class FolderDocumente(models.Model):
+    """Folder (cu subfoldere) în managementul documentelor unui proiect."""
+    proiect = models.ForeignKey(Proiect, on_delete=models.CASCADE, related_name="foldere")
+    parinte = models.ForeignKey("self", null=True, blank=True, on_delete=models.CASCADE, related_name="subfoldere")
+    nume = models.CharField(max_length=120)
+    ordine = models.PositiveIntegerField(default=0)
+    categorii = models.CharField("categorii încadrate automat", max_length=200, blank=True,
+                                 help_text="Documentele proiectului din aceste categorii (ex. contract, factura) ajung automat aici.")
+    creat_de = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    creat_la = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["proiect", "ordine", "nume"]
+        verbose_name = "folder documente"
+        verbose_name_plural = "foldere documente"
+
+    def __str__(self):
+        return self.cale
+
+    @property
+    def cale(self):
+        parti, f = [], self
+        while f is not None and len(parti) < 20:
+            parti.append(f.nume)
+            f = f.parinte
+        return " / ".join(reversed(parti))
+
+
 def cale_document(instance, filename):
     baza = instance.proiect.cod if instance.proiect_id else (instance.locatie.cod if instance.locatie_id else "general")
     return f"{(baza or 'fara-cod').replace('.', '_')}/{timezone.now():%Y%m%d%H%M%S}_{filename}"
@@ -1866,7 +2203,7 @@ class Document(models.Model):
         ("folosinta", "Act / contract privind dreptul de folosință"), ("anexa_autoriz", "Document suport autorizație"),
         ("standard", "Certificat standard (ISO, IFS…)"), ("anexa_drept", "Anexă la actul de folosință"),
         ("cadastru", "Documentație cadastrală"), ("plan_topo", "Plan topografic"), ("anexa", "Anexă"),
-        ("evaluare", "Raport de evaluare"), ("autorizatie_fct", "Autorizație de funcționare"), ("control", "Proces-verbal / notă de constatare"),
+        ("evaluare", "Raport de evaluare"), ("aviz_insotire", "Aviz de însoțire marfă (materiale)"), ("autorizatie_fct", "Autorizație de funcționare"), ("control", "Proces-verbal / notă de constatare"),
         ("altul", "Altul"),
     ]
     proiect = models.ForeignKey(Proiect, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
@@ -1896,6 +2233,11 @@ class Document(models.Model):
     cerere_tragere = models.ForeignKey(CerereTragere, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
     proces_verbal = models.ForeignKey(ProcesVerbalInchidere, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
     oferta = models.ForeignKey(OfertaRZ, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
+    raport_activitate = models.ForeignKey(RaportActivitate, null=True, blank=True, on_delete=models.CASCADE, related_name="poze")
+    punct_snag = models.ForeignKey(PunctSnag, null=True, blank=True, on_delete=models.SET_NULL, related_name="poze")
+    folder = models.ForeignKey(FolderDocumente, null=True, blank=True, on_delete=models.SET_NULL, related_name="documente")
+    miniatura = models.FileField(upload_to=cale_document, blank=True, editable=False,
+                                 help_text="Variantă mică a fotografiei, pentru galerii (generată automat).")
     incarcat_de = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="+")
     incarcat_la = models.DateTimeField(auto_now_add=True)
     text_extras = models.TextField(blank=True, editable=False)
@@ -1908,6 +2250,13 @@ class Document(models.Model):
         return f"{self.titlu} (v{self.versiune})"
 
     def save(self, *args, **kwargs):
+        if self._state.adding and self.proiect_id and not self.folder_id:
+            # managementul documentelor: versiunea nouă rămâne în folderul celei vechi; restul se încadrează după categorie
+            if self.inlocuieste_id and self.inlocuieste.folder_id:
+                self.folder_id = self.inlocuieste.folder_id
+            else:
+                self.folder = (FolderDocumente.objects.filter(proiect_id=self.proiect_id, categorii__contains=f",{self.categorie},").first()
+                               or FolderDocumente.objects.filter(proiect_id=self.proiect_id, categorii__contains=",*,").first())
         if self.fisier and not self.sha256:
             h = hashlib.sha256()
             for chunk in self.fisier.chunks():
@@ -2032,3 +2381,12 @@ class CerereStatus(models.Model):
 
     def __str__(self):
         return f"{self.proiect.cod}: {self.status_vechi or '—'} → {self.status_nou} ({self.get_stare_display()})"
+
+
+
+def _goleste_cache_nomenclator(sender, **kwargs):
+    Nomenclator._cache_valori.clear()
+
+
+post_save.connect(_goleste_cache_nomenclator, sender=Nomenclator, dispatch_uid="nomenclator_cache_save")
+post_delete.connect(_goleste_cache_nomenclator, sender=Nomenclator, dispatch_uid="nomenclator_cache_del")

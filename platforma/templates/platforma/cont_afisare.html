@@ -1,0 +1,62 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Setări afișare{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-start gap-2 mb-3 flex-wrap">
+  <div><h4 class="mb-0">Setări afișare</h4>
+    <div class="small text-secondary">Mărimea în care se afișează aplicația. Setarea se reține pe contul dumneavoastră și se aplică pe orice calculator pe care vă conectați.</div></div>
+</div>
+
+<div class="card mb-3" style="max-width:1100px"><div class="card-body d-flex gap-4 flex-wrap small align-items-center">
+  <div><div class="text-secondary">Ecranul acestui calculator</div><b id="afEcran">—</b></div>
+  <div><div class="text-secondary">Fereastra browserului</div><b id="afFereastra">—</b></div>
+  <div><div class="text-secondary">Densitate pixeli</div><b id="afDpr">—</b></div>
+  <div class="ms-auto"><div class="text-secondary">Potrivit pentru acest ecran</div><b id="afSugestie">—</b></div>
+</div></div>
+
+<form method="post" id="formAfisare" style="max-width:1100px">{% csrf_token %}
+<div class="row g-3">
+  {% for v, nume, desc in variante %}
+  <div class="col-sm-6 col-lg-4"><label class="card h-100 af-varianta {% if v == curent %}ales{% endif %}" data-scara="{{ v }}">
+    <div class="card-body">
+      <div class="d-flex align-items-center gap-2 mb-1"><input type="radio" class="form-check-input mt-0" name="scara" value="{{ v }}" {% if v == curent %}checked{% endif %}>
+        <span class="fw-semibold">{{ nume }}</span> <span class="badge text-bg-light">{{ v }}%</span>
+        <span class="ms-auto d-flex flex-wrap gap-1 justify-content-end">{% if v == 100 %}<span class="badge text-bg-success">recomandat</span>{% endif %}<span class="badge text-bg-info d-none af-potrivit">potrivit ecranului</span></span></div>
+      <div class="small text-secondary mb-2">{{ desc }}</div>
+      <div class="af-mostra" style="--m:{% widthratio v 100 1 %}" data-p="{{ v }}"><div class="af-mostra-in" style="font-size:{{ v }}%"><div class="af-m-titlu">AST.01.01 · Hală nouă</div><div class="af-m-rand"><span>Buget</span><b>1.250.000</b></div><div class="af-m-rand"><span>Progres</span><span class="af-m-bara"><i style="width:44%"></i></span></div></div></div>
+    </div></label></div>
+  {% endfor %}
+  <div class="col-sm-6 col-lg-4"><label class="card h-100 af-varianta {% if curent == 0 %}ales{% endif %}" data-scara="0">
+    <div class="card-body">
+      <div class="d-flex align-items-center gap-2 mb-1"><input type="radio" class="form-check-input mt-0" name="scara" value="0" {% if curent == 0 %}checked{% endif %}>
+        <span class="fw-semibold">Automat</span> <span class="badge text-bg-light" id="afAutoP">după ecran</span></div>
+      <div class="small text-secondary">Aplicația alege singură mărimea după lățimea ecranului calculatorului pe care lucrați: compact pe laptop, mărit pe monitoare mari. Util dacă folosiți mai multe calculatoare.</div>
+    </div></label></div>
+</div>
+<div class="d-flex gap-2 align-items-center mt-3">
+  <button class="btn btn-primary"><i class="bi bi-check2"></i> Salvează pe contul meu</button>
+  <button type="button" class="btn btn-outline-secondary" id="afRenunta">Renunță la previzualizare</button>
+  <span class="small text-secondary" id="afNota">Alegeți o variantă: o vedeți imediat pe toată pagina (previzualizare). Se păstrează doar după „Salvează”.</span>
+</div>
+</form>
+{% endblock %}
+{% block scripturi %}
+<script>
+(() => {
+  const h = document.documentElement, initial = h.style.getPropertyValue('--scara');
+  const auto = window.scaraAutomata ? scaraAutomata() : 100;
+  document.getElementById('afEcran').textContent = `${screen.width} × ${screen.height} px`;
+  document.getElementById('afFereastra').textContent = `${innerWidth} × ${innerHeight} px`;
+  document.getElementById('afDpr').textContent = `${devicePixelRatio}× ${devicePixelRatio >= 2 ? '(ecran Retina / HiDPI)' : ''}`;
+  document.getElementById('afSugestie').textContent = `${auto}%`;
+  document.getElementById('afAutoP').textContent = `acum: ${auto}%`;
+  document.querySelector(`.af-varianta[data-scara="${auto}"] .af-potrivit`)?.classList.remove('d-none');
+  const aplica = v => { const x = (+v === 0 ? auto : +v); x === 100 ? h.style.removeProperty('--scara') : h.style.setProperty('--scara', x / 100); };
+  document.querySelectorAll('[name=scara]').forEach(r => r.addEventListener('change', () => {
+    document.querySelectorAll('.af-varianta').forEach(c => c.classList.toggle('ales', c.dataset.scara === r.value));
+    aplica(r.value);
+    document.getElementById('afNota').innerHTML = '<i class="bi bi-eye"></i> Previzualizare – apăsați „Salvează pe contul meu” ca să o păstrați.';
+  }));
+  document.getElementById('afRenunta').addEventListener('click', () => location.reload());
+})();
+</script>
+{% endblock %}

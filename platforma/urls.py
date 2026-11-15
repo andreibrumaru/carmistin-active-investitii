@@ -3,12 +3,18 @@ from django.urls import path
 from . import views as v
 from . import views_finantare as vf
 from . import views_inchidere as vi
+from . import views_monitorizare as vm
+from . import views_documente as vd
+from . import views_santier as vs
+from . import views_cont as vc
+from . import views_avize as va
 
 urlpatterns = [
     path("", v.dashboard, name="dashboard"),
     path("active/", v.locatii_lista, name="locatii"),
     path("active/harta/", v.locatii_harta, name="locatii_harta"),
     path("active/noua/", v.locatie_form, name="locatie_noua"),
+    path("active/<int:pk>/sterge/", v.locatie_sterge, name="locatie_sterge"),
     path("active/cod-pentru-societate/", v.cod_pentru_societate, name="cod_pentru_societate"),
     path("active/cf-citire/", v.cf_citire_definire, name="cf_citire_definire"),
     path("societati/acronim/", v.acronim_propus, name="acronim_propus"),
@@ -49,6 +55,36 @@ urlpatterns = [
     path("proiecte/<int:pk>/inchidere/<int:pvpk>/editare/", vi.pv_formular, name="pv_editare"),
     path("proiecte/<int:pk>/inchidere/<int:pvpk>/", vi.pv_detaliu, name="pv_detaliu"),
     path("proiecte/<int:pk>/inchidere/<int:pvpk>/actiune/", vi.pv_actiune, name="pv_actiune"),
+    path("proiecte/<int:pk>/aloca-activ/", v.proiect_aloca_activ, name="proiect_aloca_activ"),
+    path("proiecte/<int:pk>/echipa/adauga/", vm.echipa_adauga, name="echipa_adauga"),
+    path("proiecte/<int:pk>/echipa/<int:mpk>/sterge/", vm.echipa_sterge, name="echipa_sterge"),
+    path("administrare/echipe/", vm.echipe_admin, name="echipe_admin"),
+    path("proiecte/<int:pk>/etape/genereaza/", vm.etape_genereaza, name="etape_genereaza"),
+    path("proiecte/<int:pk>/etape/din-gantt/", vm.etape_din_gantt, name="etape_din_gantt"),
+    path("proiecte/<int:pk>/etape/adauga/", vm.etapa_adauga, name="etapa_adauga"),
+    path("proiecte/<int:pk>/etape/ordine/", vm.etape_ordine, name="etape_ordine"),
+    path("proiecte/<int:pk>/etape/<int:epk>/", vm.etapa_modifica, name="etapa_modifica"),
+    path("proiecte/<int:pk>/santier/nou/", vs.santier_formular, name="santier_nou"),
+    path("proiecte/<int:pk>/santier/meteo/", vs.santier_meteo, name="santier_meteo"),
+    path("proiecte/<int:pk>/santier/<int:rpk>/editare/", vs.santier_formular, name="santier_editare"),
+    path("proiecte/<int:pk>/santier/<int:rpk>/", vs.santier_detaliu, name="santier_detaliu"),
+    path("notificari/<int:npk>/", vs.notificare_deschide, name="notificare"),
+    path("sarcini/", vs.sarcini, name="sarcini"),
+    path("rapoarte-activitate/", vs.rapoarte_activitate, name="rapoarte_activitate"),
+    path("sarcini/aloca/", vs.sarcina_adauga, name="sarcina_adauga"),
+    path("sarcini/<int:spk>/", vs.sarcina_modifica, name="sarcina_modifica"),
+    path("cont/afisare/", vc.cont_afisare, name="cont_afisare"),
+    path("notificari/citite/", vs.notificari_citite, name="notificari_citite"),
+    path("proiecte/<int:pk>/activitate/<int:rpk>/pdf/", vm.raport_activitate_pdf, name="raport_activitate_pdf"),
+    path("proiecte/<int:pk>/activitate/<int:rpk>/sterge/", vm.raport_activitate_sterge, name="raport_activitate_sterge"),
+    path("proiecte/<int:pk>/documente/folder-nou/", vd.folder_nou, name="dm_folder_nou"),
+    path("proiecte/<int:pk>/documente/folder/<int:fpk>/", vd.folder_modifica, name="dm_folder_modifica"),
+    path("proiecte/<int:pk>/documente/incarca/", vd.documente_incarca, name="dm_incarca"),
+    path("proiecte/<int:pk>/documente/muta/", vd.documente_muta, name="dm_muta"),
+    path("proiecte/<int:pk>/avize/adauga/", va.aviz_adauga, name="aviz_adauga"),
+    path("proiecte/<int:pk>/avize/simplifica/", va.avize_simplifica, name="avize_simplifica"),
+    path("proiecte/<int:pk>/avize/ordine/", va.avize_ordine, name="avize_ordine"),
+    path("proiecte/<int:pk>/avize/<int:apk>/", va.aviz_modifica, name="aviz_modifica"),
     path("proiecte/<int:pk>/urmarire/", v.proiect_urmarire, name="proiect_urmarire"),
     path("proiecte/<int:pk>/status/", v.proiect_status, name="proiect_status"),
     path("proiecte/<int:pk>/status/<int:cpk>/<str:decizie>/", v.proiect_status_decizie, name="proiect_status_decizie"),

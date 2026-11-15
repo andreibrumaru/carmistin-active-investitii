@@ -7,5 +7,10 @@
 <thead><tr><th>Moment</th><th>Utilizator</th><th>IP</th><th>Acțiune</th><th>Tip</th><th>Obiect</th><th>Proiect</th><th>Modificări</th></tr></thead>
 <tbody>{% for j in pagina %}<tr><td class="text-nowrap">{{ j.moment|date:"d.m.Y H:i:s" }}</td><td>{{ j.user|default:"sistem" }}</td><td>{{ j.ip|default:"" }}</td><td>{{ j.actiune }}</td><td>{{ j.model }}</td><td>{{ j.obiect|truncatechars:60 }}</td><td>{% if j.proiect %}<span class="cod">{{ j.proiect.cod }}</span>{% endif %}</td>
 <td>{% for k, v in j.modificari.items %}{% if forloop.counter <= 4 %}<div><b>{{ k }}</b>: {{ v|truncatechars:70 }}</div>{% endif %}{% endfor %}</td></tr>{% endfor %}</tbody></table></div>
-<div class="card-footer small d-flex justify-content-between"><span>{{ total }} înregistrări</span></div></div>
+<div class="card-footer small d-flex justify-content-between align-items-center"><span>{{ total }} înregistrări{% if pagina.paginator.num_pages > 1 %} · afișate {{ pagina.start_index }}–{{ pagina.end_index }}{% endif %}</span>
+{% if pagina.paginator.num_pages > 1 %}<nav><ul class="pagination pagination-sm mb-0">
+  {% if pagina.has_previous %}<li class="page-item"><a class="page-link" href="{{ baza_link }}1" title="cele mai recente">«</a></li><li class="page-item"><a class="page-link" href="{{ baza_link }}{{ pagina.previous_page_number }}">‹ Mai noi</a></li>{% endif %}
+  <li class="page-item disabled"><span class="page-link">pagina {{ pagina.number }} din {{ pagina.paginator.num_pages }}</span></li>
+  {% if pagina.has_next %}<li class="page-item"><a class="page-link" href="{{ baza_link }}{{ pagina.next_page_number }}">Mai vechi ›</a></li><li class="page-item"><a class="page-link" href="{{ baza_link }}{{ pagina.paginator.num_pages }}">»</a></li>{% endif %}
+</ul></nav>{% endif %}</div></div>
 {% endblock %}

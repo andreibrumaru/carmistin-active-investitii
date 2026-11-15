@@ -34,7 +34,7 @@
   <h3>1. Date generale</h3>
   <table class="table table-sm table-bordered mb-0">
     <tr><th style="width:34%">Investiția</th><td><b>{{ p.cod }}</b> – {{ p.denumire }}</td></tr>
-    <tr><th>Amplasament</th><td>{{ p.locatie }}{% if pv.loc_receptie %} · recepție la: {{ pv.loc_receptie }}{% endif %}</td></tr>
+    <tr><th>Amplasament</th><td>{{ p.locatie|default:"fără activ alocat" }}{% if pv.loc_receptie %} · recepție la: {{ pv.loc_receptie }}{% endif %}</td></tr>
     <tr><th>Tip proiect</th><td>{{ p.get_tip_autorizare_display }}</td></tr>
     {% if pv.tip == 'terminare' %}<tr><th>Autorizația de construire</th><td>{% if pv.nr_autorizatie %}nr. {{ pv.nr_autorizatie }}{% if pv.data_autorizatie %} din {{ pv.data_autorizatie|date:"d.m.Y" }}{% endif %}{% if pv.emitent_autorizatie %}, emisă de {{ pv.emitent_autorizatie }}{% endif %}{% else %}—{% endif %}</td></tr>
     <tr><th>Proiectant / diriginte de șantier</th><td>{{ pv.proiectant|default:"—" }} / {{ pv.diriginte|default:"—" }}</td></tr>{% endif %}

@@ -1,0 +1,26 @@
+{# Un aviz / studiu în tabelul simplu CU & avize: denumire editabilă pe loc, status Nedepus / Depus / Obținut #}
+{% with sv=a.stare_valabilitate z=a.zile_ramase %}
+<tr class="av-rand" data-id="{{ a.pk }}" data-url="{% url 'aviz_modifica' p.pk a.pk %}">
+  <td class="small text-secondary text-nowrap">{% if editabil %}<span class="av-maner" title="trageți pentru a muta"><i class="bi bi-grip-vertical"></i></span>{% endif %}<span class="av-nr"></span></td>
+  <td class="av-nume-cel">{% with doc=a.documente.all.0 %}
+    {% if doc and not doc.arhivat %}<a href="{% url 'document' doc.pk %}" class="av-link" title="deschide documentul{% if a.denumire_completa %} · în CU: {{ a.denumire_completa }}{% endif %}">{{ a.denumire }}</a>
+      {% if editabil %}<button type="button" class="btn btn-link btn-sm p-0 ms-1 text-secondary av-redenumeste" title="redenumește"><i class="bi bi-pencil"></i></button>
+      <input class="av-nume d-none" value="{{ a.denumire }}" aria-label="Denumire aviz">{% endif %}
+    {% elif editabil %}<input class="av-nume" value="{{ a.denumire }}" title="{% if a.denumire_completa %}În CU: {{ a.denumire_completa }} · {% endif %}click pentru a redenumi" aria-label="Denumire aviz">
+    {% else %}<span title="{{ a.denumire_completa }}">{{ a.denumire }}</span>{% endif %}{% endwith %}
+    {% if a.extras_ai %}<i class="bi bi-stars text-primary small" title="preluat de AI din CU"></i>{% endif %}
+    {% if editabil %}<button type="button" class="av-plus" title="inserează un aviz după acesta"><i class="bi bi-plus"></i></button>{% endif %}
+  </td>
+  <td>{% if editabil %}<span class="dropdown"><button type="button" class="badge border-0 av-status av-st-{{ a.status }}" data-bs-toggle="dropdown">{{ a.get_status_display }} <i class="bi bi-chevron-down"></i></button>
+      <ul class="dropdown-menu dropdown-menu-sm">{% for c, et in statusuri_aviz %}<li><button type="button" class="dropdown-item small av-alege-status {% if c == a.status %}active{% endif %}" data-status="{{ c }}"><span class="badge av-st-{{ c }}">{{ et }}</span></button></li>{% endfor %}</ul></span>
+    {% else %}<span class="badge av-st-{{ a.status }}">{{ a.get_status_display }}</span>{% endif %}</td>
+  <td class="small text-nowrap">{% if a.status == 'obtinut' %}{{ a.data_aviz|date:"d.m.Y" }}{% elif a.status == 'depus' %}{{ a.data_depunere|date:"d.m.Y" }}{% else %}<span class="text-secondary">—</span>{% endif %}</td>
+  <td class="small text-nowrap" data-sort="{{ a.valabil_pana|date:'Y-m-d' }}">
+    {% if a.status == 'obtinut' and editabil %}<input type="date" class="form-control form-control-sm av-valabil {% if sv == 'expirat' %}is-invalid{% elif sv == 'expira' %}border-warning{% endif %}" value="{{ a.valabil_pana|date:'Y-m-d' }}" title="{% if sv == 'expirat' %}expirat{% elif sv == 'expira' %}expiră în {{ z }} zile{% else %}valabil până la{% endif %}">
+    {% elif a.valabil_pana %}<span class="{% if sv == 'expirat' %}text-danger fw-semibold{% elif sv == 'expira' %}text-warning-emphasis{% endif %}">{{ a.valabil_pana|date:"d.m.Y" }}</span>{% else %}<span class="text-secondary">—</span>{% endif %}</td>
+  <td class="text-nowrap">{% for d in a.documente.all %}{% if not d.arhivat %}<a href="{% url 'document' d.pk %}" title="{{ d.titlu }}"><i class="bi bi-file-earmark-check text-success"></i></a>{% endif %}{% endfor %}
+    {% if editabil %}<a href="{% url 'obiect_editare' p.pk 'aviz' a.pk %}#id_scan" class="text-secondary" title="încarcă documentul avizului"><i class="bi bi-upload"></i></a>{% endif %}</td>
+  <td class="text-end text-nowrap">{% if editabil %}<a href="{% url 'obiect_editare' p.pk 'aviz' a.pk %}" class="text-secondary me-1" title="detalii (nr. aviz, emitent, condiții, cost)"><i class="bi bi-three-dots"></i></a>
+    <button type="button" class="btn btn-link btn-sm p-0 text-secondary av-sterge" title="șterge"><i class="bi bi-trash"></i></button>{% endif %}</td>
+</tr>
+{% endwith %}

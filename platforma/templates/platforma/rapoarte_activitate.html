@@ -1,0 +1,40 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Registru rapoarte activitate{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+  <div><h4 class="mb-0">Registru rapoarte activitate</h4>
+    <div class="small text-secondary">Rapoartele de șantier emise pe proiecte – click pe rând deschide PDF-ul raportului. Implicit cele din ziua aleasă; scrieți un cod de proiect ca să vedeți toate rapoartele proiectului.</div></div>
+</div>
+<form class="d-flex align-items-center gap-2 mb-3 flex-wrap" method="get" id="formRapoarte">
+  <div class="btn-group btn-group-sm">
+    <a class="btn btn-outline-secondary" href="?zi={{ zi_prec|date:'Y-m-d' }}" title="ziua anterioară"><i class="bi bi-chevron-left"></i></a>
+    <input type="date" name="zi" value="{{ zi|date:'Y-m-d' }}" max="{{ azi|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:150px;border-radius:0" onchange="this.form.q.value='';this.form.submit()">
+    {% if zi_urm %}<a class="btn btn-outline-secondary" href="?zi={{ zi_urm|date:'Y-m-d' }}" title="ziua următoare"><i class="bi bi-chevron-right"></i></a>{% else %}<span class="btn btn-outline-secondary disabled"><i class="bi bi-chevron-right"></i></span>{% endif %}
+  </div>
+  {% if zi != azi or q %}<a class="btn btn-sm btn-outline-primary" href="?">Azi</a>{% endif %}
+  <div class="input-group input-group-sm" style="max-width:320px">
+    <span class="input-group-text"><i class="bi bi-search"></i></span>
+    <input name="q" value="{{ q }}" class="form-control" placeholder="Cod proiect (ex. KRM.NA.01) sau denumire">
+    {% if q %}<a class="btn btn-outline-secondary" href="?zi={{ zi|date:'Y-m-d' }}" title="șterge căutarea"><i class="bi bi-x-lg"></i></a>{% endif %}
+  </div>
+  <span class="small text-secondary ms-auto">{% if q %}Proiecte potrivite „{{ q }}”: <b>{{ rapoarte|length }}</b> raport{{ rapoarte|length|pluralize:",e" }} (toate datele){% else %}<b>{{ zi|date:"l, d.m.Y"|capfirst }}</b>: {{ rapoarte|length }} raport{{ rapoarte|length|pluralize:",e" }} pe {{ proiecte_cu_rapoarte }} proiect{{ proiecte_cu_rapoarte|pluralize:",e" }}{% endif %}</span>
+</form>
+
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0 lista-rapoarte tabel-filtrabil">
+  <thead><tr><th>Proiect</th><th>Nr.</th><th>Data raport</th><th>Întocmit de</th><th>Emis la</th><th class="text-center" title="personal în șantier"><i class="bi bi-people"></i></th><th>Activități</th><th class="text-center" title="snag list"><i class="bi bi-exclamation-diamond"></i></th><th class="text-center" title="fotografii"><i class="bi bi-camera"></i></th><th></th></tr></thead>
+  <tbody>{% for r in rapoarte %}<tr class="rand-raport" data-pdf="1" data-href="{% url 'santier_detaliu' r.proiect_id r.pk %}">
+    <td class="small"><span class="cod">{{ r.proiect.cod }}</span> <span class="text-secondary">{{ r.proiect.denumire|truncatechars:34 }}</span></td>
+    <td class="fw-semibold text-nowrap">{{ r.cod_raport }}</td>
+    <td class="small text-nowrap" data-sort="{{ r.data|date:'Y-m-d' }}">{{ r.data|date:"d.m.Y" }}</td>
+    <td class="small text-nowrap"><i class="bi bi-person"></i> {{ r.autor.get_full_name|default:r.autor.username|default:"—" }}</td>
+    <td class="small text-nowrap text-secondary" data-sort="{{ r.emis_la|date:'Y-m-d H:i' }}">{{ r.emis_la|date:"d.m H:i" }}</td>
+    <td class="text-center small">{{ r.total_muncitori|default:"–" }}</td>
+    <td class="small">{% with a=r.lista_activitati %}{% if a %}• {{ a.0|truncatechars:60 }}{% if a|length > 1 %} <span class="text-secondary">+{{ a|length|add:"-1" }}</span>{% endif %}{% else %}<span class="text-secondary">—</span>{% endif %}{% endwith %}</td>
+    <td class="text-center small">{{ r.nr_snag|default:"–" }}</td>
+    <td class="text-center small">{{ r.nr_poze|default:"–" }}</td>
+    <td class="text-end text-nowrap"><a href="{% url 'raport_activitate_pdf' r.proiect_id r.pk %}" data-vizualizeaza title="Raport de șantier {{ r.cod_raport }} – {{ r.proiect.cod }}" class="text-danger me-2 rs-pdf"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+      <a href="{% url 'santier_detaliu' r.proiect_id r.pk %}" class="text-secondary" title="fișa raportului (cine a fost notificat, fotografii)"><i class="bi bi-box-arrow-up-right"></i></a></td>
+  </tr>{% empty %}<tr><td colspan="10" class="text-center text-secondary py-4">{% if q %}Niciun raport emis pentru proiecte „{{ q }}”.{% else %}Niciun raport de șantier emis în {{ zi|date:"d.m.Y" }}.{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}
+{% block scripturi %}<script src="/static/platforma/rapoarte_dashboard.js?v=3"></script>{% endblock %}

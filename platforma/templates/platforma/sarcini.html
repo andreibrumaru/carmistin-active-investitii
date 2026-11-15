@@ -1,0 +1,177 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Sarcinile mele{% endblock %}
+{% block continut %}
+{% if poate_aloca %}<ul class="nav nav-pills nav-pills-setari mb-3">
+  <li class="nav-item"><a class="nav-link {% if vedere != 'alocare' %}active{% endif %}" href="{% url 'sarcini' %}"><i class="bi bi-list-check"></i> Sarcinile mele <span class="badge rounded-pill text-bg-light">{{ total }}</span></a></li>
+  <li class="nav-item"><a class="nav-link {% if vedere == 'alocare' %}active{% endif %}" href="{% url 'sarcini' %}?vedere=alocare"><i class="bi bi-person-lines-fill"></i> Alocare sarcini</a></li>
+</ul>{% endif %}
+{% if vedere == 'alocare' %}{% include "platforma/_alocare_sarcini.html" %}{% else %}
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+  <div><h4 class="mb-0">Sarcinile mele</h4>
+    <div class="small text-secondary">Generate din alocările dumneavoastră: etapele și subetapele unde sunteți responsabil și raportul zilnic de șantier pe proiectele unde sunteți „Responsabil teren”.</div></div>
+  <div class="btn-group btn-group-sm ms-auto">
+    <a class="btn {% if not filtru %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?">Toate <span class="badge text-bg-light">{{ total }}</span></a>
+    <a class="btn {% if filtru == 'azi' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?filtru=azi">De făcut azi <span class="badge text-bg-light">{{ azi|date:"d.m" }}</span></a>
+    <a class="btn {% if filtru == 'intarziate' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?filtru=intarziate">Întârziate{% if intarziate %} <span class="badge text-bg-danger">{{ intarziate }}</span>{% endif %}</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="card kpi"><div class="card-body py-2"><div class="lbl">Sarcini deschise</div><div class="val">{{ total }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card kpi"><div class="card-body py-2"><div class="lbl">Rapoarte de șantier de întocmit azi</div><div class="val {% if rapoarte_azi %}text-warning-emphasis{% endif %}">{{ rapoarte_azi }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card kpi"><div class="card-body py-2"><div class="lbl">Întârziate</div><div class="val {% if intarziate %}text-danger{% endif %}">{{ intarziate }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card kpi"><div class="card-body py-2"><div class="lbl">Termen în următoarele 7 zile</div><div class="val">{{ curand }}</div></div></div></div>
+</div>
+
+{% for g in grupuri %}{% with p=g.proiect %}
+<div class="card mb-3 sarcini-proiect">
+  <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+    {% if g.vizibil %}<a href="{% url 'proiect_detaliu' p.pk %}?tab=monitorizare" class="cod text-decoration-none">{{ p.cod }}</a>{% else %}<span class="cod">{{ p.cod }}</span>{% endif %} <span class="fw-semibold">{{ p.denumire|truncatechars:70 }}</span>
+    {% for r in g.roluri %}<span class="badge rounded-pill text-bg-light border">{{ r }}</span>{% endfor %}
+    <span class="ms-auto small">{% if g.intarziate %}<span class="text-danger fw-semibold">{{ g.intarziate }} întârziat{{ g.intarziate|pluralize:"ă,e" }}</span> · {% endif %}{{ g.deschise }} deschis{{ g.deschise|pluralize:"ă,e" }}</span>
+  </div>
+  <ul class="list-group list-group-flush">
+  {% for s in g.sarcini %}
+    {% if s.tip == 'raport' %}
+    <li class="list-group-item sarcina {% if s.stare == 'gata' %}gata{% endif %}">
+      <span class="sarcina-ic {% if s.stare == 'gata' %}ok{% else %}raport{% endif %}"><i class="bi {% if s.stare == 'gata' %}bi-check-lg{% else %}bi-clipboard2-check{% endif %}"></i></span>
+      <div class="flex-grow-1 min-w-0"><div class="fw-semibold">{{ s.titlu }} <span class="badge rounded-pill text-bg-light border fw-normal">zilnic</span></div>
+        <div class="small text-secondary">{% if s.stare == 'gata' %}Emis ({{ s.raport.cod_raport }}) – mulțumim!{% elif s.stare == 'ciorna' %}Ciornă începută, nefinalizată{% else %}De întocmit azi{% endif %}
+          {% if s.lipsa %} · <span class="text-danger">fără raport în {{ s.lipsa|length }} zi{{ s.lipsa|length|pluralize:",le" }} lucrătoare din ultima săptămână ({% for d in s.lipsa|slice:":4" %}{{ d|date:"d.m" }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if s.lipsa|length > 4 %}…{% endif %})</span>{% endif %}</div></div>
+      {% if s.stare == 'gata' %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'santier_detaliu' p.pk s.raport.pk %}">Vezi raportul</a>
+      {% elif s.stare == 'ciorna' %}<a class="btn btn-sm btn-warning" href="{% url 'santier_editare' p.pk s.raport.pk %}"><i class="bi bi-pencil"></i> Continuă ciorna</a>
+      {% else %}<a class="btn btn-sm btn-primary" href="{% url 'santier_nou' p.pk %}"><i class="bi bi-plus-lg"></i> Întocmește raportul</a>{% endif %}
+    </li>
+    {% elif s.tip == 'sarcina' %}{% include "platforma/_sarcina_alocata.html" with s=s.obj aloc=0 %}
+    {% else %}{% with e=s.etapa %}
+    <li class="list-group-item sarcina {% if s.intarziata %}intarziata{% endif %}" data-url="{% url 'etapa_modifica' p.pk e.pk %}">
+      <span class="sarcina-ic etapa"><i class="bi {% if e.parinte_id %}bi-diagram-2{% else %}bi-signpost-split{% endif %}"></i></span>
+      <div class="flex-grow-1 min-w-0"><div class="fw-semibold">{% if s.parinte %}<span class="text-secondary fw-normal">{{ s.parinte }} ›</span> {% endif %}{{ e.denumire }}</div>
+        <div class="small text-secondary d-flex gap-3 flex-wrap align-items-center">
+          <span>{% if e.parinte_id %}subetapă{% else %}etapă{% endif %}</span>
+          <span class="{% if s.intarziata %}text-danger fw-semibold{% elif s.azi %}text-warning-emphasis fw-semibold{% endif %}"><i class="bi bi-flag"></i> {% if e.final_plan %}termen {{ e.final_plan|date:"d.m.Y" }}{% if s.intarziata %} – depășit cu {{ e.final_plan|timesince:azi }}{% elif s.azi %} – azi{% endif %}{% else %}fără termen{% endif %}</span>
+          <span class="d-inline-flex align-items-center gap-1" style="min-width:110px"><span class="progress flex-grow-1" style="height:5px"><span class="progress-bar" style="width:{{ e.progres }}%"></span></span>{{ e.progres }}%</span>
+        </div></div>
+      <div class="dropdown"><button class="badge etapa-st-{{ e.status }} border-0 et-status" data-bs-toggle="dropdown">{{ e.get_status_display }} <i class="bi bi-chevron-down"></i></button>
+        <ul class="dropdown-menu dropdown-menu-end dropdown-menu-sm">{% for c, et in statusuri_etapa %}<li><button type="button" class="dropdown-item small sarcina-status {% if c == e.status %}active{% endif %}" data-status="{{ c }}"><span class="badge etapa-st-{{ c }}">{{ et }}</span></button></li>{% endfor %}</ul></div>
+      <button type="button" class="btn btn-sm btn-outline-success sarcina-gata" title="marchează finalizată azi"><i class="bi bi-check-lg"></i> Finalizat</button>
+    </li>{% endwith %}{% endif %}
+  {% endfor %}
+  </ul>
+</div>
+{% endwith %}{% empty %}
+<div class="card"><div class="card-body text-center py-5 text-secondary">
+  <i class="bi bi-check2-circle fs-1"></i>
+  <p class="mb-0 mt-2">{% if filtru %}Nimic în această categorie.{% else %}Nu aveți sarcini deschise. Sarcinile apar când sunteți ales responsabil al unei etape sau „Responsabil teren” în echipa unui proiect în execuție.{% endif %}</p>
+</div></div>
+{% endfor %}
+{% endif %}
+{% endblock %}
+{% block scripturi %}
+<script>
+(() => {
+  const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+  const trimite = async (li, date) => {
+    const r = await fetch(li.dataset.url, {method: 'POST', headers: {'X-CSRFToken': csrf, 'Accept': 'application/json'}, body: new URLSearchParams(date)});
+    let j = {}; try { j = await r.json(); } catch (e) { j = {ok: false, mesaj: r.status === 403 ? 'Nu aveți drept să modificați această etapă.' : 'Eroare la salvare.'}; }
+    if (!j.ok) return alert(j.mesaj || 'Eroare la salvare.');
+    location.reload();
+  };
+  document.querySelectorAll('.sarcina-status').forEach(b => b.addEventListener('click', () => trimite(b.closest('.sarcina'), {actiune: 'status', status: b.dataset.status})));
+  document.querySelectorAll('.sarcina-gata').forEach(b => b.addEventListener('click', () => trimite(b.closest('.sarcina'), {actiune: 'data_final', final_real: new Date().toLocaleDateString('sv-SE')})));
+
+  // ---- sarcini alocate: avatare, finalizare / redeschidere / ștergere
+  const CULORI = ['#1d9e75', '#378add', '#d85a30', '#7f77dd', '#ba7517', '#d4537e', '#0f6e56', '#185fa5'];
+  const culoare = s => CULORI[[...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % CULORI.length];
+  const initiale = n => n.split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase() || '?';
+  const avatare = (rad = document) => rad.querySelectorAll('.sa-om .sp-avatar:not([data-ok])').forEach(a => { a.dataset.ok = 1; a.style.background = culoare(a.dataset.nume); a.textContent = initiale(a.dataset.nume); });
+  avatare();
+  const dinHtml = html => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+  const posteaza = async (url, date) => {
+    const r = await fetch(url, {method: 'POST', headers: {'X-CSRFToken': csrf, 'Accept': 'application/json'}, body: date});
+    let j = {}; try { j = await r.json(); } catch (e) { j = {ok: false, mesaj: r.status === 403 ? 'Nu aveți drept pentru această sarcină.' : 'Eroare la salvare.'}; }
+    if (!j.ok) alert(j.mesaj || 'Eroare la salvare.');
+    return j;
+  };
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('.sa-act'); if (!b) return;
+    const li = b.closest('.sa-linie'), act = b.dataset.actiune;
+    if (act === 'sterge') { const da = window.confirmaApp ? await window.confirmaApp('Ștergeți sarcina?') : confirm('Ștergeți sarcina?'); if (!da) return; }
+    const j = await posteaza(li.dataset.url, new URLSearchParams({actiune: act}));
+    if (!j.ok) return;
+    if (act === 'sterge') li.remove();
+    else if (li.closest('.sarcini-proiect')) location.reload();  // în „Sarcinile mele”: lista se recalculează
+    else { const nou = dinHtml(j.html); li.replaceWith(nou); avatare(nou.parentElement); }
+  });
+
+  // ---- alocare: responsabilii se aleg ca la Monitorizare – scrieți un nume; echipa proiectului apare prima, apoi ceilalți colegi
+  const form = document.getElementById('saNou');
+  if (form) {
+    const echipe = JSON.parse(document.getElementById('saEchipe').textContent || '{}');
+    const toti = JSON.parse(document.getElementById('saUtilizatori').textContent || '[]');
+    const sel = form.querySelector('[name=proiect]'), picker = document.getElementById('saPicker');
+    const chips = picker.querySelector('.sa-chips'), inp = picker.querySelector('.sa-picker-in');
+    const fara = s => [...(s || '')].map(c => c.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()).join('');
+    const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+    const marcheaza = (n, q) => { const i = q ? fara(n).indexOf(fara(q)) : -1; return i < 0 ? esc(n) : esc(n.slice(0, i)) + '<mark>' + esc(n.slice(i, i + q.length)) + '</mark>' + esc(n.slice(i + q.length)); };
+    const av = n => `<span class="sp-avatar" style="background:${culoare(n)}">${esc(initiale(n))}</span>`;
+    let alesi = [], panou = null, optiuni = [], activ = 0;
+    const deseneazaChips = () => {
+      chips.innerHTML = alesi.map(u => `<span class="sa-om">${av(u.nume)}<span class="sa-om-nume">${esc(u.nume)}</span><button type="button" class="sa-x" data-id="${u.id}" aria-label="scoate">×</button><input type="hidden" name="responsabil" value="${u.id}"></span>`).join('');
+      inp.placeholder = alesi.length ? '+ încă cineva' : 'Responsabili…';
+    };
+    const inchide = () => { panou?.remove(); panou = null; };
+    function pozitioneaza() {
+      if (!panou) return;
+      const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1, r = picker.getBoundingClientRect();
+      const jos = innerHeight - r.bottom - 8, sus = r.top - 8;
+      panou.style.maxHeight = ''; const h = panou.getBoundingClientRect().height;
+      const subt = h <= jos || jos >= sus, loc = Math.max(120, subt ? jos : sus), hh = Math.min(h, loc, 360 * z);
+      panou.style.maxHeight = hh / z + 'px';
+      panou.style.left = Math.max(8, Math.min(r.left, innerWidth - 330 * z - 8)) / z + 'px';
+      panou.style.top = Math.max(8, subt ? r.bottom + 4 : r.top - 4 - hh) / z + 'px';
+    }
+    function deseneaza() {
+      if (!panou) { panou = document.createElement('div'); panou.className = 'sp-lista et-resp-lista'; panou.style.position = 'fixed'; document.body.appendChild(panou);
+        panou.addEventListener('mousedown', e => { const o = e.target.closest('.sp-optiune'); if (o) { e.preventDefault(); alege(optiuni[+o.dataset.i]); } }); }
+      const q = inp.value.trim(), echipa = new Set(echipe[sel.value] || []), deja = new Set(alesi.map(u => u.id));
+      const potrivit = toti.filter(u => !deja.has(u.id) && (!q || fara(u.nume).includes(fara(q))));
+      const din = potrivit.filter(u => echipa.has(u.id)), alti = potrivit.filter(u => !echipa.has(u.id)).slice(0, q ? 8 : 5);
+      optiuni = [...din, ...alti]; activ = Math.min(activ, Math.max(optiuni.length - 1, 0));
+      let i = 0, h = '';
+      if (din.length) h += '<div class="et-resp-titlu">Echipa proiectului</div>' + din.map(u => `<div class="sp-optiune${i === activ ? ' activ' : ''}" data-i="${i++}">${av(u.nume)}<span>${marcheaza(u.nume, q)}</span><span class="sp-rol">${esc(u.rol)}</span></div>`).join('');
+      if (alti.length) h += `<div class="et-resp-titlu">${sel.value ? 'Alți colegi' : 'Colegi'}${q ? '' : ' – scrieți un nume pentru toată lista'}</div>` + alti.map(u => `<div class="sp-optiune${i === activ ? ' activ' : ''}" data-i="${i++}">${av(u.nume)}<span>${marcheaza(u.nume, q)}</span><span class="sp-rol">${esc(u.rol)}</span></div>`).join('');
+      if (!optiuni.length) h = `<div class="sp-gol">Niciun coleg „${esc(q)}”.</div>`;
+      panou.innerHTML = h; pozitioneaza();
+    }
+    function alege(u) { if (!u) return; alesi.push(u); deseneazaChips(); inp.value = ''; activ = 0; deseneaza(); inp.focus(); }
+    picker.addEventListener('click', e => { const x = e.target.closest('.sa-x'); if (x) { alesi = alesi.filter(u => u.id !== +x.dataset.id); deseneazaChips(); } inp.focus(); });
+    inp.addEventListener('focus', () => { activ = 0; deseneaza(); });
+    inp.addEventListener('input', () => { activ = 0; deseneaza(); });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); activ = Math.min(activ + 1, optiuni.length - 1); deseneaza(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); activ = Math.max(activ - 1, 0); deseneaza(); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (panou && optiuni[activ]) alege(optiuni[activ]); }
+      else if (e.key === 'Escape') inchide();
+      else if (e.key === 'Backspace' && !inp.value && alesi.length) { alesi.pop(); deseneazaChips(); deseneaza(); }
+    });
+    inp.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== inp) inchide(); }, 150));
+    window.addEventListener('scroll', pozitioneaza, {passive: true}); window.addEventListener('resize', pozitioneaza);
+    sel.addEventListener('change', () => { if (panou) deseneaza(); });
+    deseneazaChips();
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      if (!fd.getAll('responsabil').length) { alert('Alegeți cel puțin un responsabil.'); return; }
+      const j = await posteaza(form.dataset.url, fd);
+      if (!j.ok) return;
+      document.getElementById('saGol')?.remove();
+      const li = dinHtml(j.html); document.getElementById('saLista').prepend(li); avatare(li);
+      li.classList.add('nou'); setTimeout(() => li.classList.remove('nou'), 1500);
+      form.querySelector('[name=descriere]').value = ''; form.querySelector('[name=descriere]').focus();
+      alesi = []; deseneazaChips();
+    });
+  }
+})();
+</script>
+{% endblock %}

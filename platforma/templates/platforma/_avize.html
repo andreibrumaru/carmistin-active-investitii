@@ -1,0 +1,35 @@
+{# CU & avize: un singur tabel simplu – întâi certificatul de urbanism, apoi avizele și studiile #}
+<div class="card avize-card" style="max-width:1200px">
+  <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+    <span class="fw-semibold">Certificat de urbanism și avize</span>
+    <span class="small text-secondary">{% for k, v in avize_stat.items %}{% if v %}{{ k }}: <b>{{ v }}</b>{% if not forloop.last %} · {% endif %}{% endif %}{% endfor %}</span>
+    {% if editabil %}<div class="ms-auto d-flex gap-2 align-items-center">
+      <form method="post" enctype="multipart/form-data" action="{% url 'cu_incarca' p.pk %}" id="formCU" class="m-0">{% csrf_token %}
+        <label class="btn btn-sm btn-outline-primary mb-0" title="AI citește certificatul și completează lista de avize{% if not stare_ai.0 %} – indisponibil acum: {{ stare_ai.1 }}{% endif %}"><i class="bi bi-stars"></i> Încarcă CU (AI)
+          <input type="file" name="fisier" class="d-none" accept=".pdf,image/*" onchange="if(this.files.length){document.getElementById('cuAsteptare').classList.remove('d-none');this.form.submit();}"></label></form>
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'obiect_nou' p.pk 'certificat' %}">+ CU manual</a>
+      {% if avize %}<form method="post" action="{% url 'avize_simplifica' p.pk %}" class="m-0" data-confirm="Prescurtați denumirile lungi ale avizelor (ex. „Documentația tehnică pentru autorizarea executării lucrărilor de construire” → „DTAC”)? Denumirea completă din CU rămâne păstrată.">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary" title="prescurtează denumirile lungi"><i class="bi bi-scissors"></i> Simplifică denumirile</button></form>{% endif %}
+    </div>{% endif %}
+  </div>
+  <div id="cuAsteptare" class="small text-primary d-none px-3 pt-2"><span class="spinner-border spinner-border-sm"></span> Se citește certificatul de urbanism…</div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0 av-tabel">
+    <thead><tr><th style="width:56px">#</th><th>Denumire</th><th style="width:118px">Status</th><th style="width:96px">Data</th><th style="width:150px">Valabil până</th><th style="width:70px">Doc.</th><th style="width:60px"></th></tr></thead>
+    <tbody>
+    {% for cu in certificate %}<tr class="av-cu">
+      <td class="small fw-semibold text-success">CU</td>
+      <td>{% with doc=cu.documente.all.0 %}{% if doc %}<a href="{% url 'document' doc.pk %}" class="av-link fw-semibold" title="deschide certificatul de urbanism">Certificat de urbanism nr. {{ cu.numar }} / {{ cu.data|date:"d.m.Y" }}</a>{% else %}<b>Certificat de urbanism</b> nr. {{ cu.numar }} / {{ cu.data|date:"d.m.Y" }}{% endif %}{% endwith %}</td>
+      <td><span class="badge av-st-obtinut">Obținut</span></td>
+      <td class="small text-nowrap">{{ cu.data|date:"d.m.Y" }}</td>
+      <td class="small text-nowrap {% if cu.valabil_pana and cu.valabil_pana < azi %}text-danger fw-semibold{% endif %}">{{ cu.valabil_pana|date:"d.m.Y"|default:"—" }}{% if cu.valabil_pana and cu.valabil_pana < azi %} <span class="badge text-bg-danger">expirat</span>{% endif %}</td>
+      <td>{% for d in cu.documente.all %}{% if not d.arhivat %}<a href="{% url 'document' d.pk %}" title="{{ d.titlu }}"><i class="bi bi-file-earmark-pdf text-danger"></i></a>{% endif %}{% endfor %}</td>
+      <td class="text-end">{% if editabil %}<a href="{% url 'obiect_editare' p.pk 'certificat' cu.pk %}" class="text-secondary" title="editează CU"><i class="bi bi-three-dots"></i></a>{% endif %}</td>
+    </tr>{% empty %}<tr class="av-cu lipsa"><td class="small fw-semibold text-secondary">CU</td><td colspan="6" class="small text-secondary">Certificatul de urbanism nu e încărcat. {% if editabil %}Folosiți „Încarcă CU (AI)” – avizele cerute se completează automat – sau „+ CU manual”.{% endif %}</td></tr>{% endfor %}
+    </tbody>
+    <tbody id="avLista" data-adauga="{% url 'aviz_adauga' p.pk %}" data-ordine="{% url 'avize_ordine' p.pk %}">
+    {% for a in avize %}{% include "platforma/_aviz_rand.html" %}{% endfor %}
+    </tbody>
+  </table></div>
+  {% if editabil %}<div class="d-flex align-items-center px-3 py-2 border-top"><button type="button" class="btn btn-sm btn-outline-primary av-plus-final"><i class="bi bi-plus-lg"></i> Aviz / studiu</button>
+    <span class="small text-secondary ms-3">Trageți de ⋮⋮ pentru a schimba ordinea. Denumirea se modifică direct în tabel (click pe ea). Status: Nedepus → Depus → Obținut; datele se completează automat.</span></div>{% endif %}
+</div>
+{% if editabil %}<script src="/static/platforma/avize.js?v=20261115c"></script>{% endif %}

@@ -335,3 +335,9 @@ class IstoricStareActivAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(m.CodLocatieRetras)
+class CodLocatieRetrasAdmin(admin.ModelAdmin):
+    list_display = ("cod", "denumire", "data_reziliere", "retras_la")
+    search_fields = ("cod", "denumire")

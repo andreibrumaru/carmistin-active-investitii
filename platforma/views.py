@@ -14,15 +14,17 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Count, F, Q, Sum, prefetch_related_objects, Max
 from django.db.models.functions import ExtractYear
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.models import User
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from . import poze as poze_mod
 from . import ai, aviz_email, curs as curs_mod, forms as f, models as m, plati as plati_mod, revizii as rev, sms, stergere, status_investitie as stinv
 from .models import suma
 
@@ -31,7 +33,7 @@ from .coduri import nr_inregistrare_nou, urmatorul_cod_locatie
 from .hg import CAPITOLE, LINII_ECHIPAMENTE, SUBCAPITOLE, capitol_din, creeaza_linii
 from .permisiuni import doar_proiectele_lui
 from .permisiuni import (e_admin, e_financiar, poate_aviza_rz, poate_bloca_buget, poate_crea_proiect, poate_edita,
-                         poate_edita_financiar, poate_modifica_buget, poate_vedea, proiecte_vizibile, rol, vede_tot)
+                         poate_edita_financiar, poate_modifica_buget, poate_vedea, proiecte_vizibile, rol, vede_tot, poate_setari)
 
 
 # Registrul activelor împărțit în 3: magazinele retail (linia Retail) separat; restul după status.
@@ -40,12 +42,17 @@ CATEGORII_ACTIVE = [
     ("nefunctionale", "Active nefuncționale", "bi-pause-circle"),
     ("teren", "Teren investiții", "bi-map"),
     ("retail", "Magazine retail", "bi-shop"),
+    ("reziliate", "Active reziliate", "bi-x-octagon"),
 ]
+# tot ce citesc sumele unei linii de buget (valoare curentă, angajat, facturat, plătit) – încărcat o singură dată
+PREFETCH_LINIE = ("rectificari", "acte_aditionale", "alocari_contracte__contract__acte_aditionale", "alocari_contracte__contract__alocari",
+                  "alocari__factura__plati")
 CATEGORII_INVESTITII = [
     ("executie", "Investiții în execuție", "bi-play-circle"),
     ("finalizate", "Finalizate", "bi-check-circle"),
     ("inactive", "Inactive", "bi-pause-circle"),
     ("aprobare", "RZ în aprobare", "bi-hourglass-split"),
+    ("nealocate", "Fără activ alocat", "bi-question-diamond"),
 ]
 
 
@@ -53,6 +60,8 @@ def filtru_investitii(qs, categorie):
     """Registrul cuprinde doar investițiile cu Raportul Zero avizat (au status); cele neavizate sunt „în aprobare”."""
     if categorie == "aprobare":
         return qs.filter(status="")
+    if categorie == "nealocate":  # investițiile care nu se raportează (încă) la un activ – avizate sau în aprobare
+        return qs.filter(locatie__isnull=True)
     qs = qs.exclude(status="")
     return {"executie": qs.filter(status=stinv.IN_EXECUTIE), "finalizate": qs.filter(status=stinv.FINALIZAT),
             "inactive": qs.filter(status=stinv.ANULAT)}.get(categorie, qs)
@@ -65,8 +74,10 @@ def proiecte_registru(user):
 
 def filtru_categorie(qs, categorie):
     """Categoriile din meniu = starea activului (setată de administrator, cu istoric)."""
-    stare = {"functionale": "functional", "nefunctionale": "nefunctional", "teren": "teren", "retail": "retail"}.get(categorie)
-    return qs.filter(stare_activ=stare) if stare else qs
+    stare = {"functionale": "functional", "nefunctionale": "nefunctional", "teren": "teren", "retail": "retail",
+             "reziliate": "reziliat"}.get(categorie)
+    # fără categorie: doar activele operate de grup – cele reziliate se văd doar în categoria lor
+    return qs.filter(stare_activ=stare) if stare else qs.exclude(stare_activ="reziliat")
 
 
 def context_global(request):
@@ -80,16 +91,36 @@ def context_global(request):
            "poate_crea_proiect": poate_crea_proiect(request.user), "nr_aprobari": nr,
            "doar_proiectele_lui": doar_proiectele_lui(request.user)}
     url = getattr(request.resolver_match, "url_name", "") or ""
-    if url == "investitii":  # subcategoriile registrului de investiții din meniu, cu numărul de poziții
-        toate = proiecte_registru(request.user)
-        ctx["categorii_investitii"] = [(cod, et, ic, filtru_investitii(toate, cod).count()) for cod, et, ic in CATEGORII_INVESTITII]
-        ctx["categorie_investitii"] = request.GET.get("categorie", "")
-    if "locati" in url:  # subcategoriile registrului de active din meniu, cu numărul de poziții
-        toate = m.Locatie.objects.all()
-        ctx["categorii_active"] = [(cod, et, ic, filtru_categorie(toate, cod).count()) for cod, et, ic in CATEGORII_ACTIVE]
-        ctx["categorie_curenta"] = request.GET.get("categorie", "")
-        ctx["total_active"] = toate.count()
+    # meniul lateral (bară de icoane + panou): subcategoriile registrelor, cu numărul de poziții, pe orice pagină
+    toate = proiecte_registru(request.user)
+    ctx["categorii_investitii"] = [(cod, et, ic, filtru_investitii(toate, cod).count()) for cod, et, ic in CATEGORII_INVESTITII]
+    ctx["categorie_investitii"] = request.GET.get("categorie", "") if url == "investitii" else ""
+    toate = m.Locatie.objects.all()
+    ctx["categorii_active"] = [(cod, et, ic, filtru_categorie(toate, cod).count()) for cod, et, ic in CATEGORII_ACTIVE]
+    ctx["categorie_curenta"] = request.GET.get("categorie", "") if "locati" in url else ""
+    ctx["total_active"] = toate.exclude(stare_activ="reziliat").count()
+    ctx["total_investitii"] = filtru_investitii(proiecte_registru(request.user), "").count()
+    ctx["meniu_curent"] = sectiune_meniu(request.path)
+    ctx["meniu_fixat"] = request.COOKIES.get("meniu_fixat") == "1"
+    profil = getattr(request.user, "profil", None)
+    ctx["scara_afisare"] = profil.scara_afisare if profil else 100
+    from .sarcini import nr_sarcini_urgente
+    ctx["nr_sarcini"] = nr_sarcini_urgente(request.user)
+    ctx["vede_rapoarte_activitate"] = e_admin(request.user) or rol(request.user) == "coordonator" or m.Proiect.objects.filter(coordonator=request.user).exists()
+    ctx["notificari"] = list(m.Notificare.objects.filter(user=request.user).select_related("proiect")[:8])
+    ctx["nr_notificari"] = m.Notificare.objects.filter(user=request.user, citita_la__isnull=True).count()
     return ctx
+
+
+def sectiune_meniu(cale):
+    """Secțiunea meniului lateral căreia îi aparține pagina curentă (după adresă)."""
+    for prefix, sec in (("/rapoarte-activitate", "dashboard"), ("/cont/", "cont"), ("/sarcini", "sarcini"), ("/investitii/anual", "buget"), ("/active", "active"), ("/societati", "active"), ("/proprietari-externi", "active"),
+                        ("/investitii", "investitii"), ("/proiecte", "investitii"), ("/rapoarte-zero", "investitii"), ("/avizare", "investitii"),
+                        ("/rapoarte/autorizatii", "autorizatii"), ("/aprobari", "aprobari"), ("/plati", "aprobari"),
+                        ("/export-erp", "export"), ("/jurnal", "jurnal"), ("/administrare", "admin"), ("/documente", "investitii")):
+        if cale.startswith(prefix):
+            return sec
+    return "dashboard"
 
 
 def _proiect_vizibil(request, pk):
@@ -109,13 +140,13 @@ def _proiect_editabil(request, pk):
 # ------------------------------------------------------------------ dashboard
 @login_required
 def dashboard(request):
-    proiecte = list(proiecte_vizibile(request.user).prefetch_related("linii_buget", "facturi", "contracte"))
+    proiecte = list(proiecte_vizibile(request.user).prefetch_related("linii_buget__rectificari", "facturi__plati", "contracte__acte_aditionale"))
     azi = timezone.localdate()
     in_30 = azi + datetime.timedelta(days=30)
     ids = [p.pk for p in proiecte]
     ctx = {
-        "nr_locatii": m.Locatie.objects.count(),
-        "nr_fara_cod": m.Locatie.objects.filter(cod__isnull=True).count(),
+        "nr_locatii": m.Locatie.objects.exclude(stare_activ="reziliat").count(),
+        "nr_fara_cod": m.Locatie.objects.exclude(stare_activ="reziliat").filter(cod__isnull=True).count(),
         "nr_proiecte": len(proiecte),
         "nr_active": sum(1 for p in proiecte if p.status not in ("Finalizat", "Anulat/Suspendat", "Anulat", "Inactiv")),
         "buget_total": sum((p.buget_actualizat_ron or p.buget_rz_ron for p in proiecte), Decimal(0)),
@@ -125,19 +156,77 @@ def dashboard(request):
         "avize_expira": m.Aviz.objects.filter(proiect_id__in=ids, valabil_pana__lte=in_30, status="obtinut").select_related("proiect"),
         "obligatii": m.Obligatie.objects.filter(proiect_id__in=ids, status="deschisa", termen__lte=in_30).select_related("proiect"),
         "rz_de_avizat": m.Proiect.objects.filter(stare_rz="trimis") if poate_aviza_rz(request.user) else [],
-        "linii_depasite": [l for l in m.LinieBuget.objects.filter(proiect_id__in=ids).select_related("proiect") if l.depasit],
+        "linii_depasite": [l for l in m.LinieBuget.objects.filter(proiect_id__in=ids).select_related("proiect").prefetch_related(*PREFETCH_LINIE) if l.depasit],
         "pe_faza": proiecte_vizibile(request.user).values("faza").annotate(n=Count("id")).order_by("-n"),
         **_suprafete_pe_linii(),
         **_valoare_piata_grup(),
         **_kpi_detinere(azi),
         "azi": azi,
     }
+    from .sarcini import sarcini_utilizator
+    ctx["sarcinile_mele"] = sarcini_utilizator(request.user)
+    ctx.update(_santier_ziua_anterioara(request.user))
+    ctx.update(_harta_dashboard())
     return render(request, "platforma/dashboard.html", ctx)
+
+
+def _ziua_lucratoare_anterioara(zi):
+    zi -= datetime.timedelta(days=1)
+    while zi.weekday() >= 5:
+        zi -= datetime.timedelta(days=1)
+    return zi
+
+
+def _santier_ziua_anterioara(user):
+    """Date agregate din rapoartele de șantier ale zilei lucrătoare anterioare (pe proiectele vizibile utilizatorului)."""
+    from django.db.models import Count, Q
+    zi = _ziua_lucratoare_anterioara(timezone.localdate())
+    zi_prec = _ziua_lucratoare_anterioara(zi)
+    proiecte = proiecte_vizibile(user)
+    def date_zi(d):
+        rap = list(m.RaportActivitate.objects.filter(stare="emis", data=d, proiect__in=proiecte).annotate(nsnag=Count("snag")))
+        return rap, sum(r.total_muncitori for r in rap)
+    rap, personal = date_zi(zi)
+    _, personal_prec = date_zi(zi_prec)
+    de_raportat = proiecte.filter(status=stinv.IN_EXECUTIE).count()  # proiectele în execuție (vizibile)
+    if not rap and not de_raportat:
+        return {"santier_zi": None}
+    return {"santier_zi": {"zi": zi, "zi_prec": zi_prec, "personal": personal, "dif": personal - personal_prec if personal_prec or personal else None,
+                           "rapoarte": len(rap), "proiecte": len({r.proiect_id for r in rap}), "de_raportat": de_raportat,
+                           "snag": sum(r.nsnag for r in rap)}}
+
+
+def _harta_dashboard():
+    """Activele operate cu coordonate, pentru harta din tabloul de bord (culoare = categoria; inel = investiții în execuție)."""
+    from django.db.models import Count, Q
+    operate = m.Locatie.objects.exclude(stare_activ="reziliat")
+    qs = (operate.exclude(lat__isnull=True).exclude(lng__isnull=True)
+          .annotate(inv=Count("proiecte", filter=Q(proiecte__status=stinv.IN_EXECUTIE))))
+    puncte = [{"id": l.pk, "cod": l.cod or "", "den": l.denumire, "lat": float(l.lat), "lng": float(l.lng), "tip": l.stare_activ,
+               "categorie": l.get_stare_activ_display(), "linie": l.linie or "", "inv": l.inv} for l in qs]
+    culori = {"functional": "#198754", "nefunctional": "#6c757d", "teren": "#a0682a", "retail": "#1d4f91"}
+    legenda = [(c, et, culori[c], sum(1 for x in puncte if x["tip"] == c)) for c, et in m.Locatie.STARE if c in culori]
+    return {"harta_puncte": puncte, "harta_legenda": legenda, "harta_fara": operate.count() - len(puncte)}
+
+
+def rapoarte_santier_recente(user, limita=50):
+    """Ultimele rapoarte de șantier emise – pentru administratori (toate proiectele) și coordonatori (proiectele pe care le văd)."""
+    from django.db.models import Count, Q
+    este_coord = rol(user) == "coordonator" or m.Proiect.objects.filter(coordonator=user).exists()
+    if not (e_admin(user) or este_coord):
+        return None
+    qs = m.RaportActivitate.objects.filter(stare="emis")
+    if not e_admin(user):
+        qs = qs.filter(proiect__in=proiecte_vizibile(user))
+    return list(qs.select_related("proiect", "autor")
+                .annotate(nr_poze=Count("poze", filter=Q(poze__arhivat=False, poze__categorie="foto"), distinct=True),
+                          nr_snag=Count("snag", distinct=True))
+                .order_by("-emis_la", "-pk")[:limita])
 
 
 def _kpi_detinere(azi):
     """KPI separate: active proprietate grup vs. active închiriate de la proprietari externi."""
-    locatii = list(m.Locatie.objects.select_related("proprietar", "proprietar_extern"))
+    locatii = list(m.Locatie.objects.exclude(stare_activ="reziliat").select_related("proprietar", "proprietar_extern"))
     proiecte = list(m.Proiect.objects.filter(locatie__isnull=False).prefetch_related("linii_buget__rectificari"))
     pe_locatie = {}
     for p in proiecte:
@@ -175,7 +264,7 @@ def _valoare_piata_grup():
     curs = m.CursValutar.la_data()
     tot = {"eur": Decimal(0), "evaluate": 0, "fara_evaluare": 0, "excluse": 0, "excluse_eur": Decimal(0)}
     linii, societati, fara, excluse = {}, {}, [], []
-    qs = m.Locatie.objects.select_related("proprietar").prefetch_related("rapoarte_evaluare")
+    qs = m.Locatie.objects.select_related("proprietar", "proprietar_extern").prefetch_related("rapoarte_evaluare")
     for l in qs:
         inclus, motiv = l.regula_valoare_grup
         e = l.evaluare_curenta
@@ -223,7 +312,7 @@ def _suprafete_pe_linii():
         if c:
             r["constructii"] += c
             r["cu_constr"] += 1
-    for l in m.Locatie.objects.filter(cod__isnull=False).only("linie", "divizie", "suprafata_teren", "suprafata_constructii", "suprafata_construita_totala"):
+    for l in m.Locatie.objects.filter(cod__isnull=False).exclude(stare_activ="reziliat").only("linie", "divizie", "suprafata_teren", "suprafata_constructii", "suprafata_construita_totala"):
         cheie = (l.linie or "").strip() or "Nespecificată"
         r = linii.setdefault(cheie.upper(), {**nou(cheie), "divizii": {}})
         c = l.suprafata_constructii or l.suprafata_construita_totala
@@ -350,7 +439,7 @@ def locatii_lista(request):
     if request.GET.get("export"):
         return _export_xlsx("registru_active", [
             ("Cod", "cod"), ("Cod Excel", "cod_original"), ("Nr. înreg.", "nr_registru"), ("Denumire", "denumire"),
-            ("Categorie", "get_stare_activ_display"), ("Proprietar", "proprietar_afisat"), ("Închiriere externă", "inchiriere_externa"),
+            ("Categorie", "get_stare_activ_display"), ("Data rezilierii", "data_reziliere"), ("Proprietar", "proprietar_afisat"), ("Închiriere externă", "inchiriere_externa"),
             ("Firma din grup (proprietar / chiriaș)", "proprietar"), ("Contract închiriere", "contract_inchiriere"),
             ("Chirie lunară", "chirie_lunara"), ("Monedă chirie", "moneda_chirie"), ("Valabil până la", "inchiriere_expira"),
             ("Utilizator", "utilizator"), ("Grup", "grup"),
@@ -403,7 +492,7 @@ def matrice_autorizatii(loc, autorizatii=None, tipuri=None):
     """Lista standard de autorizații pentru un obiectiv: atașată / expirată / lipsă / nu e necesară / neurmărit."""
     autorizatii = autorizatii if autorizatii is not None else list(loc.autorizatii.prefetch_related("documente"))
     tipuri = tipuri if tipuri is not None else list(m.TipAutorizatie.objects.filter(activ=True).select_related("responsabil"))
-    cerinte = {c.tip_id: c for c in loc.cerinte_autorizatii.select_related("responsabil")}
+    cerinte = {c.tip_id: c for c in m.randuri(loc.cerinte_autorizatii, "responsabil")}
     in_lista = loc.in_lista_autorizatii
     randuri = []
     for t in tipuri:
@@ -502,7 +591,7 @@ def raport_autorizatii(request):
     tipuri = list(m.TipAutorizatie.objects.filter(activ=True).select_related("responsabil"))
     g = request.GET
     tip = next((t for t in tipuri if t.cod == g.get("tip")), None)
-    locatii = (m.Locatie.objects.exclude(cod__isnull=True).select_related("proprietar")
+    locatii = (m.Locatie.objects.exclude(cod__isnull=True).exclude(stare_activ="reziliat").select_related("proprietar")
                .prefetch_related("autorizatii__documente", "cerinte_autorizatii__responsabil"))
     if g.get("linie"):
         locatii = locatii.filter(linie__iexact=g["linie"])
@@ -740,8 +829,11 @@ def locatie_incarcare(request, pk, zona):
     titlu = request.POST.get("titlu", "").strip()
     for f_ in fisiere:
         nume = f_.name.rsplit(".", 1)[0].replace("_", " ")
-        m.Document.objects.create(locatie=loc, categorie=categorie, fisier=f_, incarcat_de=request.user,
-                                  titlu=(titlu if titlu and len(fisiere) == 1 else nume)[:255])
+        campuri = {"locatie": loc, "incarcat_de": request.user, "titlu": (titlu if titlu and len(fisiere) == 1 else nume)[:255]}
+        if categorie == "foto":  # redimensionată automat + miniatură (vezi poze.py)
+            poze_mod.salveaza(f_, **campuri)
+        else:
+            m.Document.objects.create(categorie=categorie, fisier=f_, **campuri)
     if fisiere:
         messages.success(request, f"{len(fisiere)} fișier{'e' if len(fisiere) != 1 else ''} încărcat{'e' if len(fisiere) != 1 else ''}.")
     return redirect(f"{loc.get_absolute_url()}?tab={tab}")
@@ -1147,6 +1239,10 @@ def locatie_form(request, pk=None):
                 soc.save(update_fields=["prefix_cod"])
             if not o.cod:
                 o.cod = urmatorul_cod_locatie(prefix)
+            if o.stare_activ == "reziliat" and stare_veche != "reziliat":
+                o.data_reziliere = form.cleaned_data.get("data_schimbare_stare") or timezone.localdate()
+            elif o.stare_activ != "reziliat":
+                o.data_reziliere = None
             o.save()
             form.save_m2m()
             if o.stare_activ != stare_veche:
@@ -1261,6 +1357,39 @@ def raport_zero_sterge(request, pk):
 
 
 @login_required
+@require_POST
+def locatie_sterge(request, pk):
+    """Ștergerea unui activ direct din registrul activelor – doar administratorul. Confirmare: se scrie codul (sau denumirea,
+    la activele fără cod). Activele cu proiecte de investiții nu se șterg. Totul se arhivează înainte și rămâne în jurnal."""
+    if not e_admin(request.user):
+        raise PermissionDenied("Doar administratorul poate șterge active din registru.")
+    l = get_object_or_404(m.Locatie, pk=pk)
+    inapoi = request.POST.get("inapoi") or reverse("locatii")
+    if not url_has_allowed_host_and_scheme(inapoi, allowed_hosts={request.get_host()}):
+        inapoi = reverse("locatii")
+    eticheta = l.cod or l.denumire
+    if " ".join(request.POST.get("confirmare_cod", "").split()).upper() != " ".join(eticheta.split()).upper():
+        messages.error(request, f"Activul nu a fost șters: pentru confirmare trebuie scris exact {'codul' if l.cod else 'denumirea'} „{eticheta}”.")
+        return redirect(inapoi)
+    nr_p = l.proiecte.count()
+    if nr_p:
+        messages.error(request, f"Activul {eticheta} are {nr_p} proiect(e) de investiții și nu poate fi șters. "
+                                "Ștergeți întâi proiectele din registrul investițiilor.")
+        return redirect(inapoi)
+    pk_l, den = l.pk, f"{l.cod or 'fără cod'} · {l.denumire} (nr. {l.nr_registru or '—'})"
+    arhiva = stergere.arhiveaza_activ(l)
+    try:
+        stergere.sterge_activ(l)
+    except ValueError as e:
+        messages.error(request, f"Activul {eticheta} nu a fost șters: {e}.")
+        return redirect(inapoi)
+    m.JurnalAudit.objects.create(user=request.user, actiune="stergere", model="activ (din registru, admin)", obiect_id=str(pk_l),
+                                 obiect=den[:300], modificari={"arhiva": str(arhiva.relative_to(arhiva.parents[1]))})
+    messages.success(request, f"Activul {den} a fost șters din registru. Arhiva (date și documente) a rămas pe server: {arhiva.name}.")
+    return redirect(inapoi)
+
+
+@login_required
 def raport_zero(request, pk):
     p = get_object_or_404(m.Proiect.objects.select_related("locatie", "beneficiar"), pk=pk)
     if not (poate_vedea(request.user, p) or poate_aviza_rz(request.user)):  # registrul e public, deschiderea – doar cu drept
@@ -1272,6 +1401,7 @@ def raport_zero(request, pk):
         "oferte": list(p.oferte_rz.prefetch_related("documente")),
         "pdf_semnat": p.documente.filter(categorie="raport_zero", arhivat=False).first(),
         "emailuri_aviz": p.emailuri_aviz.all()[:5],
+        **_alocare_ctx(request, p),
     })
 
 
@@ -1591,9 +1721,13 @@ def raport_zero_form(request, pk=None):
             _seteaza_responsabil(obj, form.cleaned_data["responsabil"])
             if not obj.pk:
                 obj.intocmit_de = (request.user.get_full_name() or request.user.username)[:120]
-                loc = m.Locatie.objects.select_for_update().get(pk=obj.locatie_id)
-                obj.cod, obj.nr_ordine = loc.urmatorul_cod_proiect()
-                obj.nr_inregistrare = nr_inregistrare_nou(loc.prefix)
+                if obj.locatie_id:
+                    loc = m.Locatie.objects.select_for_update().get(pk=obj.locatie_id)
+                    obj.cod, obj.nr_ordine = loc.urmatorul_cod_proiect()
+                    obj.nr_inregistrare = nr_inregistrare_nou(loc.prefix)
+                else:  # investiție nealocată unui activ (obiectiv nou): ACRONIM_BENEFICIAR.NA.NN
+                    obj.cod, obj.nr_ordine = m.Proiect.urmatorul_cod_nealocat(obj.beneficiar)
+                    obj.nr_inregistrare = nr_inregistrare_nou(obj.beneficiar.prefix_cod.strip().upper())
             if obj.moneda_rz == "EUR" and not obj.curs_rz:
                 obj.curs_rz = curs_form
             if obj.valoare_rz is None:
@@ -1679,6 +1813,11 @@ def raport_zero_actiune(request, pk, actiune):
         p.observatii = (p.observatii + f"\nRevizia {p.revizie_rz} deschisă {timezone.localdate():%d.%m.%Y}: {motiv}").strip()
         p.save()
     else:
+        # retrimitere a aceluiași formular (dublu-clic, reîncărcare, filă veche): acțiunea s-a făcut deja – mesaj, nu eroare
+        deja = {"trimite": ("trimis", "aprobat"), "aproba": ("aprobat",), "respinge": ("respins",), "revizie": ("ciorna", "trimis")}
+        if actiune in deja and p.stare_rz in deja[actiune] and (poate_edita(request.user, p) or poate_aviza_rz(request.user)):
+            messages.info(request, f"Raportul Zero {p.cod} este deja „{p.get_stare_rz_display()}” – acțiunea fusese făcută, nu s-a repetat.")
+            return redirect("raport_zero", pk=pk)
         raise PermissionDenied("Acțiune nepermisă în starea curentă.")
     messages.success(request, f"Raport Zero: {p.get_stare_rz_display()}.")
     return redirect("raport_zero", pk=pk)
@@ -1748,7 +1887,7 @@ def investitii(request):
     vizibile = set(proiecte_vizibile(u).values_list("pk", flat=True))
     categorie = g.get("categorie", "") if g.get("categorie") in dict((c, 1) for c, _, _ in CATEGORII_INVESTITII) else ""
     qs = filtru_investitii(proiecte_registru(u), categorie).select_related("locatie", "beneficiar", "pm", "coordonator").prefetch_related(
-        "revizii_rz", "linii_buget__rectificari", "facturi", "contracte__acte_aditionale")
+        "revizii_rz", "linii_buget__rectificari", "facturi__plati", "contracte__acte_aditionale")
     baza = qs
     if g.get("q"):
         qs = qs.filter(Q(cod__icontains=g["q"]) | Q(denumire__icontains=g["q"]) | Q(beneficiar__denumire__icontains=g["q"])
@@ -1765,22 +1904,24 @@ def investitii(request):
         qs = qs.filter(Q(pm_id=g["responsabil"]) | Q(pm__isnull=True, coordonator_id=g["responsabil"]))
     if g.get("beneficiar"):
         qs = qs.filter(beneficiar_id=g["beneficiar"])
-    vedere = "financiar" if g.get("vedere") == "financiar" else "registru"
-    if g.get("export"):
-        if vedere == "financiar":  # cifrele financiare doar pentru proiectele la care utilizatorul are drept
-            return _export_xlsx("registru_investitii", [
-                ("Cod proiect", "cod"), ("Denumire", "denumire"), ("Beneficiar", "beneficiar"), ("Responsabil proiect", "responsabil_proiect"),
-                ("Status", "status_afisat"), ("Fază", "faza"), ("Monedă", "moneda_urmarire"),
-                ("Buget RZ (RON)", "buget_rz_ron"), ("Buget actualizat (RON)", "buget_actualizat_ron"), ("Angajat (RON)", "angajat_ron"),
-                ("Facturat (RON)", "facturat_ron"), ("Plătit (RON)", "platit_ron"), ("Stadiu execuție %", "procent_executie"),
-                ("Progres fizic %", "progres_fizic"), ("Demarare", "data_demarare"), ("Termen finalizare", "termen_finalizare"),
-            ], qs.filter(pk__in=vizibile))
+    if g.get("export"):  # un singur registru; cifrele financiare doar pentru proiectele la care utilizatorul are drept
+        FIN = {"buget_actualizat_ron", "angajat_ron", "facturat_ron", "platit_ron", "procent_executie", "progres_fizic"}
+
+        class Rand:
+            def __init__(self, p):
+                self.p, self.ok = p, p.pk in vizibile
+
+            def __getattr__(self, a):
+                return getattr(self.p, a) if self.ok or a not in FIN else None
         return _export_xlsx("registru_investitii", [
             ("Cod proiect (nr. Raport Zero)", "cod"), ("Denumire", "denumire"), ("Beneficiar", "beneficiar"), ("Locație", "locatie"),
             ("Linie", "linie"), ("Divizie", "divizie"), ("Responsabil proiect", "responsabil_proiect"), ("Solicitant", "solicitant"),
-            ("Valoare RZ", "valoare_rz"), ("Monedă", "moneda_rz"), ("Data avizării", "aprobat_la"), ("Stare RZ", "stare_rz_registru"),
-            ("Status investiție", "status_afisat"), ("Demarare", "data_demarare"), ("Termen finalizare", "termen_finalizare"),
-        ], qs)
+            ("Valoare RZ", "valoare_rz"), ("Monedă RZ", "moneda_rz"), ("Buget RZ (RON)", "buget_rz_ron"), ("Buget actualizat (RON)", "buget_actualizat_ron"),
+            ("Angajat (RON)", "angajat_ron"), ("Facturat (RON)", "facturat_ron"), ("Plătit (RON)", "platit_ron"),
+            ("Stadiu execuție %", "procent_executie"), ("Progres fizic %", "progres_fizic"), ("Fază", "faza"),
+            ("Data avizării", "aprobat_la"), ("Stare RZ", "stare_rz_registru"), ("Status investiție", "status_afisat"),
+            ("Demarare", "data_demarare"), ("Termen finalizare", "termen_finalizare"),
+        ], [Rand(p) for p in qs])
     nom = {t: m.Nomenclator.optiuni(t) for t in ("faza_proiect", "linie", "tip_finantare")}
     beneficiari = m.Societate.objects.filter(proiecte__in=baza).distinct().order_by("denumire")
     divizii = baza.exclude(divizie="").values_list("divizie", flat=True).distinct().order_by("divizie")
@@ -1800,9 +1941,43 @@ def investitii(request):
     titlu = dict((c, et) for c, et, _ in CATEGORII_INVESTITII).get(categorie, "Registrul investițiilor")
     return render(request, "platforma/investitii.html", {
         "proiecte": proiecte, "vizibile": vizibile, "nom": nom, "query": g, "beneficiari": beneficiari, "divizii": divizii,
-        "responsabili": responsabili, "categorie": categorie, "vedere": vedere, "titlu_registru": titlu,
-        "link_registru": link(vedere=""), "link_financiar": link(vedere="financiar"), "link_export": link(export="1"),
+        "responsabili": responsabili, "categorie": categorie, "titlu_registru": titlu, "link_export": link(export="1"),
     })
+
+
+def _alocare_ctx(request, p):
+    """Activele beneficiarului, pentru alocarea ulterioară a unei investiții nealocate (doar responsabil / admin)."""
+    if p.locatie_id or not (poate_edita(request.user, p) or e_admin(request.user)):
+        return {}
+    return {"active_alocare": m.Locatie.objects.filter(proprietar=p.beneficiar).exclude(cod__isnull=True).exclude(stare_activ="reziliat").order_by("cod")}
+
+
+@login_required
+@require_POST
+def proiect_aloca_activ(request, pk):
+    """Alocă ulterior unui activ din registru o investiție definită fără activ (obiectiv nou)."""
+    p = get_object_or_404(m.Proiect, pk=pk)
+    if not (poate_edita(request.user, p) or e_admin(request.user)):
+        raise PermissionDenied("Doar responsabilul proiectului sau administratorul alocă investiția unui activ.")
+    inapoi = request.POST.get("inapoi", "")
+    if not url_has_allowed_host_and_scheme(inapoi, allowed_hosts={request.get_host()}):
+        inapoi = reverse("raport_zero", args=[p.pk])
+    if p.locatie_id:
+        messages.info(request, f"{p.cod} este deja alocat activului {p.locatie}.")
+        return redirect(inapoi)
+    loc = (m.Locatie.objects.filter(pk=request.POST.get("locatie") or 0, proprietar=p.beneficiar).exclude(cod__isnull=True)
+           .exclude(stare_activ="reziliat").first())
+    if not loc:
+        messages.error(request, f"Alegeți un activ al beneficiarului {p.beneficiar}.")
+        return redirect(inapoi)
+    with transaction.atomic():
+        m.Locatie.objects.select_for_update().filter(pk=loc.pk).first()
+        p.aloca_activ(loc)
+        m.JurnalAudit.objects.create(user=request.user, actiune="modificare", model="proiect – alocare activ", obiect_id=str(p.pk),
+                                     obiect=str(p)[:300], proiect=p,
+                                     modificari={"locatie": ["— (nealocat)", f"{loc.cod} · {loc.denumire}"]})
+    messages.success(request, f"Investiția {p.cod} a fost alocată activului {loc.cod} · {loc.denumire}. Codul proiectului rămâne {p.cod}.")
+    return redirect(inapoi)
 
 
 # ------------------------------------------------------------------ fișa proiectului
@@ -1810,7 +1985,9 @@ def investitii(request):
 def proiect_detaliu(request, pk):
     p = _proiect_vizibil(request, pk)
     u = request.user
-    linii = list(p.linii_buget.select_related("proiect").prefetch_related("rectificari", "alocari_contracte__contract__acte_aditionale", "acte_aditionale", "alocari__factura"))
+    # bugetul, contractele și facturile se încarcă o singură dată; toate totalurile paginii le folosesc din memorie
+    prefetch_related_objects([p], *("linii_buget__" + x for x in PREFETCH_LINIE), "facturi__plati", "contracte__acte_aditionale")
+    linii = list(p.linii_buget.all())
     # Corelația buget ↔ contracte / facturi: ce linie e depășită și cu cât (peste toleranța proiectului)
     depasiri = []
     for l in linii:
@@ -1862,7 +2039,8 @@ def proiect_detaliu(request, pk):
         "documente_arhivate": p.documente.filter(arhivat=True).count(),
         "extrageri": m.ExtragereAI.objects.filter(document__proiect=p).select_related("document")[:10],
         "accese": p.accese.select_related("user"),
-        "jurnal": p.jurnal.select_related("user")[:100],
+        "jurnal": p.jurnal.select_related("user")[:100] if e_admin(u) else [],
+        "poate_setari": poate_setari(u, p),
         "form_urmarire": f.UrmarireProiectForm(instance=p),
         "statusuri_investitie": [s for s, _ in m.Proiect.STATUS_INVESTITIE],
         "cereri_status": p.cereri_status.select_related("cerut_de", "decis_de")[:10],
@@ -1872,9 +2050,10 @@ def proiect_detaliu(request, pk):
         "plan_ani": [(an, plan.get(an, Decimal(0)), _realizat_an(p, an)) for an in ani],
         "form_doc": f.DocumentForm(proiect=p),
         "form_gantt": f.ImportGanttForm(),
-        "tab": {"financiar": "contracte"}.get(request.GET.get("tab"), request.GET.get("tab", "prezentare")), "azi": timezone.localdate(),
+        "tab": {"financiar": "contracte", "gantt": "monitorizare", "echipa": "setari", "acces": "setari"}.get(request.GET.get("tab"), request.GET.get("tab", "prezentare")), "azi": timezone.localdate(),
         "stare_ai": ai.stare_ai(),
         "avize_stat": {e: p.avize.filter(status=s).count() for s, e in m.Aviz.STATUS},
+        "statusuri_aviz": m.Aviz.STATUS,
         "facturi_nealocate": sum(1 for x in facturi if x.nealocat_ron != 0),
         **_echipamente_context(p),
         "facturi_fara_contract": [x for x in facturi if not x.contract_id],
@@ -1882,6 +2061,14 @@ def proiect_detaliu(request, pk):
         "total_facturat_contracte": sum((x.valoare_ron for x in facturi if x.contract_id), Decimal(0)),
     }
     ctx["buget_eur"] = p.in_eur(p.buget_actualizat_ron)
+    ctx.update(_alocare_ctx(request, p))
+    from .views_monitorizare import context_monitorizare
+    ctx.update(context_monitorizare(request, p))
+    ctx["sectiune_setari"] = request.GET.get("tab") if request.GET.get("tab") in ("echipa", "acces") else ""
+    if (ctx["tab"] == "setari" and not ctx["poate_setari"]) or (ctx["tab"] == "istoric" and not e_admin(u)):
+        ctx["tab"] = "prezentare"
+    from .views_documente import context_documente
+    ctx.update(context_documente(request, p))
     return render(request, "platforma/proiect.html", ctx)
 
 
@@ -2055,6 +2242,8 @@ def proiect_status_decizie(request, pk, cpk, decizie):
 @require_POST
 def proiect_setari(request, pk):
     p = _proiect_editabil(request, pk)
+    if not poate_setari(request.user, p):
+        raise PermissionDenied("Setările proiectului le modifică responsabilul proiectului sau administratorul.")
     form = f.SetariProiectForm(request.POST, instance=p, blocat=p.buget_blocat and not e_admin(request.user))
     if not form.is_valid():
         messages.error(request, form.errors.as_text())
@@ -2113,7 +2302,7 @@ def buget_blocare(request, pk):
 TAB_PENTRU = {
     "linie_buget": "buget", "rectificare": "buget", "contract": "contracte", "act_aditional": "contracte", "conditie": "contracte",
     "factura": "contracte", "plata": "contracte", "alocare": "contracte", "alocare_contract": "contracte", "echipament": "echipamente", "certificat": "avize", "aviz": "avize",
-    "finantare": "finantare", "obligatie": "finantare", "raport_progres": "finantare", "activitate": "gantt", "acces": "acces", "document": "documente",
+    "finantare": "finantare", "obligatie": "finantare", "raport_progres": "finantare", "activitate": "monitorizare", "acces": "setari", "document": "documente",
 }
 STERGERE_PERMISA = {"linie_buget", "conditie", "aviz", "obligatie", "raport_progres", "activitate", "acces", "certificat", "alocare", "alocare_contract"}
 TIPURI_FINANCIARE = {"factura", "plata", "alocare"}
@@ -2127,7 +2316,7 @@ def _verifica_drept(user, p, tip, obj):
     elif tip == "rectificare":
         ok = e_admin(user)
     elif tip == "acces":
-        ok = e_admin(user) or user.pk == p.coordonator_id
+        ok = poate_setari(user, p)
     else:
         ok = poate_edita(user, p)
     if not ok:
@@ -2624,7 +2813,11 @@ def document_descarca(request, pk):
             raise PermissionDenied
     if not d.proiect_id and doar_proiectele_lui(request.user):  # documentele activelor (registrul grupului)
         raise PermissionDenied
-    return FileResponse(d.fisier.open("rb"), as_attachment=request.GET.get("dl") == "1", filename=d.fisier.name.split("/")[-1])
+    fisier = d.miniatura if request.GET.get("m") == "1" and d.miniatura else d.fisier
+    raspuns = FileResponse(fisier.open("rb"), as_attachment=request.GET.get("dl") == "1", filename=fisier.name.split("/")[-1])
+    if d.categorie == "foto":  # fotografiile nu se modifică după încărcare: browserul le poate păstra în cache
+        raspuns["Cache-Control"] = "private, max-age=604800"
+    return raspuns
 
 
 @login_required
@@ -2704,11 +2897,16 @@ def _aplica_extragere(request, ex, p, antet, elemente):
                 emitent=antet.get("emitent", ""), scop=antet.get("scop", ""), valabil_pana=_data_sau_none(antet.get("valabil_pana")),
             )
             m.Document.objects.filter(pk=d.pk).update(certificat=cu)
-        for e in elemente:
+        from .avize_nume import prescurteaza
+        urm = (p.avize.aggregate(n=Max("ordine"))["n"] or 0)
+        for i, e in enumerate(elemente, start=1):
             tip_a = e.get("tip") if e.get("tip") in dict(m.Aviz.TIP) else ("studiu" if "studiu" in e.get("denumire", "").lower() else "aviz")
             origine = e.get("origine") if e.get("origine") in dict(m.Aviz.ORIGINE) else "cu"
-            m.Aviz.objects.create(proiect=p, certificat=cu, denumire=e.get("denumire", "")[:255], emitent=e.get("emitent", "")[:200],
-                                  tip=tip_a, origine=origine, fragment_sursa=e.get("fragment", ""), extras_ai=not e.get("manual"))
+            lung = (e.get("denumire") or "").strip()
+            scurt = prescurteaza(lung)  # denumirile din CU sunt lungi: în tabel apare forma scurtă, cea completă se păstrează
+            m.Aviz.objects.create(proiect=p, certificat=cu, ordine=urm + i, denumire=scurt[:255], denumire_completa=lung[:500] if scurt != lung else "",
+                                  emitent=e.get("emitent", "")[:200], tip=tip_a, origine=origine, fragment_sursa=e.get("fragment", ""),
+                                  extras_ai=not e.get("manual"))
     elif ex.tip == "contract":
         c = d.contract
         if not c:
@@ -2849,7 +3047,11 @@ def jurnal(request):
     if request.GET.get("q"):
         q = request.GET["q"]
         qs = qs.filter(Q(obiect__icontains=q) | Q(model__icontains=q) | Q(user__username__icontains=q) | Q(proiect__cod__icontains=q))
-    return render(request, "platforma/jurnal.html", {"pagina": qs, "total": qs.count()})
+    pagina = Paginator(qs, 100).get_page(request.GET.get("pagina"))  # 100 înregistrări pe pagină, cele mai recente primele
+    q = request.GET.copy()
+    q.pop("pagina", None)
+    return render(request, "platforma/jurnal.html", {"pagina": pagina, "total": pagina.paginator.count,
+                                                    "baza_link": "?" + (q.urlencode() + "&" if q else "") + "pagina="})
 
 
 # ------------------------------------------------------------------ export

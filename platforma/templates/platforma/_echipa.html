@@ -1,0 +1,40 @@
+{% load static %}{# Echipa proiectului, pe categorii. Responsabilul proiectului și administratorul o completează. #}
+<div class="d-flex align-items-center mb-3 gap-2">
+  <div><h5 class="mb-0">Echipa proiectului</h5>
+    <div class="small text-secondary">{{ echipa_nr }} membr{{ echipa_nr|pluralize:"u,i" }} · responsabil proiect: <b>{{ p.responsabil_proiect|default:"—" }}</b>.
+      Membrii cu cont în aplicație văd proiectul și pot scrie rapoarte de activitate.</div></div>
+  {% if poate_echipa %}<button class="btn btn-sm btn-outline-secondary ms-auto" data-bs-toggle="collapse" data-bs-target="#formEchipa"><i class="bi bi-person-plus"></i> Persoană externă</button>{% endif %}
+</div>
+
+{% if poate_echipa %}
+<div class="collapse mb-3" id="formEchipa"><div class="card card-body">
+  <form method="post" action="{% url 'echipa_adauga' p.pk %}" class="row g-2 align-items-end" id="formMembru">{% csrf_token %}
+    <div class="col-md-3"><label class="form-label small fw-semibold">Categorie *</label>
+      <select name="categorie" class="form-select form-select-sm" required id="externCategorie"><option value="">— alegeți —</option>
+        {% for c in echipa_categorii %}<option value="{{ c.cod }}">{{ c.eticheta }}</option>{% endfor %}</select></div>
+    <div class="col-md-9"><label class="form-label small fw-semibold">Nume persoană externă *</label>
+      <input name="nume" class="form-control form-control-sm" placeholder="ex. Ion Popescu" required></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold">Funcție / rol în proiect</label>
+      <input name="functie" class="form-control form-control-sm" placeholder="ex. diriginte de șantier"></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold">Firmă</label><input name="firma" class="form-control form-control-sm"></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold">Telefon</label><input name="telefon" class="form-control form-control-sm"></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold">E-mail</label><input name="email" type="email" class="form-control form-control-sm"></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-plus-lg"></i> Adaugă</button></div>
+  </form>
+</div></div>
+{% endif %}
+
+<div class="card echipa-tabel">
+{% for c in echipa_categorii %}
+  <div class="echipa-rand">
+    <div class="echipa-eticheta"><i class="bi {{ c.iconita }}"></i> {{ c.eticheta }} <span class="badge rounded-pill text-bg-light" data-nr>{{ c.membri|length }}</span></div>
+    <div class="selector-persoane{% if not poate_echipa %} doar-citire{% endif %}" data-categorie="{{ c.cod }}" data-eticheta="{{ c.eticheta }}">
+      {{ c.membri_json|json_script:c.cod }}
+      <div class="sp-camp">{% if poate_echipa %}<input type="text" class="sp-input" placeholder="{% if c.membri %}+ adaugă{% else %}Scrieți un nume…{% endif %}" autocomplete="off" aria-label="Adaugă în {{ c.eticheta }}">{% elif not c.membri %}<span class="text-secondary fst-italic small px-1">nimeni desemnat</span>{% endif %}</div>
+      {% if poate_echipa %}<div class="sp-lista" role="listbox" hidden></div>{% endif %}
+    </div>
+  </div>
+{% endfor %}
+</div>
+{{ utilizatori_json|json_script:"utilizatoriEchipa" }}
+<script src="{% static 'platforma/echipa.js' %}?v=20261115e" data-adauga="{% url 'echipa_adauga' p.pk %}"></script>

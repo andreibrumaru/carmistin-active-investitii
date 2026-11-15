@@ -107,7 +107,7 @@ class LocatieForm(Baza):
 
     class Meta:
         model = m.Locatie
-        exclude = ["sursa_import", "cod_original", "tip"]  # tipul vechi e înlocuit de categoria activului
+        exclude = ["sursa_import", "cod_original", "tip", "data_reziliere"]  # tipul vechi e înlocuit de categoria activului
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -133,11 +133,19 @@ class LocatieForm(Baza):
                    "utilizator", "linie", "divizie"]
         self.fields["utilizator"].label = "Utilizator (firma care exploatează activul)"
         self.fields["stare_activ"].widget.attrs["data-initial"] = self.instance.stare_activ if self.instance.pk else ""
+        if self.instance.pk and self.instance.stare_activ == "reziliat" and self.instance.cod:
+            # activ reziliat: codul rămâne în istoric, legat de acest activ – nu se modifică și nu se realocă
+            for c in ("cod", "prefix", "proprietar"):
+                self.fields[c].disabled = True
+            self.fields["cod"].help_text = f"Activ reziliat: codul {self.instance.cod} rămâne rezervat acestui activ și nu se realocă."
         self.order_fields(primele + [x for x in self.fields if x not in primele])
 
     def clean(self):
         from .coduri import valideaza_prefix
         d = super().clean()
+        vechi = self.instance.stare_activ if self.instance.pk else ""
+        if d.get("stare_activ") == "reziliat" and vechi != "reziliat" and not d.get("data_schimbare_stare"):
+            self.add_error("data_schimbare_stare", "Completați data rezilierii.")
         if d.get("inchiriere_externa"):
             if not d.get("proprietar_extern"):
                 self.add_error("proprietar_extern", "La închirierea externă alegeți proprietarul extern (sau cereți administratorului să-l definească).")
@@ -161,6 +169,11 @@ class LocatieForm(Baza):
                 self.add_error("prefix", eroare)
         if cod and not cod.startswith(prefix + "."):
             self.add_error("cod", f"Codul trebuie să înceapă cu acronimul firmei: {prefix}.NN")
+        if cod and cod != (self.instance.cod or "").upper():
+            if m.CodLocatieRetras.objects.filter(cod__iexact=cod).exists():
+                self.add_error("cod", f"Codul {cod} a aparținut unui activ reziliat și rămâne rezervat – nu se realocă.")
+            elif m.Locatie.objects.filter(cod__iexact=cod, stare_activ="reziliat").exclude(pk=self.instance.pk).exists():
+                self.add_error("cod", f"Codul {cod} aparține unui activ reziliat și nu se realocă.")
         d["prefix"], d["cod"] = prefix, cod or None
         return d
 
@@ -188,8 +201,13 @@ class RaportZeroForm(Baza):
         help_text="Alegeți întâi beneficiarul; lista de locații se filtrează după proprietarul din registrul activelor.",
     )
     locatie = forms.ModelChoiceField(
-        queryset=m.Locatie.objects.none(), label="Locație / activ", widget=LocatieSelect,
+        queryset=m.Locatie.objects.none(), label="Locație / activ", widget=LocatieSelect, required=False,
         help_text="Codul proiectului se generează automat: COD_LOCAȚIE.NN",
+    )
+    nealocat = forms.BooleanField(
+        required=False, label="Nu se raportează la un activ (obiectiv nou)",
+        help_text="Investiția urmărește ceva nou, fără activ în registrele de active. Apare în registrul investițiilor la "
+                  "„Fără activ alocat” și se poate aloca ulterior unui activ.",
     )
     necesita_ac = forms.BooleanField(
         required=False, label="Necesită autorizație de construire",
@@ -216,14 +234,23 @@ class RaportZeroForm(Baza):
     def __init__(self, *a, responsabil_fix=None, **kw):
         super().__init__(*a, **kw)
         locatii = (m.Locatie.objects.exclude(cod__isnull=True).exclude(proprietar__isnull=True)
+                   .exclude(Q(stare_activ="reziliat") & ~Q(pk=self.instance.locatie_id or 0))
                    .annotate(max_ordine=Max("proiecte__nr_ordine")).order_by("cod"))
         self.fields["locatie"].queryset = locatii
-        self.fields["beneficiar"].queryset = m.Societate.objects.filter(locatii__in=locatii).distinct().order_by("denumire")
+        # beneficiari: proprietarii activelor + firmele grupului cu acronim (pentru investițiile nealocate unui activ)
+        self.fields["beneficiar"].queryset = m.Societate.objects.filter(
+            Q(locatii__in=locatii) | Q(in_grup=True) & ~Q(prefix_cod="")).distinct().order_by("denumire")
+        self.coduri_nealocate = {str(k): v for k, v in m.Proiect.coduri_nealocate_urmatoare(self.fields["beneficiar"].queryset).items()}
         for c in ("beneficiar", "locatie"):
             self.fields[c].widget.attrs["class"] = "form-select"
+        self.fields["nealocat"].widget.attrs["class"] = "form-check-input"
         if self.instance.pk:  # codul proiectului e legat de locație: nu se mai schimbă după creare
             self.fields["locatie"].disabled = True
             self.fields["beneficiar"].disabled = True
+            self.fields["nealocat"].disabled = True
+            self.initial["nealocat"] = not self.instance.locatie_id
+            if not self.instance.locatie_id:
+                self.fields["locatie"].help_text = "Investiție nealocată unui activ – alocarea se face din fișa Raportului Zero („Alocă unui activ”)."
         campuri_linie_divizie(self)
         self.fields["tip_investitie"].required = True
         self.fields["tip_investitie"].choices = [("", "— alegeți —")] + list(m.Proiect.TIP_INVESTITIE)
@@ -313,6 +340,13 @@ class RaportZeroForm(Baza):
                            + ("proiectul are echipamente contractate – alegeți Lucrări & echipamente sau Mentenanță." if contractate else
                               "scoateți echipamentele din listă sau alegeți Achiziție echipamente / Lucrări & echipamente / Mentenanță."))
         ben, loc = date.get("beneficiar"), date.get("locatie")
+        if not self.instance.pk:
+            if date.get("nealocat"):
+                date["locatie"] = loc = None
+                if ben and not (ben.prefix_cod or "").strip():
+                    self.add_error("beneficiar", f"{ben} nu are acronim (cod firmă) – nu se poate genera codul proiectului.")
+            elif not loc:
+                self.add_error("locatie", "Alegeți activul sau bifați „Nu se raportează la un activ (obiectiv nou)”.")
         if ben and loc and loc.proprietar_id != ben.pk:
             self.add_error("locatie", f"Locația {loc.cod} aparține societății {loc.proprietar}, nu beneficiarului ales.")
         loc = loc or self.instance.locatie if self.instance.pk else loc
@@ -323,6 +357,8 @@ class RaportZeroForm(Baza):
                 date["divizie"] = loc.divizie
         elif loc and not date.get("linie"):
             self.add_error("linie", f"Activul {loc.cod} ({loc.get_stare_activ_display().lower()}) nu are linia de business definită în registru – completați-o.")
+        elif not loc and not date.get("linie") and "linie" not in self.errors:
+            self.add_error("linie", "Investiție nealocată unui activ: completați linia de business.")
         if date.get("linie") and not date.get("divizie") and not (linie_reg and not loc.divizie) \
                 and any(o.grup == date["linie"] for o in m.Nomenclator.optiuni("divizie")):
             self.add_error("divizie", "Alegeți divizia.")

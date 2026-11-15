@@ -7,10 +7,12 @@
   <div><h4 class="mb-0">{% if loc.cod %}<span class="cod">{{ loc.cod }}</span> · {% endif %}{{ loc.denumire }}</h4>
   <div class="text-secondary small"><span class="badge badge-categorie-{{ loc.stare_activ }}">{{ loc.get_stare_activ_display }}</span> · {% if loc.inchiriere_externa %}<span class="badge text-bg-warning">închiriere externă</span> {{ loc.proprietar_extern|default:"proprietar extern necompletat" }} → {{ loc.proprietar|default:"" }}{% else %}{{ loc.proprietar|default:"proprietar necunoscut" }}{% endif %} · {{ loc.linie|default:"" }} · <span class="badge text-bg-light">{{ loc.status|default:"status necunoscut" }}</span></div></div>
   <div class="ms-auto d-flex gap-2">
-    {% if poate_crea_proiect and loc.cod %}<a href="{% url 'raport_zero_nou' %}?locatie={{ loc.pk }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Investiție nouă ({{ urmator.0 }})</a>{% endif %}
+    {% if poate_crea_proiect and loc.cod and loc.stare_activ != 'reziliat' %}<a href="{% url 'raport_zero_nou' %}?locatie={{ loc.pk }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Investiție nouă ({{ urmator.0 }})</a>{% endif %}
     {% if e_admin %}<a href="{% url 'locatie_editare' loc.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editează activul</a>{% endif %}
   </div>
 </div>
+{% if loc.stare_activ == "reziliat" %}<div class="alert alert-danger-subtle border border-danger-subtle bg-danger-subtle small d-flex gap-2 align-items-center py-2"><i class="bi bi-x-octagon"></i>
+  <span><b>Activ reziliat{% if loc.data_reziliere %} la {{ loc.data_reziliere|date:"d.m.Y" }}{% endif %}.</b> A fost operat în trecut de grup; nu mai este operat și nu intră în activele operate, în valoarea grupului sau în suprafețe. Rămâne în registru pentru istoric (investiții, documente); codul {{ loc.cod }} rămâne rezervat acestui activ și nu se realocă altui activ.</span></div>{% endif %}
 {% if not loc.cod %}<div class="alert alert-warning">Această locație nu are cod alocat. {% if e_admin %}Alocați un cod din <a href="{% url 'locatie_editare' loc.pk %}">editare</a> pentru a putea înregistra investiții.{% endif %}</div>{% endif %}
 {% if aut_expira or ctrl_deschise %}<div class="alert alert-warning small py-2">
   {% if aut_expira %}<div><i class="bi bi-exclamation-triangle"></i> {{ aut_expira|length }} autorizați{{ aut_expira|length|pluralize:"e,i" }} expiră în cel mult 60 de zile sau au expirat.</div>{% endif %}
@@ -259,7 +261,7 @@
 <div class="tab-pane fade {% if tab == 'poze' %}show active{% endif %}" id="a-poze"><div class="card">
   <div class="card-header d-flex align-items-center">Fotografii <span class="small text-secondary ms-2">{{ poze|length }} imagini · apăsați pe o fotografie și folosiți săgețile ← → pentru a trece la următoarea</span></div>
   {% if e_admin %}<div class="card-body border-bottom"><form method="post" enctype="multipart/form-data" action="{% url 'locatie_incarcare' loc.pk 'poze' %}" class="d-flex gap-2 align-items-center zona-poze" id="formPoze">{% csrf_token %}
-    <input type="file" name="fisiere" multiple accept="image/*" required class="form-control form-control-sm" style="max-width:420px" id="inputPoze">
+    <input type="file" data-redimensioneaza name="fisiere" multiple accept="image/*" required class="form-control form-control-sm" style="max-width:420px" id="inputPoze">
     <button class="btn btn-sm btn-primary"><i class="bi bi-images"></i> Încarcă fotografiile</button>
     <span class="small text-secondary">sau trageți imaginile aici</span></form></div>{% endif %}
   <div class="card-body">
@@ -271,7 +273,7 @@
     <div class="galerie-celula">
       {% if e_admin %}<input class="form-check-input galerie-bifa" type="checkbox" value="{{ d.pk }}" aria-label="Selectează {{ d.titlu }}">{% endif %}
       <button type="button" class="galerie-item" data-index="{{ forloop.counter0 }}" data-src="{% url 'document' d.pk %}" data-titlu="{{ d.titlu }}" data-data="{{ d.incarcat_la|date:'d.m.Y' }}" data-pk="{{ d.pk }}">
-        <img src="{% url 'document' d.pk %}" alt="{{ d.titlu }}" loading="lazy"><span>{{ d.titlu|truncatechars:28 }}</span></button>
+        <img src="{% url 'document' d.pk %}{% if d.miniatura %}?m=1{% endif %}" alt="{{ d.titlu }}" loading="lazy"><span>{{ d.titlu|truncatechars:28 }}</span></button>
     </div>
   {% empty %}<div class="text-secondary">Nicio fotografie.</div>{% endfor %}</div></div>
 </div></div>

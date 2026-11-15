@@ -1,0 +1,14 @@
+{# O sarcină alocată, pe o singură linie: bulină · descriere · proiect · responsabili · termen · acțiuni #}
+<li class="sa-linie {% if s.stare == 'finalizata' %}gata{% elif s.intarziata %}intarziata{% endif %}" data-url="{% url 'sarcina_modifica' s.pk %}">
+  <span class="sa-bulina"></span>
+  <span class="sa-desc" title="{{ s.descriere }}">{{ s.descriere }}</span>
+  {% if aloc %}<a class="sa-proiect cod" href="{% url 'proiect_detaliu' s.proiect_id %}">{{ s.proiect.cod }}</a>{% endif %}
+  <span class="sa-oameni">{% for u in s.responsabili.all %}<span class="sa-om" title="{{ u.get_full_name|default:u.username }}"><span class="sp-avatar" data-nume="{{ u.get_full_name|default:u.username }}"></span><span class="sa-om-nume">{{ u.get_full_name|default:u.username }}</span></span>{% endfor %}</span>
+  <span class="sa-termen">{% if s.termen %}<i class="bi bi-calendar3"></i> {{ s.termen|date:"d.m.Y" }}{% else %}<span class="text-secondary">fără termen</span>{% endif %}</span>
+  <span class="sa-actiuni">
+    {% if s.stare == 'finalizata' %}<span class="badge av-st-obtinut" title="finalizată de {{ s.finalizata_de.get_full_name|default:s.finalizata_de }} la {{ s.finalizata_la|date:'d.m.Y H:i' }}"><i class="bi bi-check-lg"></i> gata</span>
+      <button type="button" class="btn btn-link btn-sm p-0 text-secondary sa-act" data-actiune="redeschide" title="redeschide"><i class="bi bi-arrow-counterclockwise"></i></button>
+    {% else %}<button type="button" class="btn btn-sm btn-outline-success py-0 sa-act" data-actiune="finalizeaza" title="marchează finalizată"><i class="bi bi-check-lg"></i></button>{% endif %}
+    {% if aloc %}<button type="button" class="btn btn-link btn-sm p-0 text-secondary sa-act" data-actiune="sterge" title="șterge sarcina"><i class="bi bi-trash"></i></button>{% endif %}
+  </span>
+</li>

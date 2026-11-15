@@ -43,7 +43,7 @@
   <table class="table table-bordered rz-tabel">
     <tr><th>Nr. de înregistrare document</th><td>{{ p.nr_inregistrare }}</td></tr>
     <tr><th>Beneficiar</th><td>{{ p.beneficiar }}</td></tr>
-    <tr><th>Locație</th><td>{{ p.locatie.cod }} · {{ p.locatie.denumire }}</td></tr>
+    <tr><th>Locație</th><td>{% if p.locatie %}{{ p.locatie.cod }} · {{ p.locatie.denumire }}{% else %}{% include "platforma/_aloca_activ.html" %}{% endif %}</td></tr>
     <tr{% if 'linie' in rev_modificate or 'divizie' in rev_modificate %} class="rz-modificat" title="modificat în revizia {{ p.revizie_rz }}"{% endif %}><th>Linie de business / divizie</th><td>{{ p.linie }}{% if p.divizie %} / {{ p.divizie }}{% endif %}</td></tr>
     <tr{% if 'denumire' in rev_modificate %} class="rz-modificat" title="modificat în revizia {{ p.revizie_rz }}"{% endif %}><th>Denumire proiect</th><td>{{ p.denumire }}</td></tr>
     <tr{% if 'tip_investitie' in rev_modificate %} class="rz-modificat" title="modificat în revizia {{ p.revizie_rz }}"{% endif %}><th>Tip investiție</th><td>{{ p.get_tip_investitie_display|default:"nedefinit" }}</td></tr>

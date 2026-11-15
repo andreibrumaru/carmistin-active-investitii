@@ -16,7 +16,9 @@
   <div class="rz-titlu"><i class="bi bi-geo-alt"></i> Beneficiar și locație</div>
   <div class="row g-3">
     <div class="col-md-6">{% include "platforma/_camp.html" with field=form.beneficiar %}</div>
-    <div class="col-md-6">{% include "platforma/_camp.html" with field=form.locatie %}</div>
+    <div class="col-md-6">{% include "platforma/_camp.html" with field=form.locatie %}
+      <div class="form-check mt-1 small" title="{{ form.nealocat.help_text }}">{{ form.nealocat }} <label class="form-check-label" for="{{ form.nealocat.id_for_label }}">{{ form.nealocat.label }}</label></div>
+      {% for e in form.nealocat.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>
     <div class="col-md-6">{% include "platforma/_camp.html" with field=form.linie %}</div>
     <div class="col-md-6">{% include "platforma/_camp.html" with field=form.divizie %}</div>
   </div>
@@ -204,10 +206,13 @@
 </tr></template>
 {% endblock %}
 {% block scripturi %}
+{{ form.coduri_nealocate|json_script:"coduriNealocate" }}
 <script>
 (() => {
   const ben = document.getElementById('id_beneficiar'), loc = document.getElementById('id_locatie');
+  const na = document.getElementById('id_nealocat');
   if (!ben || !loc || loc.disabled) return;
+  const coduriNA = JSON.parse(document.getElementById('coduriNealocate').textContent || '{}');
   const toate = [...loc.options].filter(o => o.value);
   const info = document.createElement('div');
   info.className = 'form-text fw-semibold text-primary';
@@ -222,13 +227,22 @@
     actualizeaza();
   }
   function actualizeaza() {
+    const mare = document.querySelector('#codRzMare [data-previzualizare]');
+    const fara = na && na.checked;
+    loc.closest('.col-md-6').querySelectorAll('select, .form-text, label.form-label').forEach(el => el.classList.toggle('d-none', fara));
+    if (fara) {
+      const c = coduriNA[ben.value];
+      if (mare) { mare.textContent = c || '—'; mare.classList.toggle('text-secondary', !c); }
+      if (loc.value) { loc.value = ''; loc.dispatchEvent(new Event('change')); }  // deblochează linia / divizia
+      return;
+    }
     const o = loc.selectedOptions[0];
     const n = toate.filter(x => x.dataset.beneficiar === ben.value).length;
     info.textContent = o && o.value ? `Cod proiect care se va genera: ${o.dataset.urmator}` : (ben.value ? `${n} locații ale beneficiarului` : '');
-    const mare = document.querySelector('#codRzMare [data-previzualizare]');
     if (mare) { mare.textContent = o && o.value ? o.dataset.urmator : '—'; mare.classList.toggle('text-secondary', !(o && o.value)); }
   }
   ben.addEventListener('change', filtreaza);
+  na?.addEventListener('change', actualizeaza);
   loc.addEventListener('change', actualizeaza);
   loc.form.addEventListener('submit', () => { loc.disabled = false; });
   filtreaza();

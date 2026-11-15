@@ -1,0 +1,22 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Echipe de proiect{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
+  <div><h4 class="mb-0">Echipe de proiect</h4>
+    <div class="small text-secondary">Echipa fiecărui proiect, pe categorii. Apăsați pe un proiect pentru a-i stabili echipa (o poate face și responsabilul proiectului).</div></div>
+  <div class="btn-group btn-group-sm ms-auto">
+    <a class="btn {% if not filtru %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?">Toate</a>
+    <a class="btn {% if filtru == 'executie' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?filtru=executie">În execuție</a>
+    <a class="btn {% if filtru == 'fara' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?filtru=fara">Fără echipă <span class="badge text-bg-warning">{{ total_fara }}</span></a>
+  </div>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm small align-middle mb-0 tabel-echipe">
+<thead><tr><th>Proiect</th><th>Responsabil</th>{% for c, et, ic in categorii %}<th class="text-center" title="{{ et }}"><i class="bi {{ ic }}"></i><div class="fw-normal text-secondary" style="font-size:.7rem;line-height:1.1">{{ et|truncatewords:2 }}</div></th>{% endfor %}<th class="text-center">Total</th></tr></thead>
+<tbody>{% for r in randuri %}<tr>
+  <td style="min-width:220px"><a class="cod" href="{% url 'proiect_detaliu' r.p.pk %}?tab=echipa">{{ r.p.cod }}</a><div>{{ r.p.denumire|truncatechars:50 }}</div><div class="text-secondary">{{ r.p.status_afisat }}</div></td>
+  <td>{{ r.p.responsabil_proiect|default:"—" }}</td>
+  {% for membri in r.pe_cat %}<td class="text-center">{% for mb in membri %}<span class="badge rounded-pill {% if mb.user_id %}text-bg-success{% else %}text-bg-light border{% endif %} d-inline-block mb-1" title="{{ mb.functie }} {{ mb.firma }}">{{ mb.nume_afisat|truncatechars:18 }}</span>{% empty %}<span class="text-secondary">·</span>{% endfor %}</td>{% endfor %}
+  <td class="text-center">{% if r.nr %}<b>{{ r.nr }}</b>{% else %}<a class="btn btn-sm btn-outline-warning py-0" href="{% url 'proiect_detaliu' r.p.pk %}?tab=echipa">stabilește</a>{% endif %}</td>
+</tr>{% empty %}<tr><td colspan="9" class="text-secondary text-center py-4">Niciun proiect.</td></tr>{% endfor %}</tbody></table></div>
+<div class="card-footer small text-secondary"><span class="badge rounded-pill text-bg-success">verde</span> = utilizator al aplicației (vede proiectul, scrie rapoarte) · <span class="badge rounded-pill text-bg-light border">gri</span> = persoană externă (contact)</div></div>
+{% endblock %}

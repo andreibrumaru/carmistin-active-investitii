@@ -3,7 +3,7 @@
 Denumire: {{ p.denumire }}
 Nr. înregistrare: {{ p.nr_inregistrare }}
 Beneficiar: {{ p.beneficiar }}
-Locație: {{ p.locatie.cod }} · {{ p.locatie.denumire }}
+Locație: {% if p.locatie %}{{ p.locatie.cod }} · {{ p.locatie.denumire }}{% else %}fără activ alocat (obiectiv nou){% endif %}
 Valoare: {{ p.valoare_rz|bani }} {{ p.moneda_rz }}
 Buget HG ({{ p.moneda_rz }} fără TVA): {{ total_buget|bani }}
 Perioada: {{ p.data_demarare|date:"d.m.Y" }} – {% if p.fara_termen %}FT (fără termen de finalizare){% else %}{{ p.data_finalizare|date:"d.m.Y" }}{% endif %}

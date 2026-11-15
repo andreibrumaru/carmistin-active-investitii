@@ -1,11 +1,11 @@
 {% extends "platforma/base.html" %}{% load fmt %}
 {% block titlu %}{{ p.cod }}{% endblock %}
-{% block head %}<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">{% endblock %}
+
 {% block continut %}
 <div class="d-flex align-items-start mb-3 gap-2">
   <a href="{% url 'investitii' %}" class="btn btn-sm btn-outline-secondary me-2"><i class="bi bi-arrow-left"></i></a>
   <div><h4 class="mb-0"><span class="cod">{{ p.cod }}</span> · {{ p.denumire }}</h4>
-    <div class="text-secondary small">Locație <a href="{{ p.locatie.get_absolute_url }}">{{ p.locatie }}</a> · beneficiar {{ p.beneficiar }} · PM {{ p.pm|default:"—" }} · coordonator {{ p.coordonator|default:"—" }}</div></div>
+    <div class="text-secondary small">{% if p.locatie %}Locație <a href="{{ p.locatie.get_absolute_url }}">{{ p.locatie }}</a>{% else %}{% include "platforma/_aloca_activ.html" %}{% endif %} · beneficiar {{ p.beneficiar }} · PM {{ p.pm|default:"—" }} · coordonator {{ p.coordonator|default:"—" }}</div></div>
   <div class="ms-auto d-flex gap-2 align-items-center">
     <span class="badge fs-6 {% if p.status == 'Finalizat' %}text-bg-success{% elif p.status == 'Anulat/Suspendat' %}text-bg-danger{% elif p.status == 'În execuție' %}text-bg-primary{% else %}text-bg-secondary{% endif %}" title="status investiție">{{ p.status_afisat }}</span>
     <span class="badge text-bg-light fs-6" title="fază">{{ p.faza }}</span>
@@ -31,11 +31,10 @@
   <li class="nav-item"><button class="nav-link {% if t == 'echipamente' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-echipamente">Echipamente <span class="badge text-bg-light">{{ echipamente|length }}</span></button></li>
   <li class="nav-item"><button class="nav-link {% if t == 'avize' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-avize">CU & avize <span class="badge text-bg-light">{{ avize_stat|get:"Obținut" }}/{{ avize|length }}</span>{% if avize_expira %} <span class="badge text-bg-danger" title="avize expirate sau care expiră în 30 de zile">{{ avize_expira }}</span>{% endif %}</button></li>
   <li class="nav-item"><button class="nav-link {% if t == 'finantare' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-finantare">Finanțare{% if p.fonduri_ue %} <span class="badge text-bg-primary">UE</span>{% endif %}</button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'gantt' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-gantt" id="buton-gantt">Grafic Gantt</button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'monitorizare' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-monitorizare"><i class="bi bi-activity"></i> Monitorizare proiect{% if etape_intarziate %} <span class="badge text-bg-danger">{{ etape_intarziate }}</span>{% endif %}</button></li>
   <li class="nav-item"><button class="nav-link {% if t == 'documente' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-documente">Documente <span class="badge text-bg-light">{{ documente|length }}</span></button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'acces' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-acces">Acces</button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'setari' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-setari"><i class="bi bi-sliders"></i> Setări</button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'istoric' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-istoric">Istoric</button></li>
+  {% if poate_setari %}<li class="nav-item"><button class="nav-link {% if t == 'setari' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-setari"><i class="bi bi-sliders"></i> Setări</button></li>{% endif %}
+  {% if e_admin %}<li class="nav-item"><button class="nav-link {% if t == 'istoric' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#t-istoric">Istoric</button></li>{% endif %}
   {% endwith %}
 </ul>
 
@@ -250,32 +249,7 @@
 </div>
 
 {# ---------------- AVIZE ---------------- #}
-<div class="tab-pane fade {% if tab == 'avize' %}show active{% endif %}" id="t-avize">
-  <div class="row g-3">
-  <div class="col-lg-4"><div class="card"><div class="card-header d-flex">Certificate de urbanism {% if editabil %}<a class="ms-auto small" href="{% url 'obiect_nou' p.pk 'certificat' %}">+ CU manual</a>{% endif %}</div>
-    {% if editabil %}<div class="card-body border-bottom"><form method="post" enctype="multipart/form-data" action="{% url 'cu_incarca' p.pk %}" id="formCU">{% csrf_token %}
-      <label class="form-label small fw-semibold"><i class="bi bi-stars text-primary"></i> Încarcă CU – AI completează lista de avize</label>
-      <input type="file" name="fisier" class="form-control form-control-sm" accept=".pdf,image/*" required onchange="if(this.files.length){document.getElementById('cuAsteptare').classList.remove('d-none');this.form.submit();}">
-      <div class="form-text">Se preiau avizele / studiile bifate în certificat. Le verificați înainte să intre în listă și puteți adăuga altele.{% if not stare_ai.0 %} <span class="text-danger">AI indisponibil acum: {{ stare_ai.1 }}.</span>{% endif %}</div>
-      <div id="cuAsteptare" class="small text-primary d-none mt-1"><span class="spinner-border spinner-border-sm"></span> Se citește certificatul…</div></form></div>{% endif %}
-    <ul class="list-group list-group-flush">{% for cu in certificate %}<li class="list-group-item"><b>{{ cu }}</b> · {{ cu.emitent }}<div class="small {% if cu.valabil_pana and cu.valabil_pana < azi %}text-danger{% else %}text-secondary{% endif %}">valabil până la {{ cu.valabil_pana|date:"d.m.Y"|default:"—" }}</div>
-      {% for d in cu.documente.all %}<a class="small" href="{% url 'document' d.pk %}" target="_blank"><i class="bi bi-paperclip"></i> {{ d.titlu }}</a>{% endfor %}</li>{% empty %}<li class="list-group-item text-secondary small">Niciun CU. Încărcați PDF-ul certificatului în tabul Documente (categoria „Certificat de urbanism”) și apăsați „Extrage avize cu AI”.</li>{% endfor %}</ul>
-    <div class="card-body small border-top">{% for k, v in avize_stat.items %}{% if v %}<span class="me-3">{{ k }}: <b>{{ v }}</b></span>{% endif %}{% endfor %}</div></div></div>
-  <div class="col-lg-8"><div class="card"><div class="card-header d-flex align-items-center">Avize și studii necesare pentru autorizația de construire {% if editabil %}<div class="ms-auto d-flex gap-1"><a class="btn btn-sm btn-outline-primary" href="{% url 'obiect_nou' p.pk 'aviz' %}?origine=cu">+ Aviz din CU</a><a class="btn btn-sm btn-outline-secondary" href="{% url 'obiect_nou' p.pk 'aviz' %}?origine=suplimentar&tip=studiu">+ Aviz / studiu suplimentar</a></div>{% endif %}</div>
-    <div class="table-responsive"><table class="table table-sm mb-0 align-middle tabel-filtrabil">
-    <thead><tr><th>Aviz / studiu</th><th>Tip</th><th>Status</th><th>Responsabil</th><th>Depus</th><th>Obținut</th><th>Valabilitate</th><th>Doc.</th><th></th></tr></thead>
-    <tbody>{% for a in avize %}<tr>
-      <td>{{ a.denumire }}{% if a.extras_ai %} <i class="bi bi-stars text-primary" title="propus de AI din CU"></i>{% endif %}<div class="small text-secondary">{{ a.emitent }}</div></td>
-      <td class="small">{{ a.get_tip_display }}<div>{% if a.origine == 'cu' %}<span class="badge text-bg-light">din CU</span>{% else %}<span class="badge text-bg-info">{{ a.get_origine_display|lower }}</span>{% endif %}</div></td>
-      <td><span class="badge {% if a.status == 'obtinut' %}text-bg-success{% elif a.status == 'respins' %}text-bg-danger{% elif a.status == 'depus' %}text-bg-warning{% else %}text-bg-light{% endif %}">{{ a.get_status_display }}</span></td>
-      <td class="small">{{ a.responsabil|default:"" }}</td><td class="small">{{ a.data_depunere|date:"d.m.Y" }}</td><td class="small">{{ a.numar_aviz }} {{ a.data_aviz|date:"d.m.Y" }}</td>
-      <td class="small text-nowrap" data-sort="{{ a.valabil_pana|date:'Y-m-d' }}">{% with sv=a.stare_valabilitate z=a.zile_ramase %}{% if sv == 'nedefinit' %}{% if a.status == 'obtinut' %}<span class="badge text-bg-warning">fără dată</span>{% else %}<span class="text-secondary">—</span>{% endif %}
-        {% else %}{{ a.valabil_pana|date:"d.m.Y" }}<div>{% if sv == 'expirat' %}<span class="badge text-bg-danger">expirat de {{ z|stringformat:"d"|cut:"-" }} zile</span>{% elif sv == 'expira' %}<span class="badge text-bg-warning">expiră în {{ z }} zile</span>{% else %}<span class="badge text-bg-success">valabil {{ z }} zile</span>{% endif %}</div>{% endif %}{% endwith %}</td>
-      <td>{% for d in a.documente.all %}{% if not d.arhivat %}<a href="{% url 'document' d.pk %}" target="_blank" title="{{ d.titlu }}"><i class="bi bi-file-earmark-check text-success"></i></a>{% endif %}{% empty %}{% if a.status == 'obtinut' %}<span class="badge text-bg-warning">fără scan</span>{% endif %}{% endfor %}</td>
-      <td class="text-nowrap">{% if editabil %}<a href="{% url 'obiect_editare' p.pk 'aviz' a.pk %}" title="editează / încarcă avizul obținut"><i class="bi bi-pencil"></i></a> <a href="{% url 'obiect_editare' p.pk 'aviz' a.pk %}#id_scan" title="încarcă avizul (PDF)"><i class="bi bi-upload"></i></a>{% endif %}</td>
-    </tr>{% empty %}<tr><td colspan="9" class="text-center text-secondary py-4">Nicio cerință de aviz. Încărcați certificatul de urbanism pentru lista de avize.</td></tr>{% endfor %}</tbody></table></div></div></div>
-  </div>
-</div>
+<div class="tab-pane fade {% if tab == 'avize' %}show active{% endif %}" id="t-avize">{% include "platforma/_avize.html" %}</div>
 
 {# ---------------- FINANȚARE ---------------- #}
 <div class="tab-pane fade {% if tab == 'finantare' %}show active{% endif %}" id="t-finantare"><div class="row g-3">
@@ -331,61 +305,22 @@
 </div></div>
 
 {# ---------------- GANTT ---------------- #}
-<div class="tab-pane fade {% if tab == 'gantt' %}show active{% endif %}" id="t-gantt"><div class="card">
-  <div class="card-header d-flex align-items-center gap-2">Grafic de execuție
-    <div class="btn-group btn-group-sm ms-3">
-      <button class="btn btn-outline-secondary" onclick="g&&g.change_view_mode('Week')">Săptămână</button>
-      <button class="btn btn-outline-secondary" onclick="g&&g.change_view_mode('Month')">Lună</button></div>
-    {% if editabil %}<div class="ms-auto d-flex gap-2">
-      <a class="btn btn-sm btn-outline-primary" href="{% url 'obiect_nou' p.pk 'activitate' %}">+ Activitate</a>
-      <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#import-gantt"><i class="bi bi-upload"></i> Import Excel / MS Project</button></div>{% endif %}</div>
-  {% if editabil %}<div class="collapse" id="import-gantt"><form class="card-body border-bottom row g-2" method="post" enctype="multipart/form-data" action="{% url 'gantt_import' p.pk %}">{% csrf_token %}
-    <div class="col-md-6">{{ form_gantt.fisier }}<div class="form-text">{{ form_gantt.fisier.help_text }}</div></div>
-    <div class="col-md-3 form-check mt-2">{{ form_gantt.inlocuieste }} <label class="form-check-label">Înlocuiește activitățile existente</label></div>
-    <div class="col-md-3"><button class="btn btn-sm btn-primary">Importă</button></div></form></div>{% endif %}
-  <div class="card-body">{% if activitati %}<div id="gantt"></div>
-    <table class="table table-sm small mt-3"><thead><tr><th>#</th><th>Activitate</th><th>Plan inițial</th><th>Actual</th><th>Progres</th><th>Responsabil</th><th></th></tr></thead>
-    {% for a in activitati %}<tr><td>{{ a.ordine }}</td><td>{{ a.denumire }}</td><td>{{ a.start_planificat|date:"d.m.y" }} – {{ a.sfarsit_planificat|date:"d.m.y" }}</td><td {% if a.sfarsit > a.sfarsit_planificat %}class="text-danger"{% endif %}>{{ a.start|date:"d.m.y" }} – {{ a.sfarsit|date:"d.m.y" }}</td><td>{{ a.progres }}%</td><td>{{ a.responsabil }}</td><td>{% if editabil %}<a href="{% url 'obiect_editare' p.pk 'activitate' a.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}</td></tr>{% endfor %}</table>
-    {% else %}<p class="text-secondary mb-0">Nicio activitate. Adăugați manual sau importați un grafic.</p>{% endif %}</div>
-</div></div>
+{# ---------------- MONITORIZARE PROIECT (etape + raport zilnic de activitate) ---------------- #}
+<div class="tab-pane fade {% if tab == 'monitorizare' %}show active{% endif %}" id="t-monitorizare">{% include "platforma/_monitorizare.html" %}</div>
+
 
 {# ---------------- DOCUMENTE ---------------- #}
-<div class="tab-pane fade {% if tab == 'documente' %}show active{% endif %}" id="t-documente"><div class="row g-3">
-  <div class="col-lg-8"><div class="card"><div class="card-header d-flex">Documente proiect <span class="ms-auto small text-secondary">{{ documente_arhivate }} versiuni arhivate</span></div>
-  <div class="table-responsive"><table class="table table-sm mb-0 align-middle"><thead><tr><th>Document</th><th>Categorie</th><th>Legat de</th><th>Încărcat</th><th>AI</th><th></th></tr></thead>
-  <tbody>{% for d in documente %}<tr>
-    <td><a href="{% url 'document' d.pk %}" target="_blank">{{ d.titlu }}</a> <span class="badge text-bg-light">v{{ d.versiune }}</span><div class="small text-secondary" title="amprentă SHA-256">{{ d.sha256|truncatechars:20 }}</div></td>
-    <td class="small">{{ d.get_categorie_display }}</td>
-    <td class="small">{{ d.contract|default:"" }}{{ d.factura|default:"" }}{{ d.aviz|default:"" }}{{ d.certificat|default:"" }}{{ d.finantare|default:"" }}</td>
-    <td class="small">{{ d.incarcat_de }}<div class="text-secondary">{{ d.incarcat_la|date:"d.m.Y H:i" }}</div></td>
-    <td>{% if editabil %}{% if d.categorie == 'cu' %}<form method="post" action="{% url 'ai_extrage' d.pk %}" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').innerText='Se analizează…'">{% csrf_token %}<input type="hidden" name="tip" value="cu_avize"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-stars"></i> Extrage avize</button></form>
-      {% elif d.categorie == 'contract' %}<form method="post" action="{% url 'ai_extrage' d.pk %}" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').innerText='Se analizează…'">{% csrf_token %}<input type="hidden" name="tip" value="contract"><button class="btn btn-sm btn-outline-primary" {% if not d.contract %}disabled title="Legați documentul de un contract"{% endif %}><i class="bi bi-stars"></i> Extrage condiții</button></form>
-      {% elif d.categorie == 'finantare' %}<form method="post" action="{% url 'ai_extrage' d.pk %}" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').innerText='Se analizează…'">{% csrf_token %}<input type="hidden" name="tip" value="finantare"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-stars"></i> Extrage obligații</button></form>{% endif %}{% endif %}</td>
-    <td class="text-nowrap">{% if editabil %}<a href="{% url 'obiect_nou' p.pk 'document' %}?inlocuieste={{ d.pk }}&categorie={{ d.categorie }}&titlu={{ d.titlu|urlencode }}" title="versiune nouă"><i class="bi bi-arrow-up-circle"></i></a>
-      <form class="d-inline" method="post" action="{% url 'document_arhiveaza' d.pk %}" data-confirm="Arhivați documentul?">{% csrf_token %}<button class="btn btn-link btn-sm p-0" title="arhivează"><i class="bi bi-archive"></i></button></form>{% endif %}</td>
-  </tr>{% empty %}<tr><td colspan="6" class="text-center text-secondary py-4">Niciun document.</td></tr>{% endfor %}</tbody></table></div></div>
-  {% if extrageri %}<div class="card mt-3"><div class="card-header">Extrageri AI</div><ul class="list-group list-group-flush">{% for e in extrageri %}<li class="list-group-item small"><a href="{% url 'ai_validare' e.pk %}">{{ e.get_tip_display }}</a> · {{ e.document.titlu }} · <span class="badge text-bg-light">{{ e.get_status_display }}</span> · {{ e.model_ai }} · {{ e.creat_la|date:"d.m.Y H:i" }}{% if e.validat_de %} · validat de {{ e.validat_de }}{% endif %}</li>{% endfor %}</ul></div>{% endif %}
-  </div>
-  <div class="col-lg-4">{% if editabil %}<div class="card"><div class="card-header">Încarcă document</div><div class="card-body">
-    <form method="post" enctype="multipart/form-data" action="{% url 'obiect_nou' p.pk 'document' %}">{% csrf_token %}
-      {% for field in form_doc %}{% if field.name in 'categorie titlu fisier' %}<div class="mb-2"><label class="form-label small fw-semibold">{{ field.label|capfirst }}</label>{{ field }}</div>{% endif %}{% endfor %}
-      <button class="btn btn-sm btn-primary">Încarcă</button> <a class="small ms-2" href="{% url 'obiect_nou' p.pk 'document' %}">formular complet (legături)</a></form></div></div>{% endif %}
-    <div class="card mt-3"><div class="card-body small text-secondary"><i class="bi bi-cpu"></i> AI local: {% if stare_ai.0 %}<span class="text-success">activ ({{ stare_ai.1 }})</span>{% else %}<span class="text-warning-emphasis">{{ stare_ai.1 }}</span>{% endif %}. Rezultatele AI sunt propuneri: devin date de proiect doar după validare.</div></div>
-  </div>
-</div></div>
-
-{# ---------------- ACCES ---------------- #}
-<div class="tab-pane fade {% if tab == 'acces' %}show active{% endif %}" id="t-acces"><div class="card" style="max-width:800px">
-  <div class="card-header d-flex">Cine are acces la acest proiect {% if e_admin or request.user == p.coordonator %}<a class="ms-auto small" href="{% url 'obiect_nou' p.pk 'acces' %}">+ acordă acces</a>{% endif %}</div>
-  <ul class="list-group list-group-flush">
-    <li class="list-group-item">Administratori, management și utilizatorii cu rol „Vizualizare” – toate proiectele (management și vizualizare: doar citire)</li>
-    <li class="list-group-item">Coordonator: <b>{{ p.coordonator|default:"—" }}</b> (editare)</li>
-    <li class="list-group-item">Project manager: <b>{{ p.pm|default:"—" }}</b> (editare){% if p.pm.profil.coordonator %} · coordonatorul PM-ului: {{ p.pm.profil.coordonator }}{% endif %}</li>
-    {% for a in accese %}<li class="list-group-item d-flex">{{ a.user.get_full_name|default:a.user }} <span class="badge text-bg-light ms-2">{{ a.get_nivel_display }}</span>{% if e_admin or request.user == p.coordonator %}<a class="ms-auto small" href="{% url 'obiect_editare' p.pk 'acces' a.pk %}">modifică</a>{% endif %}</li>{% endfor %}
-  </ul></div></div>
+<div class="tab-pane fade {% if tab == 'documente' %}show active{% endif %}" id="t-documente">{% include "platforma/_documente.html" %}</div>
 
 {# ---------------- SETĂRI ---------------- #}
-<div class="tab-pane fade {% if tab == 'setari' %}show active{% endif %}" id="t-setari">
+{% if poate_setari %}<div class="tab-pane fade {% if tab == 'setari' %}show active{% endif %}" id="t-setari">
+<ul class="nav nav-pills nav-pills-setari mb-3">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#s-configurator" type="button"><i class="bi bi-sliders"></i> Configurator</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#s-echipa" type="button" id="pillEchipa"><i class="bi bi-people"></i> Echipa proiectului <span class="badge rounded-pill text-bg-light">{{ echipa_nr }}</span></button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#s-acces" type="button" id="pillAcces"><i class="bi bi-shield-lock"></i> Acces</button></li>
+</ul>
+<div class="tab-content">
+<div class="tab-pane fade show active" id="s-configurator">
 <form method="post" action="{% url 'proiect_setari' p.pk %}">{% csrf_token %}<div class="row g-3">
   <div class="col-lg-7"><div class="card"><div class="card-header">Configurator proiect</div><div class="card-body">
     <div class="mb-3 p-2 bg-light rounded small">
@@ -405,18 +340,38 @@
     {% for an, est, real in plan_ani %}<tr><td>{{ an }}</td><td><input name="plan_{{ an }}" value="{{ est|floatformat:'0' }}" class="form-control form-control-sm" {% if not modifica_buget %}disabled{% endif %}></td><td class="num">{{ real.facturat|bani }}</td><td class="num">{{ real.platit|bani }}</td></tr>{% endfor %}
     {% if modifica_buget %}<tr><td><input name="an_nou" placeholder="an" class="form-control form-control-sm" style="width:80px"></td><td><input name="plan_nou" placeholder="valoare" class="form-control form-control-sm"></td><td colspan="2" class="small text-secondary">adaugă un an</td></tr>{% endif %}
     </table></div></div>
-  <div class="col-12">{% if editabil %}<button class="btn btn-primary"><i class="bi bi-check2"></i> Salvează setările</button>{% endif %}</div>
+  <div class="col-12"><button class="btn btn-primary"><i class="bi bi-check2"></i> Salvează setările</button></div>
 </div></form></div>
+<div class="tab-pane fade" id="s-echipa">{% include "platforma/_echipa.html" %}</div>
+<div class="tab-pane fade" id="s-acces">
+  <div class="alert alert-light border small" style="max-width:900px"><i class="bi bi-info-circle"></i> <b>Acces</b> = drept de a deschide proiectul acordat nominal unui utilizator care nu e în echipă și nu are rol cu acces general:
+    <b>citire</b> (vede fișa, nu modifică) sau <b>editare</b> (lucrează pe proiect ca responsabilul, fără Setări). Membrii echipei cu cont au deja acces la vizualizare și rapoarte.</div>
+  <div class="card" style="max-width:900px">
+  <div class="card-header d-flex">Cine are acces la acest proiect {% if poate_setari %}<a class="ms-auto small" href="{% url 'obiect_nou' p.pk 'acces' %}">+ acordă acces</a>{% endif %}</div>
+  <ul class="list-group list-group-flush">
+    <li class="list-group-item">Administratori, management și utilizatorii cu rol „Vizualizare” – toate proiectele (management și vizualizare: doar citire)</li>
+    <li class="list-group-item">Coordonator: <b>{{ p.coordonator|default:"—" }}</b> (editare)</li>
+    <li class="list-group-item">Project manager: <b>{{ p.pm|default:"—" }}</b> (editare){% if p.pm.profil.coordonator %} · coordonatorul PM-ului: {{ p.pm.profil.coordonator }}{% endif %}</li>
+    {% for a in accese %}<li class="list-group-item d-flex">{{ a.user.get_full_name|default:a.user }} <span class="badge text-bg-light ms-2">{{ a.get_nivel_display }}</span>{% if poate_setari %}<a class="ms-auto small" href="{% url 'obiect_editare' p.pk 'acces' a.pk %}">modifică</a>{% endif %}</li>{% endfor %}
+  </ul></div>
+</div>
+</div>
+<script>  // ?tab=echipa / ?tab=acces → deschide direct secțiunea din Setări
+(() => { const s = new URLSearchParams(location.search).get('sectiune') || '{{ sectiune_setari }}';
+  const b = {echipa: 'pillEchipa', acces: 'pillAcces'}[s]; if (b && window.bootstrap) bootstrap.Tab.getOrCreateInstance(document.getElementById(b)).show(); })();
+</script>
+</div>{% endif %}
 
 {% include "platforma/_curs_fereastra.html" %}
 <script>document.addEventListener('curs-proiect-schimbat', () => location.replace(location.pathname + '?tab=setari'));</script>
 {# ---------------- ISTORIC ---------------- #}
-<div class="tab-pane fade {% if tab == 'istoric' %}show active{% endif %}" id="t-istoric"><div class="card">
+{% if e_admin %}<div class="tab-pane fade {% if tab == 'istoric' %}show active{% endif %}" id="t-istoric"><div class="card">
   <div class="card-header">Jurnal de audit al proiectului (ultimele 100 de operații)</div>
   <div class="table-responsive"><table class="table table-sm small mb-0"><thead><tr><th>Moment</th><th>Utilizator</th><th>Acțiune</th><th>Obiect</th><th>Modificări</th></tr></thead>
   <tbody>{% for j in jurnal %}<tr><td class="text-nowrap">{{ j.moment|date:"d.m.Y H:i" }}</td><td>{{ j.user|default:"sistem" }}</td><td>{{ j.actiune }}</td><td>{{ j.model }}: {{ j.obiect|truncatechars:60 }}</td>
     <td>{% for k, v in j.modificari.items %}{% if forloop.counter <= 6 %}<div><b>{{ k }}</b>: {% if j.actiune == 'modificare' %}<s class="text-secondary">{{ v.0|default_if_none:"∅"|truncatechars:40 }}</s> → {{ v.1|default_if_none:"∅"|truncatechars:40 }}{% else %}{{ v.1|default_if_none:v|truncatechars:50 }}{% endif %}</div>{% endif %}{% endfor %}</td></tr>
   {% empty %}<tr><td colspan="5" class="text-secondary">Nicio înregistrare.</td></tr>{% endfor %}</tbody></table></div></div></div>
+{% endif %}
 </div>
 {% endblock %}
 {% block scripturi %}
@@ -437,28 +392,5 @@
   celule.forEach(c => c.addEventListener('input', () => { recalc(); document.getElementById('bugetNesalvat')?.classList.remove('d-none'); }));
   celule.forEach((c, i) => c.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (celule[i + 1] || c).focus(); } }));
 })();
-</script>
-<script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
-<script>
-let g = null;
-const editabil = {{ editabil|yesno:"true,false" }};
-const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-function salveaza(id, data) {
-  fetch(`/proiecte/{{ p.pk }}/gantt/${id}/`, {method: 'POST', headers: {'X-CSRFToken': csrf}, body: new URLSearchParams(data)});
-}
-function deseneaza() {
-  const el = document.getElementById('gantt');
-  if (!el || g) return;
-  fetch('{% url "gantt_json" p.pk %}').then(r => r.json()).then(t => {
-    if (!t.length) return;
-    g = new Gantt('#gantt', t, {
-      view_mode: 'Month', language: 'en', readonly: !editabil,
-      on_date_change: (task, s, e) => editabil && salveaza(task.id, {start: s.toISOString(), end: e.toISOString()}),
-      on_progress_change: (task, p) => editabil && salveaza(task.id, {progress: p}),
-    });
-  });
-}
-document.getElementById('buton-gantt').addEventListener('shown.bs.tab', deseneaza);
-if ('{{ tab }}' === 'gantt') deseneaza();
 </script>
 {% endblock %}
