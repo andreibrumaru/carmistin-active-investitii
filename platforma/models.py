@@ -6,6 +6,7 @@ Lanțul de trasabilitate:
   și, în paralel: Certificat urbanism → Avize; Finanțare → Obligații; Grafic (activități); Documente.
 Fiecare modificare se înregistrează în JurnalAudit; documentele nu se șterg, doar se înlocuiesc cu versiuni noi.
 """
+import calendar
 import datetime
 import hashlib
 import re
@@ -497,6 +498,62 @@ class CodLocatieRetras(models.Model):
         return f"{self.cod} · {self.denumire}"
 
 
+class UtilitateLocatie(models.Model):
+    """Utilitățile unui activ (energie, gaz, apă, stație de epurare, gunoi): date tehnice, consum, documente."""
+    TIPURI = [
+        ("energie", "Energie electrică", "bi-lightning-charge", "kWh"),
+        ("gaz", "Gaze naturale", "bi-fire", "mc"),
+        ("apa", "Apă", "bi-droplet", "mc"),
+        ("epurare", "Stație de epurare", "bi-water", "mc"),
+        ("gunoi", "Gunoi / salubrizare", "bi-trash3", "t"),
+    ]
+    STARE = [("racordat", "Racordat"), ("in_curs", "În curs de racordare"), ("neracordat", "Neracordat"), ("nu_e_cazul", "Nu e cazul")]
+    # câmpurile specifice fiecărei utilități: (cheie, etichetă, unitate)
+    CAMPURI = {
+        "energie": [("putere_aprobata", "Putere aprobată (ATR)", "kW"), ("putere_instalata", "Putere instalată", "kW"),
+                    ("tensiune", "Nivel de tensiune (JT / MT / ÎT)", ""), ("putere_transformatoare", "Putere în transformatoare", "kVA"),
+                    ("nr_transformatoare", "Număr transformatoare", "buc"), ("pv_putere", "Panouri fotovoltaice – putere instalată", "kWp"),
+                    ("pv_productie", "Producție PV anuală estimată", "MWh"), ("baterii_capacitate", "Baterii – capacitate de stocare", "kWh"),
+                    ("baterii_putere", "Baterii – putere", "kW"), ("generator", "Generator de rezervă", "kVA")],
+        "gaz": [("presiune", "Regim de presiune (redusă / medie)", ""), ("debit_instalat", "Debit instalat", "mc/h"),
+                ("tip_contor", "Tip / model contor", ""), ("serii_contoare", "Serii contoare", ""), ("statie_reglare", "Post / stație de reglare-măsurare", "")],
+        "apa": [("sursa", "Sursa (rețea publică / puț / foraj)", ""), ("nr_foraje", "Număr foraje / puțuri", "buc"),
+                ("debit_autorizat", "Debit autorizat", "mc/zi"), ("autorizatie_ga", "Autorizație de gospodărire a apelor", ""),
+                ("tip_contor", "Tip / model contor", ""), ("serii_contoare", "Serii contoare", "")],
+        "epurare": [("capacitate", "Capacitate stație", "mc/zi"), ("echivalent_locuitori", "Echivalent locuitori", "l.e."),
+                    ("tehnologie", "Tehnologie de epurare", ""), ("receptor", "Receptor ape epurate", ""),
+                    ("autorizatie", "Autorizație / aviz de funcționare", ""), ("operator", "Operator / mentenanță", "")],
+        "gunoi": [("operator", "Operator de salubrizare", ""), ("tip_deseuri", "Tipuri de deșeuri", ""),
+                  ("frecventa", "Frecvența ridicării", ""), ("recipienti", "Recipienți / containere", ""), ("cod_deseu", "Coduri deșeuri (HG 856)", "")],
+    }
+    locatie = models.ForeignKey(Locatie, on_delete=models.CASCADE, related_name="utilitati")
+    tip = models.CharField(max_length=12, choices=[(c, e) for c, e, _, _ in TIPURI])
+    stare = models.CharField(max_length=12, choices=STARE, default="racordat")
+    furnizor = models.CharField("furnizor / operator", max_length=200, blank=True)
+    titular = models.CharField("titular punct de consum", max_length=200, blank=True)
+    cod_loc_consum = models.CharField("cod loc de consum (POD / CLC / NLC)", max_length=80, blank=True)
+    nr_contract = models.CharField("contract furnizare", max_length=120, blank=True)
+    consum_anual = models.DecimalField("consum mediu anual", max_digits=14, decimal_places=2, null=True, blank=True)
+    consum_lunar = models.DecimalField("consum mediu lunar", max_digits=14, decimal_places=2, null=True, blank=True)
+    detalii = models.JSONField(default=dict, blank=True)  # câmpurile specifice tipului (CAMPURI)
+    curba_consum = models.JSONField("consum lunar pe ani", default=dict, blank=True)  # {"2025": [12 valori sau null]}
+    observatii = models.TextField(blank=True)
+    modificat_la = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("locatie", "tip")]
+        ordering = ["locatie", "tip"]
+        verbose_name = "utilitate activ"
+        verbose_name_plural = "utilități active"
+
+    def __str__(self):
+        return f"{self.locatie} · {self.get_tip_display()}"
+
+    @classmethod
+    def unitate(cls, tip):
+        return {c: u for c, _, _, u in cls.TIPURI}.get(tip, "")
+
+
 class IstoricStareActiv(models.Model):
     """Schimbările de stare ale unui activ (funcțional / nefuncțional / retail) – nu se modifică și nu se șterg."""
     locatie = models.ForeignKey(Locatie, on_delete=models.CASCADE, related_name="istoric_stare")
@@ -802,6 +859,8 @@ class Proiect(models.Model):
     data_demarare = models.DateField(null=True, blank=True)
     data_finalizare = models.DateField(null=True, blank=True)
     fara_termen = models.BooleanField("proiect FT – fără termen de finalizare", default=False)
+    executat_inno = models.BooleanField("lucrare executată prin INNO AG", default=False,
+                                        help_text="INNO AG – compania de construcții a grupului, coordonată de echipe proprii.")
     intocmit_de = models.CharField("întocmit", max_length=120, blank=True)
     avizat_de = models.CharField("avizat", max_length=120, blank=True)
     stare_rz = models.CharField("stare Raport Zero", max_length=10, choices=STARE_RZ, default="ciorna")
@@ -850,7 +909,7 @@ class Proiect(models.Model):
         "denumire", "departament", "linie", "beneficiar_id", "solicitant", "responsabil_tehnic", "responsabil_implementare",
         "obiectiv", "cladire", "descriere_lucrari", "necesar_achizitii", "valoare_rz", "moneda_rz", "finantare",
         "tip_investitie", "tip_autorizare", "fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "val_nerambursabil", "val_bancara", "val_proprii",
-        "prioritate", "data_demarare", "data_finalizare", "fara_termen", "observatii_rz", "intocmit_de", "avizat_de",
+        "prioritate", "data_demarare", "data_finalizare", "fara_termen", "executat_inno", "observatii_rz", "intocmit_de", "avizat_de",
         "divizie", "pm_id", "coordonator_id",
     ]
 
@@ -1271,18 +1330,53 @@ class RectificareBuget(models.Model):
 # ---------------------------------------------------------------------------
 # Contracte, facturi, plăți
 # ---------------------------------------------------------------------------
+class Partener(models.Model):
+    """Registrul partenerilor (prestatori, furnizori), identificați după CUI; datele vin din serviciul public ANAF."""
+    cui = models.CharField("CUI", max_length=20, unique=True)
+    denumire = models.CharField(max_length=200)
+    nr_reg_com = models.CharField("nr. Registrul Comerțului", max_length=40, blank=True)
+    adresa = models.CharField("adresa sediului", max_length=400, blank=True)
+    judet = models.CharField("județ", max_length=60, blank=True)
+    cod_caen = models.CharField("cod CAEN", max_length=10, blank=True)
+    platitor_tva = models.BooleanField("plătitor de TVA", null=True, blank=True)
+    tva_incasare = models.BooleanField("TVA la încasare", null=True, blank=True)
+    inactiv = models.BooleanField("inactiv fiscal", default=False)
+    radiat = models.BooleanField(default=False)
+    stare_inregistrare = models.CharField("stare înregistrare (ANAF)", max_length=200, blank=True)
+    e_factura = models.BooleanField("în Registrul RO e-Factura", null=True, blank=True)
+    iban = models.CharField("IBAN", max_length=40, blank=True)
+    telefon = models.CharField(max_length=60, blank=True)
+    email = models.CharField(max_length=120, blank=True)
+    persoana_contact = models.CharField("persoană de contact", max_length=120, blank=True)
+    observatii = models.TextField(blank=True)
+    verificat_anaf_la = models.DateTimeField("verificat la ANAF", null=True, blank=True)
+    creat_la = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["denumire"]
+        verbose_name = "partener"
+        verbose_name_plural = "parteneri"
+
+    def __str__(self):
+        return f"{self.denumire} ({self.cui})"
+
+
 class Contract(models.Model):
     TIP = [
         ("proiectare", "Proiectare"), ("executie", "Execuție lucrări"), ("furnizare", "Furnizare echipamente"),
         ("servicii", "Servicii / consultanță"), ("dirigentie", "Dirigenție de șantier"), ("altul", "Altul"),
     ]
     STATUS = [("activ", "În derulare"), ("finalizat", "Finalizat"), ("reziliat", "Reziliat"), ("negociere", "În negociere")]
+    PERIODICITATE = [("lunar", "lunar"), ("trimestrial", "trimestrial"), ("anual", "anual")]
+    LUNI_PERIOADA = {"lunar": 1, "trimestrial": 3, "anual": 12}
     proiect = models.ForeignKey(Proiect, on_delete=models.PROTECT, related_name="contracte")
     tip = models.CharField(max_length=20, choices=TIP)
     numar = models.CharField("nr. contract", max_length=60)
     data = models.DateField()
     partener = models.CharField("partener (furnizor / executant)", max_length=200)
     cui_partener = models.CharField("CUI partener", max_length=20, blank=True)
+    firma_partener = models.ForeignKey("Partener", null=True, blank=True, on_delete=models.SET_NULL, related_name="contracte",
+                                       verbose_name="partener din registru")
     obiect = models.TextField(blank=True)
     moneda = models.CharField(max_length=3, choices=Proiect.MONEDE, default="RON")
     valoare = models.DecimalField("valoare (fără TVA)", max_digits=16, decimal_places=2)
@@ -1294,6 +1388,12 @@ class Contract(models.Model):
     garantie_buna_executie = models.CharField(max_length=200, blank=True)
     perioada_garantie_luni = models.PositiveIntegerField("garanție lucrări (luni)", null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS, default="activ")
+    recurent = models.BooleanField("plăți recurente (fee periodic)", default=False,
+                                   help_text="Bifat: valoarea contractului = valoarea pe perioadă × numărul de perioade.")
+    periodicitate = models.CharField(max_length=12, choices=PERIODICITATE, default="lunar")
+    valoare_perioada = models.DecimalField("valoare pe perioadă (fără TVA)", max_digits=16, decimal_places=2, null=True, blank=True)
+    nr_perioade = models.PositiveIntegerField("durata (nr. perioade)", null=True, blank=True, help_text="Ex.: 24 de luni.")
+    data_start = models.DateField("prima perioadă începe la", null=True, blank=True, help_text="Gol = data contractului.")
     observatii = models.TextField(blank=True)
 
     class Meta:
@@ -1304,6 +1404,10 @@ class Contract(models.Model):
         return f"{self.numar}/{self.data:%d.%m.%Y} – {self.partener}"
 
     def save(self, *args, **kwargs):
+        if self.recurent and self.valoare_perioada and self.nr_perioade:
+            self.valoare = (self.valoare_perioada * self.nr_perioade).quantize(Decimal("0.01"))
+            if not self.termen_executie:
+                self.termen_executie = self.sfarsit_perioada(self.nr_perioade) - datetime.timedelta(days=1)
         if self.moneda == "EUR":
             if not self.curs:
                 self.curs = self.proiect.curs
@@ -1311,6 +1415,38 @@ class Contract(models.Model):
         else:
             self.valoare_ron = self.valoare
         super().save(*args, **kwargs)
+
+    # ---- plăți recurente ----
+    @property
+    def eticheta_perioada(self):
+        return {"lunar": "lună", "trimestrial": "trimestru", "anual": "an"}.get(self.periodicitate, "perioadă")
+
+    def sfarsit_perioada(self, i):
+        """Începutul perioadei i (0 = prima perioadă); sfârșitul perioadei i-1."""
+        start = self.data_start or self.data
+        luni = start.month - 1 + i * self.LUNI_PERIOADA.get(self.periodicitate, 1)
+        an, luna = start.year + luni // 12, luni % 12 + 1
+        zi = min(start.day, calendar.monthrange(an, luna)[1])
+        return datetime.date(an, luna, zi)
+
+    def calendar_recurent(self, facturi=None):
+        """Perioadele contractului recurent: facturată / restantă (a început și nu e facturată) / viitoare."""
+        if not (self.recurent and self.valoare_perioada and self.nr_perioade):
+            return None
+        facturi = list(self.facturi.all()) if facturi is None else facturi
+        curs = self.curs or self.proiect.curs or Decimal(1)
+        facturat = sum(((f.valoare if f.moneda == self.moneda else (f.valoare_ron / curs if self.moneda == "EUR" else f.valoare_ron))
+                        for f in facturi), Decimal(0))
+        n_fact = min(int((facturat + self.valoare_perioada * Decimal("0.01")) / self.valoare_perioada), self.nr_perioade)
+        azi = datetime.date.today()
+        perioade = []
+        for i in range(self.nr_perioade):
+            inceput = self.sfarsit_perioada(i)
+            stare = "facturata" if i < n_fact else ("restanta" if inceput <= azi else "viitoare")
+            perioade.append({"nr": i + 1, "inceput": inceput, "sfarsit": self.sfarsit_perioada(i + 1) - datetime.timedelta(days=1), "stare": stare})
+        restante = sum(1 for x in perioade if x["stare"] == "restanta")
+        urmatoarea = next((x for x in perioade if x["stare"] != "facturata"), None)
+        return {"perioade": perioade, "facturate": n_fact, "restante": restante, "urmatoarea": urmatoarea}
 
     @property
     def valoare_totala_ron(self):
@@ -1484,8 +1620,14 @@ class Factura(models.Model):
     proiect = models.ForeignKey(Proiect, on_delete=models.PROTECT, related_name="facturi")
     contract = models.ForeignKey(Contract, null=True, blank=True, on_delete=models.PROTECT, related_name="facturi",
                                  help_text="Lăsați gol doar pentru facturi fără contract (taxe, avize, autorizații).")
+    TIP_FARA_CONTRACT = [("aviz", "Avize"), ("taxa", "Taxe"), ("autorizatie", "Autorizații"), ("utilitati", "Utilități / racorduri"),
+                         ("diverse", "Diverse")]
+    tip_cheltuiala = models.CharField("tip cheltuială (fără contract)", max_length=12, choices=TIP_FARA_CONTRACT, blank=True,
+                                      help_text="Pentru facturile / plățile fără contract: aviz, taxă, autorizație etc.")
     furnizor = models.CharField(max_length=200)
     cui_furnizor = models.CharField("CUI furnizor", max_length=20, blank=True)
+    firma_furnizor = models.ForeignKey("Partener", null=True, blank=True, on_delete=models.SET_NULL, related_name="facturi",
+                                       verbose_name="furnizor din registru")
     furnizor_societate = models.ForeignKey(Societate, null=True, blank=True, on_delete=models.PROTECT, related_name="facturi_emise",
                                            verbose_name="furnizor din grup (intragrup)",
                                            help_text="Completați dacă factura este emisă de o societate din grup.")
@@ -1608,6 +1750,73 @@ class FacturaAlocare(models.Model):
         return f"{self.factura.numar} → {self.linie_buget.capitol}: {self.valoare_ron}"
 
 
+class SetareAplicatie(models.Model):
+    """Setări simple ale aplicației (cheie → valoare), editate din Setări aplicație."""
+    cheie = models.CharField(max_length=60, unique=True)
+    valoare = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "setare aplicație"
+        verbose_name_plural = "setări aplicație"
+
+    def __str__(self):
+        return self.cheie
+
+    @classmethod
+    def get(cls, cheie, implicit=""):
+        x = cls.objects.filter(cheie=cheie).first()
+        return x.valoare if x and x.valoare else implicit
+
+    @classmethod
+    def seteaza(cls, cheie, valoare):
+        cls.objects.update_or_create(cheie=cheie, defaults={"valoare": valoare})
+
+
+class SolicitarePlata(models.Model):
+    """Solicitare de plată: facturile bifate în „Plăți” pleacă împreună spre aprobare (pe email, ca Raportul Zero).
+    La aprobare, toate plățile solicitării devin „aprobate (de exportat)”; la respingere, facturile revin în lista de plată."""
+    STARI = [("trimisa", "În aprobare"), ("aprobata", "Aprobată"), ("respinsa", "Respinsă"), ("anulata", "Anulată")]
+    proiect = models.ForeignKey(Proiect, on_delete=models.PROTECT, related_name="solicitari_plata")
+    numar = models.CharField(max_length=40, unique=True)
+    data_plata = models.DateField("data propusă a plății")
+    observatii = models.CharField(max_length=300, blank=True)
+    stare = models.CharField(max_length=20, choices=STARI, default="trimisa")
+    creata_de = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="+")
+    creata_la = models.DateTimeField(auto_now_add=True)
+    aprobator = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+", verbose_name="aprobator financiar")
+    aprobat_de = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    aprobat_la = models.DateTimeField(null=True, blank=True)
+    aprobator_suplimentar = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+                                              help_text="Doar când totalul depășește pragul de aprobare suplimentară al proiectului.")
+    aprobat_suplimentar_de = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    aprobat_suplimentar_la = models.DateTimeField(null=True, blank=True)
+    respinsa_de = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    respinsa_la = models.DateTimeField(null=True, blank=True)
+    motiv = models.CharField("motivul respingerii", max_length=300, blank=True)
+    email_trimis_la = models.DateTimeField(null=True, blank=True)
+    email_catre = models.CharField(max_length=300, blank=True)
+    email_eroare = models.CharField(max_length=300, blank=True)
+    trezorerie_trimis_la = models.DateTimeField("trimisă la trezorerie", null=True, blank=True)
+    trezorerie_catre = models.CharField(max_length=300, blank=True)
+    trezorerie_eroare = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["-creata_la"]
+        verbose_name = "solicitare de plată"
+        verbose_name_plural = "solicitări de plată"
+
+    def __str__(self):
+        return self.numar
+
+    @property
+    def total_ron(self):
+        return sum((pl.suma_ron for pl in self.plati.all()), Decimal(0))
+
+    @property
+    def necesita_suplimentar(self):
+        return bool(self.aprobator_suplimentar_id)
+
+
 class Plata(models.Model):
     """Plată cu circuit de aprobare: propusă → aprobată tehnic → aprobată financiar → exportată → plătită."""
     STARI = [
@@ -1615,6 +1824,7 @@ class Plata(models.Model):
         ("exportata", "Exportată în fișier"), ("platita", "Plătită"), ("respinsa", "Respinsă"),
     ]
     factura = models.ForeignKey(Factura, on_delete=models.PROTECT, related_name="plati")
+    solicitare = models.ForeignKey("SolicitarePlata", null=True, blank=True, on_delete=models.SET_NULL, related_name="plati", editable=False)
     data = models.DateField("data plății (planificată / efectivă)")
     suma_ron = models.DecimalField("sumă (RON)", max_digits=16, decimal_places=2)
     stare = models.CharField(max_length=20, choices=STARI, default="propusa", editable=False)
@@ -2203,7 +2413,10 @@ class Document(models.Model):
         ("folosinta", "Act / contract privind dreptul de folosință"), ("anexa_autoriz", "Document suport autorizație"),
         ("standard", "Certificat standard (ISO, IFS…)"), ("anexa_drept", "Anexă la actul de folosință"),
         ("cadastru", "Documentație cadastrală"), ("plan_topo", "Plan topografic"), ("anexa", "Anexă"),
-        ("evaluare", "Raport de evaluare"), ("aviz_insotire", "Aviz de însoțire marfă (materiale)"), ("autorizatie_fct", "Autorizație de funcționare"), ("control", "Proces-verbal / notă de constatare"),
+        ("evaluare", "Raport de evaluare"), ("aviz_insotire", "Aviz de însoțire marfă (materiale)"),
+        ("ut_racordare", "Aviz / ATR de racordare"), ("ut_bransament", "Branșament / documentație tehnică"),
+        ("ut_contract", "Contract furnizare utilitate"), ("ut_consum", "Consumuri / facturi utilitate"), ("ut_contor", "Contor / fișă tehnică"),
+        ("ut_alt", "Alt document utilitate"), ("autorizatie_fct", "Autorizație de funcționare"), ("control", "Proces-verbal / notă de constatare"),
         ("altul", "Altul"),
     ]
     proiect = models.ForeignKey(Proiect, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
@@ -2235,6 +2448,7 @@ class Document(models.Model):
     oferta = models.ForeignKey(OfertaRZ, null=True, blank=True, on_delete=models.PROTECT, related_name="documente")
     raport_activitate = models.ForeignKey(RaportActivitate, null=True, blank=True, on_delete=models.CASCADE, related_name="poze")
     punct_snag = models.ForeignKey(PunctSnag, null=True, blank=True, on_delete=models.SET_NULL, related_name="poze")
+    utilitate = models.ForeignKey(UtilitateLocatie, null=True, blank=True, on_delete=models.SET_NULL, related_name="documente")
     folder = models.ForeignKey(FolderDocumente, null=True, blank=True, on_delete=models.SET_NULL, related_name="documente")
     miniatura = models.FileField(upload_to=cale_document, blank=True, editable=False,
                                  help_text="Variantă mică a fotografiei, pentru galerii (generată automat).")

@@ -35,8 +35,19 @@
   const cauta = form.querySelector('input[name=q]');
   cauta.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { focus.value = 'q'; trimite(); }, 700); });
   // al doilea rând fix al capului de tabel (filtrele) stă exact sub primul
-  const cap = document.querySelector('.registru-tabel thead tr');
-  if (cap) document.querySelector('.registru-tabel').style.setProperty('--h-antet', cap.getBoundingClientRect().height + 'px');
+  const tabel = document.querySelector('.registru-tabel'), cap = document.querySelector('.registru-tabel thead tr');
+  const zoom = () => parseFloat(getComputedStyle(document.documentElement).zoom) || 1;  // mărimea afișării aleasă pe cont
+  if (cap) tabel.style.setProperty('--h-antet', cap.getBoundingClientRect().height / zoom() + 'px');
+  // tabelul ocupă tot spațiul până la marginea de jos a ferestrei (la orice rezoluție / mărime a afișării)
+  const potriveste = () => {
+    if (!tabel) return;
+    const z = zoom(), sus = tabel.getBoundingClientRect().top, subsol = tabel.closest('.card')?.querySelector('.card-footer');
+    const jos = (subsol ? subsol.getBoundingClientRect().height : 0) + 16;
+    tabel.style.maxHeight = Math.max(320, (window.innerHeight - sus - jos) / z) + 'px';
+  };
+  potriveste();
+  window.addEventListener('resize', potriveste);
+  window.addEventListener('load', potriveste);
   // clic oriunde pe rând deschide fișa activului (Ctrl/Cmd + clic: filă nouă)
   document.querySelectorAll('tr[data-href]').forEach(tr => tr.addEventListener('click', e => {
     if (e.target.closest('a, button, input')) return;

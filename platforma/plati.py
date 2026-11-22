@@ -24,6 +24,8 @@ def nume(u):
 def actiuni_posibile(user, plata):
     p = plata.factura.proiect
     a = []
+    if plata.solicitare_id and plata.stare in ("propusa", "aprobata_tehnic"):
+        return a  # se aprobă prin solicitarea de plată, nu individual
     if plata.stare == "propusa" and poate_aproba_tehnic(user, p):
         a.append(("aproba_tehnic", "Aprobă tehnic"))
     if plata.stare == "aprobata_tehnic":
@@ -63,7 +65,7 @@ def aplica(user, plata, actiune, motiv="", document_plata=""):
 
 
 def plati_de_aprobat(user):
-    qs = m.Plata.objects.filter(stare__in=["propusa", "aprobata_tehnic"]).select_related("factura__proiect__beneficiar")
+    qs = m.Plata.objects.filter(stare__in=["propusa", "aprobata_tehnic"], solicitare__isnull=True).select_related("factura__proiect__beneficiar")
     return [pl for pl in qs if any(a != "respinge" for a, _ in actiuni_posibile(user, pl))]
 
 

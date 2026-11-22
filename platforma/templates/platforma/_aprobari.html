@@ -1,0 +1,36 @@
+{% load fmt %}{# Aprobările (mutate în „Sarcinile mele”): ce așteaptă aprobarea mea și ce am trimis eu spre aprobare #}
+<div class="small text-secondary mb-2">De aprobat de mine</div>
+{% if rz %}<div class="card mb-3"><div class="card-header">Rapoarte Zero de avizat</div><ul class="list-group list-group-flush">{% for p in rz %}<li class="list-group-item"><a class="cod" href="{% url 'raport_zero' p.pk %}">{{ p.cod }}</a> {{ p.denumire }} · {{ p.valoare_rz|bani }} {{ p.moneda_rz }}</li>{% endfor %}</ul></div>{% endif %}
+{% if cereri_status %}<div class="card mb-3"><div class="card-header">Schimbări de status al investiției</div><ul class="list-group list-group-flush">{% for c in cereri_status %}
+  <li class="list-group-item d-flex flex-wrap align-items-center gap-2"><a class="cod" href="{{ c.proiect.get_absolute_url }}">{{ c.proiect.cod }}</a> {{ c.proiect.denumire }}
+    <span><b>{{ c.status_vechi|default:"—" }} → {{ c.status_nou }}</b></span><span class="small text-secondary">cerut de {{ c.cerut_de.get_full_name|default:c.cerut_de }} la {{ c.cerut_la|date:"d.m.Y H:i" }} – {{ c.motiv }}</span>
+    <span class="ms-auto d-flex gap-2"><form method="post" action="{% url 'proiect_status_decizie' c.proiect.pk c.pk 'aproba' %}">{% csrf_token %}<input type="hidden" name="inapoi" value="{% url 'aprobari' %}"><button class="btn btn-sm btn-success py-0">Aprobă</button></form>
+      <form method="post" action="{% url 'proiect_status_decizie' c.proiect.pk c.pk 'respinge' %}" data-prompt="Motivul respingerii:" data-prompt-camp="motiv">{% csrf_token %}<input type="hidden" name="motiv"><input type="hidden" name="inapoi" value="{% url 'aprobari' %}"><button class="btn btn-sm btn-outline-danger py-0">Respinge</button></form></span></li>{% endfor %}</ul></div>{% endif %}
+{% if solicitari_plata %}<div class="card mb-3"><div class="card-header">Solicitări de plată de aprobat</div>
+<div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+<thead><tr><th>Solicitare</th><th>Proiect</th><th class="num">Facturi</th><th class="num">Total fără TVA (RON)</th><th>Data plății</th><th>Inițiată de</th><th></th></tr></thead>
+<tbody>{% for x in solicitari_plata %}<tr>
+  <td class="fw-semibold text-nowrap">{{ x.numar }}{% if 'suplimentar' in x.roluri and not 'financiar' in x.roluri %} <span class="badge text-bg-warning">suplimentar</span>{% endif %}</td>
+  <td><a class="cod" href="{% url 'proiect_detaliu' x.proiect_id %}?tab=plati">{{ x.proiect.cod }}</a></td><td class="num">{{ x.plati.all|length }}</td><td class="num fw-semibold">{{ x.total_ron|bani2 }}</td>
+  <td class="text-nowrap">{{ x.data_plata|date:"d.m.Y" }}</td><td class="small">{{ x.creata_de.get_full_name|default:x.creata_de.username }}</td>
+  <td class="text-nowrap text-end"><form method="post" action="{% url 'solicitare_decizie' x.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="inapoi" value="{{ request.get_full_path }}"><input type="hidden" name="actiune" value="aproba"><button class="btn btn-sm btn-success py-0">Aprobă</button></form>
+    <form method="post" action="{% url 'solicitare_decizie' x.pk %}" class="d-inline" data-prompt="Motivul respingerii:" data-prompt-camp="motiv" data-prompt-obligatoriu="1">{% csrf_token %}<input type="hidden" name="motiv"><input type="hidden" name="actiune" value="respinge"><input type="hidden" name="inapoi" value="{{ request.get_full_path }}"><button class="btn btn-sm btn-outline-danger py-0">Respinge</button></form></td>
+</tr>{% endfor %}</tbody></table></div></div>{% endif %}
+<div class="card"><div class="card-header">Plăți care așteaptă aprobarea mea</div>
+<div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+<thead><tr><th>Proiect</th><th>Societate</th><th>Furnizor / factură</th><th class="num">Sumă fără TVA</th><th>Data plății</th><th>Stare</th><th>Propusă de</th><th></th></tr></thead>
+<tbody>{% for pl in plati %}<tr>
+  <td><a class="cod" href="{% url 'proiect_detaliu' pl.factura.proiect.pk %}?tab=plati">{{ pl.factura.proiect.cod }}</a></td><td class="small">{{ pl.factura.proiect.beneficiar }}</td>
+  <td>{{ pl.factura.furnizor }}{% if pl.factura.intragrup %} <span class="badge text-bg-info">intragrup</span>{% endif %}<div class="small text-secondary">{{ pl.factura.numar }} / {{ pl.factura.data|date:"d.m.Y" }}</div></td>
+  <td class="num">{{ pl.suma_ron|bani2 }}</td><td class="small">{{ pl.data|date:"d.m.Y" }}</td><td><span class="badge text-bg-warning">{{ pl.get_stare_display }}</span>{% if pl.necesita_aprobare_suplimentara %}<div class="small text-warning-emphasis">peste prag</div>{% endif %}</td>
+  <td class="small">{{ pl.propusa_de }}</td>
+  <td class="text-nowrap">{% for a, et in pl.actiuni %}<form class="d-inline" method="post" action="{% url 'plata_actiune' pl.pk a %}" {% if a == 'respinge' %}data-prompt="Motivul respingerii:" data-prompt-camp="motiv" data-prompt-obligatoriu="1"{% endif %}>{% csrf_token %}<input type="hidden" name="motiv"><input type="hidden" name="inapoi" value="{% url 'aprobari' %}"><button class="btn btn-sm {% if a == 'respinge' %}btn-outline-danger{% else %}btn-success{% endif %} py-0">{{ et }}</button></form> {% endfor %}</td>
+</tr>{% empty %}<tr><td colspan="8" class="text-center text-secondary py-4">Nu aveți plăți de aprobat.</td></tr>{% endfor %}</tbody></table></div></div>
+{% if trimise_rz or trimise_status or trimise_plati or trimise_solicitari %}
+<div class="card mt-3"><div class="card-header"><i class="bi bi-send"></i> Trimise de mine spre aprobare</div>
+<ul class="list-group list-group-flush small">
+  {% for p in trimise_rz %}<li class="list-group-item d-flex gap-2 align-items-center"><span class="badge text-bg-warning">Raport Zero</span><a class="cod" href="{% url 'raport_zero' p.pk %}">{{ p.cod }}</a> {{ p.denumire }}<span class="ms-auto text-secondary">trimis spre avizare</span></li>{% endfor %}
+  {% for c in trimise_status %}<li class="list-group-item d-flex gap-2 align-items-center"><span class="badge text-bg-info">Status</span><a class="cod" href="{{ c.proiect.get_absolute_url }}">{{ c.proiect.cod }}</a> {{ c.status_vechi|default:"—" }} → <b>{{ c.status_nou }}</b><span class="ms-auto text-secondary">cerut la {{ c.cerut_la|date:"d.m.Y" }}</span></li>{% endfor %}
+  {% for x in trimise_solicitari %}<li class="list-group-item d-flex gap-2 align-items-center"><span class="badge text-bg-light border">Solicitare plată</span><a class="cod" href="{% url 'proiect_detaliu' x.proiect_id %}?tab=plati">{{ x.proiect.cod }}</a> {{ x.numar }} · {{ x.plati.all|length }} facturi · {{ x.total_ron|bani2 }} RON<span class="ms-auto text-secondary">{{ x.creata_la|date:"d.m.Y" }} · {% if x.aprobat_de %}aprobată 1/2{% else %}în aprobare{% endif %}</span></li>{% endfor %}
+  {% for pl in trimise_plati %}<li class="list-group-item d-flex gap-2 align-items-center"><span class="badge text-bg-light border">Plată</span><a class="cod" href="{% url 'proiect_detaliu' pl.factura.proiect_id %}?tab=contracte">{{ pl.factura.proiect.cod }}</a> {{ pl.factura.furnizor }} · {{ pl.suma_ron|bani2 }} RON<span class="ms-auto text-secondary">{{ pl.get_stare_display|lower }}</span></li>{% endfor %}
+</ul></div>{% endif %}

@@ -1,0 +1,32 @@
+{# Sub-ecranul „Buget HG” din tab-ul „Buget și contractare” #}
+{% load fmt %}
+<div class="card">
+  <div class="card-header d-flex align-items-center gap-2">Buget pe structura devizului general (HG 907/2016) – {{ p.moneda_urmarire }} fără TVA
+    {% if p.buget_blocat %}<span class="badge text-bg-success"><i class="bi bi-lock"></i> fixat prin Raportul Zero{% if p.revizie_rz %} rev.{{ p.revizie_rz }}{% endif %} · {{ p.buget_blocat_la|date:"d.m.Y" }}</span>{% else %}<span class="badge text-bg-warning">în lucru în Raportul Zero</span>{% endif %}
+    <div class="ms-auto d-flex gap-2">
+      {% if editabil and p.stare_rz == 'ciorna' or editabil and p.stare_rz == 'respins' %}<a class="btn btn-sm btn-primary" href="{% url 'raport_zero_editare' p.pk %}#buget-rz"><i class="bi bi-pencil"></i> Completează bugetul în Raportul Zero</a>
+      {% else %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'raport_zero' p.pk %}"><i class="bi bi-file-earmark-text"></i> Raportul Zero{% if p.stare_rz == 'aprobat' and editabil %} · modificare prin revizie{% endif %}</a>{% endif %}
+    </div></div>
+  {% if depasiri %}<div class="alert alert-danger rounded-0 border-0 border-bottom mb-0 d-flex gap-3 align-items-start">
+    <i class="bi bi-exclamation-octagon fs-4"></i>
+    <div class="flex-grow-1"><b>{{ depasiri|length }} {% if depasiri|length == 1 %}linie bugetară depășită{% else %}linii bugetare depășite{% endif %}</b> – s-a contractat sau facturat mai mult decât prevede bugetul (depășire totală {{ depasire_totala|bp:p }} {{ p.moneda_urmarire }}). Bugetul trebuie revizuit prin Raportul Zero.
+      <ul class="mb-0 mt-1 small">{% for l in depasiri %}<li><b>{{ l.capitol }}</b> {{ l.denumire }}: buget {{ l.v_curent|bp:p }}{% if l.peste_contract %} · contractat {{ l.v_angajat|bp:p }} (<b>+{{ l.peste_contract|bp:p }}</b>){% endif %}{% if l.peste_factura %} · facturat {{ l.v_facturat|bp:p }} (<b>+{{ l.peste_factura|bp:p }}</b>){% endif %}</li>{% endfor %}</ul></div>
+    {% if editabil %}<a class="btn btn-sm btn-danger text-nowrap" href="{% url 'raport_zero' p.pk %}"><i class="bi bi-arrow-repeat"></i> {% if p.stare_rz == 'aprobat' %}Revizuiește bugetul{% else %}Corectează bugetul în RZ{% endif %}</a>{% endif %}
+  </div>{% endif %}
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle" id="tabelBuget">
+    <thead><tr><th>Cap.</th><th>Denumire</th><th class="num">Bugetat (RZ)</th><th class="num">Actualizat</th><th class="num">Angajat</th><th class="num">Facturat</th><th class="num">Plătit</th><th class="num">Disponibil</th><th style="width:120px" title="cât din bugetul liniei e acoperit de contracte / facturi">Grad angajare</th><th class="num">{% if p.moneda_urmarire == 'EUR' %}RON (act.){% else %}EUR (act.){% endif %}</th></tr></thead>
+    <tbody>{% for c in capitole %}
+      <tr class="capitol-row{% if c.depasit %} capitol-depasit{% endif %}"><td>{{ c.cod }}</td><td>{{ c.denumire }}{% if c.depasit %} <i class="bi bi-exclamation-triangle-fill text-danger" title="capitol cu linii depășite"></i>{% endif %}</td><td class="num" data-total-capitol="{{ c.cod }}">{{ c.aprobat|bp:p }}</td><td class="num">{{ c.curent|bp:p }}</td><td class="num">{{ c.angajat|bp:p }}</td><td class="num">{{ c.facturat|bp:p }}</td><td class="num">{{ c.platit|bp:p }}</td><td></td><td></td><td class="num">{{ c.curent|in_eur:curs }}</td></tr>
+      {% for l in c.linii %}<tr class="{% if l.este_depasita %}linie-depasita{% endif %}" {% if l.este_depasita %}title="Depășire: {% if l.peste_contract %}contractat +{{ l.peste_contract|bp:p }} {{ p.moneda_urmarire }} {% endif %}{% if l.peste_factura %}facturat +{{ l.peste_factura|bp:p }} {{ p.moneda_urmarire }} {% endif %}peste buget – necesită revizuirea bugetului"{% endif %}>
+        <td class="text-secondary">{{ l.capitol }}</td><td>{{ l.denumire }}{% for r in l.rectificari.all %} <i class="bi bi-arrow-repeat text-warning" title="rectificare {{ r.diferenta|bp:p }} {{ p.moneda_urmarire }} – {{ r.motiv }} ({{ r.aprobat_de }}, {{ r.data|date:'d.m.Y' }})"></i>{% endfor %}</td>
+        <td class="num">{{ l.valoare_aprobata|bp:p }}</td><td class="num">{{ l.valoare_curenta|bp:p }}</td>
+        <td class="num {% if l.depasit %}depasit{% endif %}">{{ l.angajat|bp:p }}</td><td class="num">{{ l.facturat|bp:p }}</td><td class="num">{{ l.platit|bp:p }}</td>
+        <td class="num {% if l.disponibil < 0 %}depasit{% endif %}">{{ l.disponibil|bp:p }}</td>
+        <td>{% if l.v_curent or l.v_angajat or l.v_facturat %}<div class="d-flex align-items-center gap-1"><div class="progress flex-grow-1" style="height:6px"><div class="progress-bar {% if l.este_depasita %}bg-danger{% elif l.grad >= 90 %}bg-warning{% else %}bg-success{% endif %}" style="width:{% if l.grad > 100 %}100{% else %}{{ l.grad }}{% endif %}%"></div></div><span class="small {% if l.este_depasita %}text-danger fw-bold{% else %}text-secondary{% endif %}">{{ l.grad }}%</span></div>{% endif %}</td>
+        <td class="num text-secondary">{% if p.moneda_urmarire == 'EUR' %}{{ l.valoare_curenta|bani }}{% else %}{{ l.valoare_curenta|in_eur:curs }}{% endif %}</td></tr>{% endfor %}
+    {% empty %}<tr><td colspan="10" class="text-center text-secondary py-4">Bugetul nu a fost structurat încă.</td></tr>{% endfor %}
+    {% if capitole %}<tr class="fw-bold"><td></td><td>TOTAL</td><td class="num" id="totalBuget">{{ p.buget_aprobat_ron|bp:p }}</td><td class="num">{{ p.buget_actualizat_ron|bp:p }}</td><td class="num">{{ p.angajat_ron|bp:p }}</td><td class="num">{{ p.facturat_ron|bp:p }}</td><td class="num">{{ p.platit_ron|bp:p }}</td><td></td><td></td><td class="num">{% if p.moneda_urmarire == 'EUR' %}{{ p.buget_actualizat_ron|bani }}{% else %}{{ p.buget_actualizat_ron|in_eur:curs }}{% endif %}</td></tr>{% endif %}
+    </tbody></table></div>
+
+  <div class="card-footer small text-secondary">Bugetul se stabilește și se modifică doar în Raportul Zero (revizie aprobată de administrator). Angajat = contracte + acte adiționale alocate liniei. Facturat = alocările facturilor pe linie. Plătit = plăți confirmate, repartizate proporțional cu alocarea. Grad angajare = max(angajat, facturat) / buget actualizat; liniile unde se depășește bugetul apar cu roșu și cer revizuirea bugetului în Raportul Zero. EUR la cursul de referință al proiectului ({{ curs }}). Toleranță depășire: {{ p.toleranta_depasire }}%.</div>
+</div>

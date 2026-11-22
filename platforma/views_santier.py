@@ -278,8 +278,14 @@ def sarcini(request):
                 grupuri.append({**g, "sarcini": s})
         date = {**date, "grupuri": grupuri}
     proiecte_al = list(proiecte_alocare(request.user))
+    vedere = request.GET.get("vedere", "")
+    if vedere == "alocare" and not proiecte_al:
+        vedere = ""
     ctx = {**date, "filtru": filtru, "azi": timezone.localdate(), "statusuri_etapa": m.EtapaProiect.STATUS,
-           "poate_aloca": bool(proiecte_al), "vedere": request.GET.get("vedere", "") if proiecte_al else ""}
+           "poate_aloca": bool(proiecte_al), "vedere": vedere}
+    if vedere == "aprobari":
+        from .views import context_aprobari
+        ctx.update(context_aprobari(request.user))
     if ctx["vedere"] == "alocare":
         from django.db.models import Q
         ids = [x.pk for x in proiecte_al]

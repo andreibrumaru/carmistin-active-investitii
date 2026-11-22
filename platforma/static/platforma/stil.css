@@ -9,8 +9,19 @@ body { background: var(--c-fundal); font-size: .92rem; }
 .cod { font-family: ui-monospace, Menlo, monospace; font-weight: 600; color: var(--c-primar); white-space: nowrap; }
 .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .progress { height: 8px; }
-.nav-tabs .nav-link { color: #495a73; }
-.nav-tabs .nav-link.active { font-weight: 600; color: var(--c-primar); }
+/* tab-uri: subliniere animată (linia verde crește din centru, iconița „sare” la tab-ul activ) */
+.nav-tabs { border-bottom: 1px solid #e3e9e7; gap: 2px; }
+.nav-tabs .nav-link { position: relative; border: 0 !important; background: transparent !important; color: #5b6b67; padding: .55rem .8rem .65rem;
+  border-radius: 8px 8px 0 0; display: inline-flex; align-items: center; gap: .4rem; transition: color .2s, background-color .2s; }
+.nav-tabs .nav-link::after { content: ""; position: absolute; left: 50%; right: 50%; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0;
+  background: #1d9e75; opacity: 0; transition: left .25s ease, right .25s ease, opacity .25s ease; }
+.nav-tabs .nav-link:hover { color: #12322e; background: #eef5f3 !important; }
+.nav-tabs .nav-link:hover::after { left: 30%; right: 30%; opacity: .45; }
+.nav-tabs .nav-link.active { color: #0b5a46; font-weight: 600; }
+.nav-tabs .nav-link.active::after { left: 8px; right: 8px; opacity: 1; }
+.nav-tabs .nav-link > i.bi { color: #1d9e75; transition: transform .25s cubic-bezier(.4, 1.6, .5, 1); }
+.nav-tabs .nav-link.active > i.bi { transform: translateY(-1px) scale(1.15); }
+.nav-tabs .nav-link:focus-visible { outline: 2px solid #1d9e75; outline-offset: -2px; }
 .badge-stare-ciorna { background: #8a96a8; } .badge-stare-trimis { background: #e8a33d; }
 .badge-stare-aprobat { background: #2e8b57; } .badge-stare-respins { background: #c0392b; }
 .fragment { font-size: .8rem; color: #6b7a90; border-left: 3px solid #d7dde6; padding-left: .5rem; font-style: italic; }
@@ -95,7 +106,7 @@ tr.linie-depasita-simpla > td { background-color: #fde8e6; }
   padding: .1rem .3rem .1rem .65rem; text-decoration: none; }
 .filtru-eticheta:hover { background: #fde8e6; color: #c0392b; }
 .registru-card { overflow: hidden; }
-.registru-tabel { max-height: calc(100vh - 290px); min-height: 320px; overflow: auto; }
+.registru-tabel { max-height: calc(100vh / var(--scara, 1) - 290px); min-height: 320px; overflow: auto; }
 .registru-tabel thead th { position: sticky; z-index: 2; background: #f7f9fc; }
 .registru-tabel thead tr:first-child th { top: 0; }
 .registru-tabel thead tr.filtre-coloane th { top: var(--h-antet, 31px); box-shadow: inset 0 -1px 0 #e3e8ef; }
@@ -216,8 +227,8 @@ tr.rz-modificat > th + td { box-shadow: none; }
 .meniu .pl .nav-sub-nr { margin-left: auto; background: #eef2f1; color: #4d5d59; font-weight: 500; }
 .meniu .pl.active .nav-sub-nr { background: #fff; color: var(--m-text-acc); }
 .meniu .punct-cat { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin: 0 .2rem; }
-.cat-functionale { background: #198754; } .cat-nefunctionale { background: #6c757d; } .cat-teren { background: #a0682a; }
-.cat-retail { background: #1d4f91; } .cat-reziliate { background: #f1e3e3; border: 1px dashed #b02a37; }
+.punct-cat.cat-functionale { background: #198754; } .punct-cat.cat-nefunctionale { background: #6c757d; } .punct-cat.cat-teren { background: #a0682a; }
+.punct-cat.cat-retail { background: #1d4f91; } .punct-cat.cat-reziliate { background: #f1e3e3; border: 1px dashed #b02a37; }
 @media (max-width: 768px) { .meniu.fixat { width: var(--m-lat-rail); } .meniu.fixat .panou { box-shadow: 8px 0 24px rgba(18,50,46,.14); } }
 /* ---------- Echipa proiectului, monitorizare (etape) și rapoarte de activitate ---------- */
 .echipa-avatar { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: inline-grid; place-items: center; font-size: .75rem; font-weight: 600; background: #eef2f1; color: #5b6b67; border: 1px dashed #b9c6c2; }
@@ -480,3 +491,182 @@ html { zoom: var(--scara, 1); }
 .harta-pct { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
 .harta-pct.harta-inv { background: #fff; border: 3px solid #e8a33d; width: 12px; height: 12px; }
 #hartaDashboard { border-radius: 0 0 10px 10px; }
+
+/* ---------- Utilitățile activului ---------- */
+.ut-lista .ut-btn { border-left: 3px solid transparent; }
+.ut-lista .ut-btn.active { background: #e3f4ee; color: #0b5a46; border-color: #dfe7e4; border-left-color: #1d9e75; }
+.ut-lista .ut-btn.active .ut-sumar { color: #0b5a46; }
+.ut-ic { color: #1d9e75; }
+.ut-sumar { color: #6b7c78; margin-left: 26px; }
+.ut-st-racordat { background: #d1e7dd; color: #0f5132; } .ut-st-in_curs { background: #fff3cd; color: #8a5300; }
+.ut-st-neracordat { background: #f8d7da; color: #842029; } .ut-st-nu_e_cazul { background: #eef2f1; color: #4d5d59; }
+.ut-lbl { font-size: .74rem; color: #6b7c78; text-transform: uppercase; letter-spacing: .02em; }
+.ut-sectiune { font-weight: 600; font-size: .85rem; color: #12322e; border-bottom: 1px solid #eef2f1; padding-bottom: 4px; margin-bottom: 8px; }
+.ut-bare { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; align-items: end; height: 170px; margin-bottom: 4px; }
+.ut-bara { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.ut-bara i { display: block; width: 100%; max-width: 38px; background: #1d9e75; border-radius: 4px 4px 0 0; min-height: 2px; }
+.ut-bara i.gol { background: repeating-linear-gradient(45deg, #eef2f1, #eef2f1 3px, #fff 3px, #fff 6px); height: 6px !important; }
+.ut-val { font-size: .62rem; color: #4d5d59; white-space: nowrap; }
+.ut-luna { font-size: .7rem; color: #6b7c78; margin-top: 2px; }
+.ut-curba-tabel input { min-width: 62px; padding: 2px 4px; font-size: .78rem; }
+
+/* INNO AG – compania de construcții a grupului */
+.badge-inno { background: #2b2d6e; color: #fff; letter-spacing: .03em; }
+.rz-inno .form-check-input:checked { background-color: #2b2d6e; border-color: #2b2d6e; }
+.inno-card .card-header { background: #f1f1fa; }
+.inno-plan li { padding: .35rem 0; border-bottom: 1px dashed #e3e4f0; }
+
+/* Setări aplicație */
+.setari-grup { font-size: .76rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #6b7c78; margin: .5rem 0 .4rem; }
+.setari-card { border: 1px solid #e6ecea; transition: border-color .12s, box-shadow .12s; }
+.setari-card:hover { border-color: #1d9e75; box-shadow: 0 0 0 3px rgba(29, 158, 117, .1); }
+.setari-ic { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center; background: #e3f4ee; color: #0b5a46; font-size: 1.2rem; }
+
+/* ---------- Prezentare proiect: rezumat + cronologie ---------- */
+@media (min-width: 992px) { .prez-rezumat { position: sticky; top: 12px; } }
+.prez-status { cursor: pointer; }
+.st-in-executie { background: #185fa5; color: #fff; } .st-finalizat { background: #198754; color: #fff; }
+.st-anulatsuspendat { background: #b02a37; color: #fff; } .prez-status:not([class*="st-in"]):not(.st-finalizat):not(.st-anulatsuspendat) { background: #6c757d; color: #fff; }
+.prez-ind { display: flex; flex-wrap: wrap; gap: 5px; }
+.prez-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; border: 1px solid #e3e9e7; background: #fff; font-size: .76rem; color: #33413e; text-decoration: none; }
+a.prez-chip[href]:hover { border-color: #1d9e75; color: #0b5a46; }
+.prez-d { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.prez-d.d-g { background: #3b9e3b; } .prez-d.d-a { background: #ef9f27; } .prez-d.d-r { background: #dc3545; } .prez-d.d-s { background: #b4b2a9; }
+.prez-date { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 0; font-size: .8rem; margin: 0; }
+.prez-date dt { font-weight: 600; color: #6b7c78; padding: 5px 0 5px 12px; border-bottom: 1px solid #f0f3f2; }
+.prez-date dd { margin: 0; padding: 5px 12px 5px 4px; border-bottom: 1px solid #f0f3f2; overflow-wrap: anywhere; }
+.prez-desc { max-height: 7.5em; overflow: auto; }
+.prez-filtre .btn { font-size: .75rem; padding: 1px 8px; }
+.prez-filtre .btn.active { background: #e3f4ee; color: #0b5a46; border-color: #1d9e75; }
+.prez-cron { padding-top: .5rem; }
+.prez-zi { font-size: .74rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #6b7c78; margin: .9rem 0 .3rem; }
+.prez-zi:first-child { margin-top: 0; }
+.prez-ev { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid #f3f5f4; font-size: .86rem; }
+.prez-ev-ic { width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center; font-size: .9rem; }
+.prez-ev-ic.cat-buget { background: #e6f1fb; color: #185fa5; } .prez-ev-ic.cat-autorizare { background: #fff3cd; color: #8a5300; }
+.prez-ev-ic.cat-santier { background: #fde8dc; color: #a6461f; } .prez-ev-ic.cat-documente { background: #eef2f1; color: #4d5d59; }
+.prez-ev-ic.cat-proiect { background: #e3f4ee; color: #0b5a46; }
+
+/* ---- Buget și contractare: sub-ecrane + Contracte și facturi (listă stânga, desfășurător dreapta) ---- */
+.bc-pills .nav-link { border-radius: 999px; padding: .3rem .9rem; font-size: .88rem; color: #4d5d59; border: 1px solid #dfe6e3; background: #fff; margin-right: 6px; transition: background .2s, color .2s, border-color .2s; }
+.bc-pills .nav-link:hover { border-color: #1d9e75; color: #0b5a46; }
+.bc-pills .nav-link.active { background: #e3f4ee; color: #085041; border-color: #1d9e75; font-weight: 600; }
+.cf { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 12px; align-items: start; }
+@media (max-width: 991px) { .cf { grid-template-columns: 1fr; } }
+.cf-lista { border: 1px solid #dfe6e3; border-radius: 10px; overflow: hidden auto; background: #fff; max-height: calc(100vh / var(--scara, 1) - 250px); }
+.cf-ct { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid #eef2f1; background: none; padding: 5px 9px 0; border-left: 3px solid transparent; transition: background .15s; line-height: 1.25; }
+.cf-ct:last-child { border-bottom: 0; }
+.cf-ct:hover { background: #f6faf8; }
+.cf-ct.activ { background: #e3f4ee; border-left-color: #1d9e75; }
+.cf-ct-sus { display: flex; align-items: baseline; gap: 5px; font-size: .84rem; }
+.cf-ct-sus b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0; }
+.cf-ct-meta { display: flex; justify-content: space-between; gap: 6px; font-size: .72rem; color: #6c7a76; margin-top: 1px; }
+.cf-ct-meta > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-val { white-space: nowrap; color: #33413d; font-size: .8rem; flex: none; }
+.cf-bara { display: block; height: 2px; background: #e6ecea; margin: 4px -9px 0 -12px; overflow: hidden; }
+.cf-bara i { display: block; height: 100%; background: #1d9e75; }
+.cf-bara i.peste { background: #d9534f; }
+.cf-ct-fara { background: #fafbfb; padding-bottom: 5px; }
+.cf-tip { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #aab5b1; margin-right: 5px; vertical-align: 0; }
+.cf-tip-lucrari { background: #e0a030; } .cf-tip-furnizare { background: #3b82c4; } .cf-tip-servicii { background: #8a6bd1; }
+.cf-det { overflow: hidden; }
+.cf-antet { display: flex; align-items: center; gap: 6px; padding: 7px 12px 5px; }
+.cf-titlu { font-size: .95rem; font-weight: 600; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.cf-sub-titlu { font-size: .78rem; font-weight: 400; color: #6c7a76; }
+.cf-obiect { font-size: .75rem; color: #6c7a76; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.min-w-0 { min-width: 0; }
+.cf-strip { display: flex; flex-wrap: wrap; border-top: 1px solid #eef2f1; border-bottom: 1px solid #eef2f1; background: #f8faf9; }
+.cf-strip > div { padding: 4px 12px; border-right: 1px solid #eef2f1; line-height: 1.2; }
+.cf-strip > div:last-child { border-right: 0; }
+.cf-strip span { display: block; font-size: .66rem; color: #6c7a76; text-transform: uppercase; letter-spacing: .03em; }
+.cf-strip b { font-size: .9rem; font-weight: 600; }
+.cf-strip small { font-size: .7rem; color: #6c7a76; margin-left: 5px; }
+.cf-strip-aloc { flex: 1 1 200px; }
+.cf-strip-aloc > div { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: .78rem; }
+.cf-linie-chip { background: #fff; border: 1px solid #e3e9e7; border-radius: 5px; padding: 0 5px; white-space: nowrap; }
+.cf-facturi-antet { display: flex; align-items: center; padding: 5px 12px 2px; font-size: .8rem; font-weight: 600; }
+.cf-facturi { font-size: .8rem; }
+.cf-facturi > :not(caption) > * > * { padding: 3px 6px; }
+.cf-facturi th { font-size: .68rem; color: #6c7a76; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.cf-facturi tr.cf-fa td { border-top: 1px solid #dfe6e3; }
+.cf-facturi tr.cf-sub td { color: #5c6b67; font-size: .76rem; border-bottom-color: #f1f4f3; background: #fbfcfc; padding-top: 1px; padding-bottom: 1px; }
+.cf-facturi td.num, .cf-facturi th.num { text-align: right; white-space: nowrap; }
+.cf-facturi tfoot td { font-size: .8rem; }
+.cf-trunc { max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-act a { margin-left: 4px; }
+.cf-ech { margin: 8px 12px 10px; background: #f6f9fc; border: 1px solid #e0eaf4; border-radius: 8px; padding: 6px 9px; }
+.cf-ech table { background: transparent; }
+.cf-extra { margin: 0 12px 8px; }
+.cf-extra summary { cursor: pointer; color: #33413d; }
+/* Repartizare pe linii de buget (bife multiple) */
+.rep-tabel label { cursor: pointer; }
+.rep-tabel tr.rep-bifat td { background: #f0f9f5; }
+.rep-tabel .rep-val:disabled { background: transparent; border-color: transparent; }
+/* Partener: căutare în registru + fișa ANAF în formularele de contract / factură */
+.pt-lista { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; background: #fff; border: 1px solid #dfe6e3; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.1); max-height: 420px; overflow: auto; margin-top: 2px; }
+.pt-opt { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 6px 10px; border-bottom: 1px solid #f1f4f3; }
+.pt-opt:hover { background: #f0f9f5; }
+.pt-opt b { display: block; font-weight: 600; font-size: .88rem; }
+.pt-opt span { font-size: .75rem; color: #6c7a76; }
+.pt-opt-nota { font-size: .72rem; color: #6c7a76; padding: 6px 10px; background: #fafbfb; }
+.pt-fisa { background: #f4f7f6; border: 1px solid #e3e9e7; border-radius: 8px; padding: 6px 9px; }
+.pt-fisa-rau { background: #fdf0ef; border-color: #f2c4c0; }
+.cf-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0 8px; }
+.cf-kpi.cf-kpi-3 { grid-template-columns: repeat(3, 1fr); }
+.cf-kpi > div { background: #f4f7f6; border-radius: 10px; padding: 7px 10px; }
+.cf-kpi span { display: block; font-size: .72rem; color: #6c7a76; }
+.cf-kpi b { font-size: 1rem; font-weight: 600; }
+.cf-kpi small { display: block; font-size: .7rem; color: #6c7a76; }
+/* Lista echipamentelor: roșu necontractat · albastru contractat · verde livrat */
+.ech-tabel { font-size: .84rem; }
+.ech-tabel > :not(caption) > * > * { padding: 4px 8px; }
+.ech-tabel th { font-size: .68rem; color: #6c7a76; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.ech-tabel td.num, .ech-tabel th.num { text-align: right; }
+.ech-rand td:first-child { border-left: 4px solid transparent; }
+.ech-rand.ech-rosu td:first-child { border-left-color: #d9534f; } .ech-rand.ech-rosu td { background: #fdf3f2; }
+.ech-rand.ech-albastru td:first-child { border-left-color: #3b82c4; } .ech-rand.ech-albastru td { background: #f1f6fc; }
+.ech-rand.ech-verde td:first-child { border-left-color: #1d9e75; } .ech-rand.ech-verde td { background: #eef8f3; }
+.ech-ctr { font-weight: 600; text-decoration: none; }
+.ech-rosu .ech-status { border-color: #f0b8b5; } .ech-albastru .ech-status { border-color: #b5d4f4; } .ech-verde .ech-status { border-color: #9fd8c0; color: #0b5a46; font-weight: 600; }
+.ech-legenda { display: inline-flex; gap: 6px; }
+.ech-l { font-size: .7rem; padding: 1px 8px; border-radius: 999px; }
+.ech-l.ech-rosu { background: #fdecea; color: #a12622; } .ech-l.ech-albastru { background: #e6f1fb; color: #0c447c; } .ech-l.ech-verde { background: #e3f4ee; color: #0b5a46; }
+.ech-form { background: #fff; border: 1px solid #dfe6e3; border-radius: 8px; padding: 6px; margin-top: 4px; }
+.ech-detalii summary { cursor: pointer; color: #33413d; padding: 4px 0; }
+/* Plăți: facturi de plătit (bife → solicitare de plată), solicitări, istoric – un rând pe înregistrare */
+.pl-tabel { font-size: .8rem; }
+.pl-tabel > :not(caption) > * > * { padding: 3px 7px; white-space: nowrap; }
+.pl-tabel th { font-size: .68rem; color: #6c7a76; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.pl-tabel td.num, .pl-tabel th.num { text-align: right; }
+.pl-trunc { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.pl-tabel .pl-suma { padding: 1px 6px; font-size: .8rem; height: auto; }
+.pl-tabel .pl-suma:disabled { background: transparent; border-color: transparent; color: #9aa6a2; }
+.pl-rand.pl-bifat td { background: #eef8f3; }
+.pl-rand.pl-blocat td { color: #9aa6a2; }
+.pl-sol { cursor: pointer; }
+.pl-sol[aria-expanded="true"] .chevron-contract { transform: rotate(90deg); }
+.pl-sub { font-size: .76rem; background: #fafbfb; }
+.pl-sub td { padding: 2px 7px; }
+.pl-st-trimisa { background: #fff3cd; color: #7a4b00; } .pl-st-aprobata { background: #e3f4ee; color: #0b5a46; }
+.pl-st-respinsa { background: #fdecea; color: #a12622; } .pl-st-anulata { background: #eef2f1; color: #6c7a76; }
+.cf-plata { color: #1d9e75; }
+
+/* contracte cu plăți recurente: grila perioadelor */
+.cf-rec { padding: 4px 12px 2px; font-size: .78rem; }
+.cf-rec-grila { display: flex; gap: 2px; margin-top: 3px; }
+.cf-rec-grila span { flex: 1 1 0; max-width: 26px; height: 8px; border-radius: 2px; background: #e6ebe9; }
+.cf-rec-grila .cf-rec-facturata { background: #1f8a5b; }
+.cf-rec-grila .cf-rec-restanta { background: #d9822b; }
+/* facturi fără contract: tipul cheltuielii */
+.cf-tip-chelt { font-size: .68rem; background: #eef3f8; color: #35506b; border-radius: 4px; padding: 0 4px; }
+.cf-filtru-tip { cursor: pointer; }
+.cf-filtru-tip.activ { border-color: #0b5a46; background: #e7f3ee; font-weight: 600; }
+
+/* lista derulantă cu partenerii din registru */
+.pt-opt.activ, .pt-opt:focus { background: #e7f3ee; outline: none; }
+.pt-opt.ales b::after { content: " ✓"; color: #0b5a46; }
+.pt-opt-antet { position: sticky; top: 0; background: #f7f9f8; font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; color: #6c7a76; padding: 4px 10px; border-bottom: 1px solid #eef2f0; z-index: 1; }
+.pt-nou { position: sticky; bottom: 0; background: #f7faf9; border-top: 1px solid #dfe6e3; padding: 7px 10px; }
+.pt-nou-cap { font-size: .8rem; font-weight: 600; color: #0b5a46; margin-bottom: 4px; }
+.pt-opt.pt-opt-linie { font-size: .8rem; padding: 3px 10px; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pt-opt.pt-opt-linie.ales::after { content: " ✓"; color: #0b5a46; font-weight: 600; }

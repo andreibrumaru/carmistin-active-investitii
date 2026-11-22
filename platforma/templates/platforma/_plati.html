@@ -1,0 +1,104 @@
+{% comment %}Sub-ecranul „Plăți”: facturile cu rest neplătit (se bifează → solicitare de plată spre aprobare), solicitările și istoricul plăților. Facturile noi se introduc doar în „Contracte & Facturi”.{% endcomment %}
+{% load fmt %}
+<form method="post" action="{% url 'solicitare_creeaza' p.pk %}" id="formSolicitare" class="card mb-3">{% csrf_token %}
+ <div class="card-header d-flex align-items-center flex-wrap gap-2 py-2">
+  <span class="fw-semibold">Facturi de plătit</span>
+  <span class="small text-secondary">{{ facturi_de_plata|length }} facturi cu rest neplătit · sume în RON fără TVA · facturile noi se introduc în „Contracte &amp; Facturi”</span>
+ </div>
+ <div class="table-responsive"><table class="table table-sm mb-0 align-middle pl-tabel">
+  <thead><tr>{% if editabil_fin %}<th style="width:28px"><input type="checkbox" class="form-check-input" id="plToate" title="bifează toate"></th>{% endif %}<th>Factură</th><th>Data</th><th>Furnizor</th><th>Contract</th><th>Scadență</th><th class="num">Valoare</th><th class="num">Achitat</th><th class="num">Rest</th>{% if editabil_fin %}<th class="num" style="width:130px">De plată</th>{% endif %}</tr></thead>
+  <tbody>{% for x in facturi_de_plata %}
+   <tr class="pl-rand {% if x.scadenta_depasita %}pl-scadent{% endif %} {% if x.blocata %}pl-blocat{% endif %}">
+    {% if editabil_fin %}<td>{% if x.blocata %}<i class="bi bi-lock text-secondary" title="{{ x.blocata }}"></i>{% else %}<input type="checkbox" class="form-check-input pl-bifa" name="factura" value="{{ x.pk }}">{% endif %}</td>{% endif %}
+    <td class="text-nowrap fw-semibold">{{ x.numar }}{% for d in x.documente.all %} <a href="{% url 'document' d.pk %}" data-vizualizeaza title="{{ d.titlu }}"><i class="bi bi-paperclip"></i></a>{% endfor %}</td>
+    <td class="text-nowrap text-secondary">{{ x.data|date:"d.m.y" }}</td>
+    <td class="pl-trunc" title="{{ x.furnizor }}">{{ x.furnizor }}</td>
+    <td class="pl-trunc text-secondary">{% if x.contract %}<a href="?tab=contracte&c={{ x.contract_id }}" class="text-decoration-none">{{ x.contract.numar }}</a>{% else %}fără contract{% endif %}</td>
+    <td class="text-nowrap {% if x.scadenta_depasita %}text-danger fw-semibold{% endif %}">{{ x.scadenta|date:"d.m.y"|default:"—" }}{% if x.scadenta_depasita %} <i class="bi bi-exclamation-triangle" title="scadență depășită"></i>{% endif %}</td>
+    <td class="num">{{ x.valoare_ron|bani2 }}</td>
+    <td class="num text-secondary">{{ x.platit_ron|bani2 }}{% if x.in_aprobare_ron %} <i class="bi bi-hourglass-split" title="în aprobare: {{ x.in_aprobare_ron|bani2 }} RON"></i>{% endif %}</td>
+    <td class="num fw-semibold">{{ x.rest|bani2 }}</td>
+    {% if editabil_fin %}<td>{% if not x.blocata %}<input name="suma_{{ x.pk }}" value="{{ x.de_platit|stringformat:'s' }}" data-max="{{ x.de_platit|stringformat:'s' }}" class="form-control form-control-sm text-end pl-suma" inputmode="decimal" disabled>{% else %}<span class="small text-secondary">{{ x.blocata }}</span>{% endif %}</td>{% endif %}
+   </tr>{% empty %}
+   <tr><td colspan="10" class="text-center text-secondary py-3">Toate facturile proiectului sunt achitate.</td></tr>
+  {% endfor %}</tbody>
+ </table></div>
+ {% if editabil_fin and facturi_de_plata %}
+ <div class="card-footer d-flex flex-wrap align-items-center gap-2 py-2">
+  <span class="small">Bifate: <b id="plNr">0</b> · total <b id="plTotal">0,00</b> RON</span>
+  <label class="small text-secondary ms-md-3">Data plății</label><input type="date" name="data_plata" value="{{ azi_iso }}" class="form-control form-control-sm" style="width:150px">
+  <input name="observatii" class="form-control form-control-sm" placeholder="Observații (opțional)" style="max-width:260px">
+  <span id="plEroare" class="small text-danger d-none">Corectați sumele marcate cu roșu (între 0 și restul de plată).</span>
+  <button class="btn btn-sm btn-primary ms-auto" id="plGenereaza" disabled><i class="bi bi-send"></i> Generează solicitarea de plată</button>
+ </div>
+ {% endif %}
+</form>
+
+<div class="card mb-3">
+ <div class="card-header py-2"><span class="fw-semibold">Solicitări de plată</span> <span class="small text-secondary">1. aprobare de administrator (email) → 2. centralizarea + facturile pleacă la trezorerie → export pentru Charisma → plătită</span></div>
+ <div class="table-responsive"><table class="table table-sm mb-0 align-middle pl-tabel">
+  <thead><tr><th>Nr.</th><th>Creată</th><th>De</th><th class="num">Facturi</th><th class="num">Total (RON)</th><th>Data plății</th><th>Aprobator</th><th>Stare</th><th></th></tr></thead>
+  <tbody>{% for s in solicitari %}
+   <tr class="pl-sol" data-bs-toggle="collapse" data-bs-target="#sol-{{ s.pk }}" role="button">
+    <td class="text-nowrap fw-semibold"><i class="bi bi-chevron-right text-secondary chevron-contract"></i> {{ s.numar }}</td>
+    <td class="text-nowrap text-secondary">{{ s.creata_la|date:"d.m.y H:i" }}</td>
+    <td class="pl-trunc">{{ s.creata_de.get_full_name|default:s.creata_de.username }}</td>
+    <td class="num">{{ s.plati.all|length }}</td>
+    <td class="num fw-semibold">{{ s.total_ron|bani2 }}</td>
+    <td class="text-nowrap">{{ s.data_plata|date:"d.m.y" }}</td>
+    <td class="pl-trunc" title="{% if s.email_catre %}email trimis {{ s.email_trimis_la|date:'d.m.Y H:i' }} către {{ s.email_catre }}{% endif %}{% if s.email_eroare %} · eroare: {{ s.email_eroare }}{% endif %}">{{ s.aprobator.get_full_name|default:s.aprobator.username|default:"—" }}{% if s.aprobator_suplimentar %} + {{ s.aprobator_suplimentar.get_full_name|default:s.aprobator_suplimentar.username }}{% endif %}{% if s.email_eroare %} <i class="bi bi-envelope-exclamation text-danger"></i>{% endif %}</td>
+    <td class="text-nowrap"><span class="badge pl-st-{{ s.stare }}" title="{% if s.aprobat_de %}aprobat de {{ s.aprobat_de.get_full_name|default:s.aprobat_de.username }} {{ s.aprobat_la|date:'d.m.Y H:i' }}{% endif %}{% if s.respinsa_de %}respinsă de {{ s.respinsa_de.get_full_name|default:s.respinsa_de.username }}: {{ s.motiv }}{% endif %}">{{ s.get_stare_display }}</span>{% if s.stare == 'aprobata' %} {% if s.trezorerie_trimis_la %}<i class="bi bi-envelope-check text-success" title="trimisă la trezorerie {{ s.trezorerie_trimis_la|date:'d.m.Y H:i' }} ({{ s.trezorerie_catre }})"></i>{% else %}<i class="bi bi-envelope-exclamation text-danger" title="netrimisă la trezorerie{% if s.trezorerie_eroare %}: {{ s.trezorerie_eroare }}{% endif %}"></i>{% endif %}{% endif %}</td>
+    <td class="text-nowrap text-end" onclick="event.stopPropagation()">
+     {% if s.roluri %}<form method="post" action="{% url 'solicitare_decizie' s.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="inapoi" value="{{ request.path }}?tab=plati"><input type="hidden" name="actiune" value="aproba"><button class="btn btn-sm btn-success py-0">Aprobă</button></form>
+      <form method="post" action="{% url 'solicitare_decizie' s.pk %}" class="d-inline" data-prompt="Motivul respingerii:" data-prompt-camp="motiv" data-prompt-obligatoriu="1">{% csrf_token %}<input type="hidden" name="motiv"><input type="hidden" name="actiune" value="respinge"><input type="hidden" name="inapoi" value="{{ request.path }}?tab=plati"><button class="btn btn-sm btn-outline-danger py-0">Respinge</button></form>{% endif %}
+     {% if s.stare == 'aprobata' and e_admin %}<form method="post" action="{% url 'solicitare_decizie' s.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="inapoi" value="{{ request.path }}?tab=plati"><input type="hidden" name="actiune" value="retrimite"><button class="btn btn-sm btn-link py-0" title="{% if s.trezorerie_trimis_la %}retrimite{% else %}trimite{% endif %} centralizarea la trezorerie"><i class="bi bi-send"></i> trezorerie</button></form>{% endif %}
+     {% if s.poate_anula %}<form method="post" action="{% url 'solicitare_decizie' s.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="inapoi" value="{{ request.path }}?tab=plati"><input type="hidden" name="actiune" value="retrimite"><button class="btn btn-sm btn-link py-0" title="retrimite emailul de aprobare"><i class="bi bi-envelope"></i></button></form>
+      <form method="post" action="{% url 'solicitare_decizie' s.pk %}" class="d-inline" data-confirm="Anulați solicitarea {{ s.numar }}? Facturile revin în lista de plată.">{% csrf_token %}<input type="hidden" name="inapoi" value="{{ request.path }}?tab=plati"><input type="hidden" name="actiune" value="anuleaza"><button class="btn btn-sm btn-link text-danger py-0" title="anulează solicitarea"><i class="bi bi-x-circle"></i></button></form>{% endif %}
+    </td>
+   </tr>
+   <tr class="collapse" id="sol-{{ s.pk }}"><td colspan="9" class="p-0">
+    <table class="table table-sm mb-0 pl-sub">{% for pl in s.plati.all %}<tr><td style="width:30px"></td><td class="fw-semibold text-nowrap">{{ pl.factura.numar }}</td><td class="pl-trunc">{{ pl.factura.furnizor }}</td><td class="text-secondary text-nowrap">scad. {{ pl.factura.scadenta|date:"d.m.y"|default:"—" }}</td><td class="num">{{ pl.suma_ron|bani2 }}</td><td><span class="badge text-bg-light">{{ pl.get_stare_display }}</span></td></tr>{% endfor %}
+     {% if s.observatii or s.motiv %}<tr><td></td><td colspan="5" class="text-secondary">{% if s.observatii %}Observații: {{ s.observatii }}{% endif %}{% if s.motiv %} · Motivul respingerii: <span class="text-danger">{{ s.motiv }}</span>{% endif %}</td></tr>{% endif %}</table>
+   </td></tr>
+  {% empty %}<tr><td colspan="9" class="text-center text-secondary py-3">Nicio solicitare de plată. Bifați facturile de mai sus și generați solicitarea.</td></tr>{% endfor %}</tbody>
+ </table></div>
+</div>
+
+<div class="card">
+ <div class="card-header py-2"><span class="fw-semibold">Istoricul plăților</span> <span class="small text-secondary">{{ plati|length }} plăți</span></div>
+ <div class="table-responsive"><table class="table table-sm mb-0 align-middle pl-tabel">
+  <thead><tr><th>Data</th><th>Factură</th><th>Furnizor</th><th class="num">Sumă (RON)</th><th>Stare</th><th>Solicitare</th><th>Lot / OP</th><th></th></tr></thead>
+  <tbody>{% for pl in plati %}<tr>
+   <td class="text-nowrap text-secondary">{{ pl.data|date:"d.m.y" }}</td>
+   <td class="text-nowrap fw-semibold">{{ pl.factura.numar }}</td>
+   <td class="pl-trunc">{{ pl.factura.furnizor }}</td>
+   <td class="num">{{ pl.suma_ron|bani2 }}</td>
+   <td class="text-nowrap"><span class="badge {% if pl.stare == 'platita' %}text-bg-success{% elif pl.stare == 'respinsa' %}text-bg-danger{% elif pl.stare == 'exportata' %}text-bg-primary{% elif pl.stare == 'aprobata' %}text-bg-info{% else %}text-bg-warning{% endif %}" title="propusă: {{ pl.propusa_de|default:'—' }}{% if pl.aprobat_financiar_de %} · aprobat: {{ pl.aprobat_financiar_de }} {{ pl.aprobat_financiar_la|date:'d.m.Y' }}{% endif %}{% if pl.respinsa_motiv %} · {{ pl.respinsa_motiv }}{% endif %}">{{ pl.get_stare_display }}</span></td>
+   <td class="text-nowrap text-secondary">{{ pl.solicitare.numar|default:"—" }}</td>
+   <td class="text-nowrap small">{{ pl.lot_export|default:"" }} {{ pl.document_plata }}</td>
+   <td class="text-nowrap text-end">{% for a, et in pl.actiuni %}<form class="d-inline" method="post" action="{% url 'plata_actiune' pl.pk a %}" {% if a == 'respinge' %}data-prompt="Motivul respingerii:" data-prompt-camp="motiv" data-prompt-obligatoriu="1"{% endif %}>{% csrf_token %}<input type="hidden" name="motiv"><input type="hidden" name="inapoi" value="{{ request.path }}?tab=plati"><button class="btn btn-sm {% if a == 'respinge' %}btn-outline-danger{% else %}btn-outline-success{% endif %} py-0">{{ et }}</button></form> {% endfor %}</td>
+  </tr>{% empty %}<tr><td colspan="8" class="text-center text-secondary py-3">Nicio plată.</td></tr>{% endfor %}</tbody>
+ </table></div>
+</div>
+<script>
+(() => {
+  const f = document.getElementById('formSolicitare'); if (!f) return;
+  const nr = t => { t = (t || '').replace(/\s/g, ''); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); const v = parseFloat(t); return isNaN(v) ? 0 : v; };
+  const fmt = v => new Intl.NumberFormat('ro-RO', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(v);
+  const bife = [...f.querySelectorAll('.pl-bifa')];
+  const recalc = () => {
+    let n = 0, t = 0;
+    bife.forEach(b => { const s = b.closest('tr').querySelector('.pl-suma'); s.disabled = !b.checked; b.closest('tr').classList.toggle('pl-bifat', b.checked); if (b.checked) { n++; t += nr(s.value); } });
+    document.getElementById('plNr').textContent = n; document.getElementById('plTotal').textContent = fmt(t);
+    const g = document.getElementById('plGenereaza'); if (g) { g.disabled = !n; g.innerHTML = `<i class="bi bi-send"></i> Generează solicitarea de plată${n ? ' (' + n + ')' : ''}`; }
+  };
+  bife.forEach(b => b.addEventListener('change', recalc));
+  f.querySelectorAll('.pl-suma').forEach(s => s.addEventListener('input', () => {
+    const v = nr(s.value), max = parseFloat(s.dataset.max);
+    s.classList.toggle('is-invalid', v <= 0 || v > max + 0.005); recalc();
+  }));
+  document.getElementById('plToate')?.addEventListener('change', e => { bife.forEach(b => b.checked = e.target.checked); recalc(); });
+  f.addEventListener('submit', e => { if (f.querySelector('.pl-suma.is-invalid:not(:disabled)')) { e.preventDefault(); document.getElementById('plEroare').classList.remove('d-none'); } });
+  recalc();
+})();
+</script>

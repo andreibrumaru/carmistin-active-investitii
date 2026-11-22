@@ -10,7 +10,7 @@ window.scaraAutomata = () => { const w = screen.width; return w < 1300 ? 85 : w 
 <title>{% block titlu %}Active & Investiții{% endblock %} · Carmistin</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<link href="{% static 'platforma/stil.css' %}?v=20261115w" rel="stylesheet">
+<link href="{% static 'platforma/stil.css' %}?v=20261122e" rel="stylesheet">
 <link rel="icon" type="image/png" href="{% static 'platforma/favicon.png' %}">
 {% block head %}{% endblock %}
 </head>
@@ -22,19 +22,15 @@ window.scaraAutomata = () => { const w = screen.width; return w < 1300 ? 85 : w 
     <div class="rail">
       <a href="{% url 'dashboard' %}" class="rail-logo" title="Carmistin · Active și investiții"><img src="{% static 'platforma/logo-semn.png' %}" alt="Carmistin"></a>
       {% if doar_proiectele_lui %}
-      <a class="rail-btn{% if sc == 'sarcini' %} curent{% endif %}" data-sec="sarcini" href="{% url 'sarcini' %}" title="Sarcinile mele"><i class="bi bi-list-check"></i>{% if nr_sarcini %}<span class="rail-nr">{{ nr_sarcini }}</span>{% endif %}</a>
+      <a class="rail-btn{% if sc == 'sarcini' %} curent{% endif %}" data-sec="sarcini" href="{% url 'sarcini' %}" title="Sarcinile mele{% if nr_aprobari %} · {{ nr_aprobari }} de aprobat{% endif %}"><i class="bi bi-list-check"></i>{% if nr_sarcini or nr_aprobari %}<span class="rail-nr">{{ nr_sarcini|add:nr_aprobari }}</span>{% endif %}</a>
       <a class="rail-btn{% if sc == 'investitii' %} curent{% endif %}" data-sec="investitii" href="{% url 'investitii' %}" title="Proiectele mele"><i class="bi bi-kanban"></i></a>
       {% else %}
       <a class="rail-btn{% if sc == 'dashboard' %} curent{% endif %}" data-sec="dashboard" href="{% url 'dashboard' %}" title="Tablou de bord"><i class="bi bi-speedometer2"></i></a>
-      <a class="rail-btn{% if sc == 'sarcini' %} curent{% endif %}" data-sec="sarcini" href="{% url 'sarcini' %}" title="Sarcinile mele"><i class="bi bi-list-check"></i>{% if nr_sarcini %}<span class="rail-nr">{{ nr_sarcini }}</span>{% endif %}</a>
+      <a class="rail-btn{% if sc == 'sarcini' %} curent{% endif %}" data-sec="sarcini" href="{% url 'sarcini' %}" title="Sarcinile mele{% if nr_aprobari %} · {{ nr_aprobari }} de aprobat{% endif %}"><i class="bi bi-list-check"></i>{% if nr_sarcini or nr_aprobari %}<span class="rail-nr">{{ nr_sarcini|add:nr_aprobari }}</span>{% endif %}</a>
       <a class="rail-btn{% if sc == 'active' %} curent{% endif %}" data-sec="active" href="{% url 'locatii' %}" title="Registrul activelor"><i class="bi bi-buildings"></i></a>
       <a class="rail-btn{% if sc == 'investitii' %} curent{% endif %}" data-sec="investitii" href="{% url 'investitii' %}" title="Registrul investițiilor"><i class="bi bi-kanban"></i></a>
-      <a class="rail-btn{% if sc == 'buget' %} curent{% endif %}" data-sec="buget" href="{% url 'dashboard_anual' %}" title="Buget anual"><i class="bi bi-bar-chart"></i></a>
-      <a class="rail-btn{% if sc == 'autorizatii' %} curent{% endif %}" data-sec="autorizatii" href="{% url 'raport_autorizatii' %}" title="Raport autorizații"><i class="bi bi-patch-check"></i></a>
-      <a class="rail-btn{% if sc == 'aprobari' %} curent{% endif %}" data-sec="aprobari" href="{% url 'aprobari' %}" title="Aprobări{% if nr_aprobari %} ({{ nr_aprobari }}){% endif %}"><i class="bi bi-check2-square"></i>{% if nr_aprobari %}<span class="rail-punct"></span>{% endif %}</a>
-      {% if e_financiar %}<a class="rail-btn{% if sc == 'export' %} curent{% endif %}" data-sec="export" href="{% url 'export_erp' %}" title="Export Charisma"><i class="bi bi-box-arrow-up-right"></i></a>{% endif %}
-      {% if rol_curent == 'admin' or rol_curent == 'management' or rol_curent == 'financiar' %}<a class="rail-btn{% if sc == 'jurnal' %} curent{% endif %}" data-sec="jurnal" href="{% url 'jurnal' %}" title="Jurnal de audit"><i class="bi bi-clock-history"></i></a>{% endif %}
-      {% if e_admin %}<a class="rail-btn{% if sc == 'admin' %} curent{% endif %}" data-sec="admin" href="/admin/" title="Administrare"><i class="bi bi-gear"></i></a>{% endif %}
+      <a class="rail-btn{% if sc == 'rapoarte' %} curent{% endif %}" data-sec="rapoarte" href="{% url 'dashboard_anual' %}" title="Rapoarte"><i class="bi bi-bar-chart-line"></i></a>
+      {% if e_admin or rol_curent == 'management' or rol_curent == 'financiar' %}<a class="rail-btn{% if sc == 'setari' %} curent{% endif %}" data-sec="setari" href="{% if e_admin %}{% url 'setari_aplicatie' %}{% else %}{% url 'jurnal' %}{% endif %}" title="Setări"><i class="bi bi-gear"></i></a>{% endif %}
       {% endif %}
       <a class="rail-btn mt-auto" data-sec="notificari" href="#" title="Notificări{% if nr_notificari %} ({{ nr_notificari }} noi){% endif %}"><i class="bi bi-bell"></i>{% if nr_notificari %}<span class="rail-nr">{{ nr_notificari }}</span>{% endif %}</a>
       <a class="rail-btn rail-cont" data-sec="cont" href="#" title="{{ request.user.get_full_name|default:request.user.username }}">{% firstof request.user.first_name|slice:":1"|upper request.user.username|slice:":1"|upper %}{{ request.user.last_name|slice:":1"|upper }}</a>
@@ -71,38 +67,27 @@ window.scaraAutomata = () => { const w = screen.width; return w < 1300 ? 85 : w 
         {% for cod, et, ic, n in categorii_investitii %}<a class="pl{% if categorie_investitii == cod %} active{% endif %}" href="{% url 'investitii' %}?categorie={{ cod }}"><i class="bi {{ ic }}"></i> {{ et }} <span class="badge rounded-pill nav-sub-nr">{{ n }}</span></a>{% endfor %}
         {% if poate_crea_proiect %}<div class="panou-sep"></div><a class="pl{% if request.resolver_match.url_name == 'raport_zero_nou' %} active{% endif %}" href="{% url 'raport_zero_nou' %}"><i class="bi bi-plus-circle"></i> Raport Zero nou</a>{% endif %}
       </div>
-      <div class="panou-sec" data-sec="buget">
-        <div class="panou-titlu">Buget anual</div><div class="panou-desc">Bugetul investițiilor pe ani.</div>
-        <a class="pl{% if sc == 'buget' %} active{% endif %}" href="{% url 'dashboard_anual' %}"><i class="bi bi-bar-chart"></i> Deschide bugetul anual</a>
-      </div>
-      <div class="panou-sec" data-sec="autorizatii">
-        <div class="panou-titlu">Raport autorizații</div><div class="panou-desc">Autorizațiile obiectivelor, pe tipuri.</div>
-        <a class="pl{% if sc == 'autorizatii' %} active{% endif %}" href="{% url 'raport_autorizatii' %}"><i class="bi bi-patch-check"></i> Deschide raportul</a>
-      </div>
-      <div class="panou-sec" data-sec="aprobari">
-        <div class="panou-titlu">Aprobări</div><div class="panou-desc">{% if nr_aprobari %}{{ nr_aprobari }} în așteptare{% else %}Nimic în așteptare.{% endif %}</div>
-        <a class="pl{% if sc == 'aprobari' %} active{% endif %}" href="{% url 'aprobari' %}"><i class="bi bi-check2-square"></i> Deschide aprobările {% if nr_aprobari %}<span class="badge rounded-pill text-bg-warning ms-auto">{{ nr_aprobari }}</span>{% endif %}</a>
-      </div>
-      {% if e_financiar %}<div class="panou-sec" data-sec="export">
-        <div class="panou-titlu">Export Charisma</div><div class="panou-desc">Loturi de export către contabilitate.</div>
-        <a class="pl{% if sc == 'export' %} active{% endif %}" href="{% url 'export_erp' %}"><i class="bi bi-box-arrow-up-right"></i> Deschide exportul</a>
-      </div>{% endif %}
-      {% if rol_curent == 'admin' or rol_curent == 'management' or rol_curent == 'financiar' %}<div class="panou-sec" data-sec="jurnal">
-        <div class="panou-titlu">Jurnal de audit</div><div class="panou-desc">Toate modificările, cu autor și dată.</div>
-        <a class="pl{% if sc == 'jurnal' %} active{% endif %}" href="{% url 'jurnal' %}"><i class="bi bi-clock-history"></i> Deschide jurnalul</a>
-      </div>{% endif %}
-      {% if e_admin %}<div class="panou-sec" data-sec="admin">
-        <div class="panou-titlu">Administrare</div><div class="panou-desc">Utilizatori, roluri, nomenclatoare.</div>
-        <a class="pl{% if request.resolver_match.url_name == 'echipe_admin' %} active{% endif %}" href="{% url 'echipe_admin' %}"><i class="bi bi-people"></i> Echipe de proiect</a>
-        <a class="pl" href="/admin/"><i class="bi bi-gear"></i> Administrare</a>
-        <a class="pl{% if sc == 'admin' %} active{% endif %}" href="{% url 'stergere_proiect' %}"><i class="bi bi-shield-lock"></i> Ștergere proiect</a>
-      </div>{% endif %}
       {% endif %}
+      <div class="panou-sec" data-sec="rapoarte">
+        <div class="panou-titlu">Rapoarte</div><div class="panou-desc">Rapoartele aplicației.</div>
+        <a class="pl{% if request.resolver_match.url_name == 'dashboard_anual' %} active{% endif %}" href="{% url 'dashboard_anual' %}"><i class="bi bi-bar-chart"></i> Buget anual</a>
+        <a class="pl{% if request.resolver_match.url_name == 'raport_autorizatii' %} active{% endif %}" href="{% url 'raport_autorizatii' %}"><i class="bi bi-patch-check"></i> Raport autorizații</a>
+        {% if vede_rapoarte_activitate %}<a class="pl{% if request.resolver_match.url_name == 'rapoarte_activitate' %} active{% endif %}" href="{% url 'rapoarte_activitate' %}"><i class="bi bi-clipboard2-check"></i> Registru rapoarte activitate</a>{% endif %}
+      </div>
+      {% if e_admin or rol_curent == 'management' or rol_curent == 'financiar' %}<div class="panou-sec" data-sec="setari">
+        <div class="panou-titlu">Setări</div><div class="panou-desc">Configurarea aplicației.</div>
+        {% if e_admin %}<a class="pl{% if request.resolver_match.url_name == 'setari_aplicatie' %} active{% endif %}" href="{% url 'setari_aplicatie' %}"><i class="bi bi-sliders"></i> Setări aplicație</a>
+        <a class="pl{% if request.resolver_match.url_name == 'echipe_admin' %} active{% endif %}" href="{% url 'echipe_admin' %}"><i class="bi bi-people"></i> Echipe de proiect</a>{% endif %}
+        <a class="pl{% if request.resolver_match.url_name == 'parteneri' or request.resolver_match.url_name == 'partener' %} active{% endif %}" href="{% url 'parteneri' %}"><i class="bi bi-building"></i> Registrul partenerilor</a>
+        <a class="pl{% if request.resolver_match.url_name == 'jurnal' %} active{% endif %}" href="{% url 'jurnal' %}"><i class="bi bi-clock-history"></i> Jurnal de audit</a>
+        {% if e_admin %}<a class="pl{% if request.resolver_match.url_name == 'stergere_proiect' %} active{% endif %}" href="{% url 'stergere_proiect' %}"><i class="bi bi-shield-lock"></i> Ștergere proiect</a>{% endif %}
+      </div>{% endif %}
       <div class="panou-sec" data-sec="sarcini">
         <div class="panou-titlu">Sarcinile mele</div><div class="panou-desc">{% if nr_sarcini %}{{ nr_sarcini }} de făcut azi sau întârziate{% else %}Nimic urgent azi.{% endif %}</div>
         <a class="pl{% if sc == 'sarcini' and not request.GET.filtru %} active{% endif %}" href="{% url 'sarcini' %}"><i class="bi bi-list-check"></i> Toate sarcinile</a>
         <a class="pl{% if request.GET.filtru == 'azi' %} active{% endif %}" href="{% url 'sarcini' %}?filtru=azi"><i class="bi bi-calendar-day"></i> De făcut azi {% if nr_sarcini %}<span class="badge rounded-pill nav-sub-nr">{{ nr_sarcini }}</span>{% endif %}</a>
         <a class="pl{% if request.GET.filtru == 'intarziate' %} active{% endif %}" href="{% url 'sarcini' %}?filtru=intarziate"><i class="bi bi-alarm"></i> Întârziate</a>
+        <a class="pl{% if request.GET.vedere == 'aprobari' %} active{% endif %}" href="{% url 'sarcini' %}?vedere=aprobari"><i class="bi bi-check2-square"></i> Aprobări {% if nr_aprobari %}<span class="badge rounded-pill text-bg-warning ms-auto">{{ nr_aprobari }}</span>{% endif %}</a>
       </div>
       <div class="panou-sec" data-sec="notificari">
         <div class="panou-titlu d-flex align-items-center">Notificări
@@ -150,6 +135,7 @@ window.scaraAutomata = () => { const w = screen.width; return w < 1300 ? 85 : w 
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="{% static 'platforma/vizualizator.js' %}?v=20261115a"></script>
+<script src="{% static 'platforma/parteneri.js' %}?v=20261122e" defer></script>
 {% block scripturi %}{% endblock %}
 </body>
 </html>

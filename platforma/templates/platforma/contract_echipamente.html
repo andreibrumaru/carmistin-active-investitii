@@ -2,7 +2,7 @@
 {% block titlu %}Echipamente – contract {{ c.numar }}{% endblock %}
 {% block continut %}
 <div class="d-flex align-items-center mb-3">
-  <a href="{{ p.get_absolute_url }}?tab=contracte" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  <a href="{{ p.get_absolute_url }}?tab=contracte&c={{ c.pk }}" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
   <div><h4 class="mb-0">Echipamente achiziționate prin contractul {{ c.numar }}</h4>
     <div class="text-secondary small">{{ p.cod }} · {{ c.partener }} · {{ c.data|date:"d.m.Y" }} · valoare {{ c.valoare|bani2 }} {{ c.moneda }}{% if c.moneda == 'EUR' %} @ {{ c.curs }}{% endif %} = {{ c.valoare_totala_ron|bani2 }} RON</div></div>
 </div>
@@ -31,7 +31,7 @@
     <label class="form-check-label" for="aloca">Actualizează alocarea contractului pe liniile de buget 4.3 / 4.4 / 4.5 cu valoarea echipamentelor bifate (descărcare în execuția bugetului)</label></div>
   {% if alocari %}<div class="small text-secondary mb-2">Alocare actuală: {% for a in alocari %}cap. {{ a.linie_buget.capitol }} {{ a.valoare_ron|bani2 }} RON{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}
   <button class="btn btn-primary"><i class="bi bi-check2"></i> Salvează</button>
-  <a href="{{ p.get_absolute_url }}?tab=contracte" class="btn btn-outline-secondary">Renunță</a>
+  <a href="{{ p.get_absolute_url }}?tab=contracte&c={{ c.pk }}" class="btn btn-outline-secondary">Renunță</a>
 </div></div>
 </form>{% endif %}
 {% endblock %}

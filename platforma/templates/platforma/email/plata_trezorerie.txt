@@ -1,0 +1,10 @@
+{% load fmt %}PLĂȚI APROBATE – {{ s.numar }}
+{{ p.beneficiar }} · {{ p.cod }} {{ p.denumire }}
+Aprobată de {{ s.aprobat_de.get_full_name|default:s.aprobat_de.username }} (administrator) la {{ s.aprobat_la|date:"d.m.Y H:i" }} · data plății {{ s.data_plata|date:"d.m.Y" }}
+Inițiată de {{ s.creata_de.get_full_name|default:s.creata_de.username }} la {{ s.creata_la|date:"d.m.Y H:i" }}
+
+{% for r in randuri %}{{ forloop.counter }}. {{ r.f.furnizor }}{% if r.f.cui_furnizor %} (CUI {{ r.f.cui_furnizor }}){% endif %} · factura {{ r.f.numar }} din {{ r.f.data|date:"d.m.Y" }} · scadență {{ r.f.scadenta|date:"d.m.Y"|default:"—" }} · {{ r.pl.suma_ron|bani2 }} + TVA {{ r.tva|bani2 }} = {{ r.total|bani2 }} RON
+{% endfor %}
+TOTAL DE PLATĂ: {{ total_plata|bani2 }} RON (fără TVA {{ total|bani2 }} + TVA {{ total_tva|bani2 }})
+{% if s.observatii %}Observații: {{ s.observatii }}{% endif %}
+Facturi atașate: {{ docs|length }}{% if fara_doc %} · fără document în aplicație: {% for f in fara_doc %}{{ f.numar }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}

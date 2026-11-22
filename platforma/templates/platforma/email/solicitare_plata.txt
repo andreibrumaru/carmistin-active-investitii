@@ -1,0 +1,14 @@
+{% load fmt %}Solicitare de plată {{ s.numar }} – {{ p.cod }} {{ p.denumire }}
+Beneficiar: {{ p.beneficiar }}
+Inițiată de {{ s.creata_de.get_full_name|default:s.creata_de.username }} la {{ s.creata_la|date:"d.m.Y H:i" }} · data propusă a plății {{ s.data_plata|date:"d.m.Y" }}
+{% if rol == 'suplimentar' %}Se cere aprobarea dvs. suplimentară (totalul depășește pragul proiectului).{% endif %}
+
+Plăți solicitate (RON):
+{% for r in randuri %}- {{ r.f.furnizor }} · factura {{ r.f.numar }} din {{ r.f.data|date:"d.m.Y" }} · scadență {{ r.f.scadenta|date:"d.m.Y"|default:"—" }} · {{ r.pl.suma_ron|bani2 }} + TVA {{ r.tva|bani2 }} = {{ r.total|bani2 }}
+{% endfor %}
+TOTAL: {{ total|bani2 }} + TVA {{ total_tva|bani2 }} = {{ total_plata|bani2 }} RON
+{% if s.observatii %}Observații: {{ s.observatii }}{% endif %}
+
+Aprobare / respingere: {{ link }}
+(linkul deschide o pagină de confirmare; este valabil {{ zile }} zile)
+În aplicație: {{ link_aplicatie }}

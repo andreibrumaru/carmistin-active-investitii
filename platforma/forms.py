@@ -223,7 +223,7 @@ class RaportZeroForm(Baza):
         fields = [
             "beneficiar", "locatie", "linie", "divizie", "denumire", "tip_investitie", "necesita_ac", "solicitant", "responsabil",
             "descriere_lucrari",
-            "valoare_rz", "moneda_rz", "prioritate", "data_demarare", "data_finalizare", "fara_termen",
+            "valoare_rz", "moneda_rz", "prioritate", "data_demarare", "data_finalizare", "fara_termen", "executat_inno",
             "fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "val_nerambursabil", "val_bancara",
             "observatii_rz",
         ]
@@ -286,6 +286,10 @@ class RaportZeroForm(Baza):
             r.initial = self.initial["responsabil"] = responsabil_fix.pk
             r.disabled = True
             r.help_text = "Sunteți responsabilul acestui proiect; Raportul Zero se trimite administratorului spre avizare."
+        inno = self.fields["executat_inno"]
+        inno.label = "Lucrare executată prin INNO AG"
+        inno.help_text = ""
+        inno.widget.attrs["class"] = "form-check-input"
         ft = self.fields["fara_termen"]
         ft.label = "Proiect FT (fără termen de finalizare)"
         ft.widget.attrs["class"] = "form-check-input"
@@ -425,13 +429,41 @@ class CuScan:
         self.order_fields(["scan", "citeste_ai"] + [f for f in self.fields if f not in ("scan", "citeste_ai")])
 
 
-ContractForm = type("ContractForm", (CuScan, fabrica(m.Contract)), {})
+_ContractBaza = type("_ContractBaza", (CuScan, fabrica(m.Contract, exclude=("proiect", "firma_partener"))), {})
+RECURENT = ("recurent", "periodicitate", "valoare_perioada", "nr_perioade", "data_start")
+
+
+class ContractForm(_ContractBaza):
+    """Contract; cu bifa „plăți recurente” valoarea = valoarea pe perioadă × numărul de perioade (calculată automat)."""
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields["valoare"].required = False
+        self.fields["periodicitate"].required = False
+        ordine = [f for f in self.fields if f not in RECURENT]
+        i = ordine.index("valoare")
+        self.order_fields(ordine[:i] + list(RECURENT) + ordine[i:])
+
+    def clean(self):
+        d = super().clean()
+        d["periodicitate"] = d.get("periodicitate") or "lunar"
+        if d.get("recurent"):
+            for camp in ("valoare_perioada", "nr_perioade"):
+                if not d.get(camp):
+                    self.add_error(camp, "Obligatoriu pentru plățile recurente.")
+            if d.get("valoare_perioada") and d.get("nr_perioade"):
+                d["valoare"] = (d["valoare_perioada"] * d["nr_perioade"]).quantize(Decimal("0.01"))
+                self.instance.valoare = d["valoare"]
+        elif d.get("valoare") is None:
+            self.add_error("valoare", "Completați valoarea contractului.")
+        return d
+
+
 ActAditionalForm = type("ActAditionalForm", (CuScan, fabrica(m.ActAditional)), {})
 AlocareContractForm = fabrica(m.ContractAlocare, ["contract", "linie_buget", "valoare_ron"])
 # Denumirea, cantitatea, linia și valoarea estimată vin din Raportul Zero; contractul și prețul se stabilesc la bifarea pe contract.
 EchipamentForm = fabrica(m.Echipament, ["specificatii", "status", "observatii"])
 ConditieForm = fabrica(m.ConditieContract, ["contract", "tip", "descriere", "termen", "valoare", "fragment_sursa", "pagina"])
-FacturaForm = fabrica(m.Factura, ["contract", "furnizor", "cui_furnizor", "furnizor_societate", "numar", "data", "scadenta", "moneda",
+FacturaForm = fabrica(m.Factura, ["contract", "tip_cheltuiala", "furnizor", "cui_furnizor", "furnizor_societate", "numar", "data", "scadenta", "moneda",
                                   "valoare", "tva", "curs", "observatii"])
 _FacturaBaza = FacturaForm
 
@@ -451,6 +483,12 @@ class FacturaForm(_FacturaBaza):
         if f and f.platit_ron and not f.plati.filter(marcata_din_factura=True).exists():
             self.fields["platita"].disabled = True
             self.fields["platita"].help_text = "Plățile acestei facturi sunt înregistrate prin circuitul de aprobare."
+
+    def clean(self):
+        d = super().clean()
+        if d.get("contract"):  # tipul cheltuielii are sens doar pentru facturile fără contract
+            d["tip_cheltuiala"] = ""
+        return d
 
 
 AlocareForm = fabrica(m.FacturaAlocare, ["factura", "linie_buget", "valoare_ron"])

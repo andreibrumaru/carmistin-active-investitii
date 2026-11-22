@@ -1,0 +1,25 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Fluxul plăților{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3">
+  <a href="{% url 'setari_aplicatie' %}" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  <div><h4 class="mb-0">Fluxul plăților</h4><div class="text-secondary small">Solicitare de plată → aprobare de administrator (email) → centralizarea și facturile pleacă la trezorerie</div></div>
+</div>
+<form method="post" class="card" style="max-width:760px">{% csrf_token %}
+ <div class="card-body row g-3">
+  <div class="col-12"><div class="fw-semibold mb-1">1. Aprobarea solicitărilor de plată</div>
+   <label class="form-label small mb-0">Administratorul care primește emailul de aprobare</label>
+   <select name="aprobator" class="form-select form-select-sm" style="max-width:420px">
+    <option value="">— automat: primul administrator cu email ({{ aprobator_efectiv.get_full_name|default:aprobator_efectiv.username|default:"niciunul" }}) —</option>
+    {% for u in admini %}<option value="{{ u.pk }}" {% if aprobator_ales == u.pk|stringformat:'s' %}selected{% endif %}>{{ u.get_full_name|default:u.username }} · {{ u.email|default:"fără email!" }}</option>{% endfor %}
+   </select>
+   {% if aprobator_efectiv and not aprobator_efectiv.email %}<div class="small text-danger mt-1">Contul {{ aprobator_efectiv.username }} nu are adresă de email – completați-o în Utilizatori și roluri.</div>{% endif %}
+   <div class="form-text">Orice administrator poate aproba și din aplicație (Sarcinile mele → Aprobări sau tab-ul Plăți).</div></div>
+  <div class="col-12"><div class="fw-semibold mb-1">2. Trezoreria</div>
+   <label class="form-label small mb-0">Adresa (adresele) de email ale trezoreriei</label>
+   <input name="trezorerie" value="{{ trezorerie }}" class="form-control form-control-sm" placeholder="trezorerie@firma.ro, alt.email@firma.ro">
+   <div class="form-text">După aprobare, pleacă aici centralizarea plăților aprobate (furnizor, factură, scadență, sume cu TVA) cu facturile atașate. Mai multe adrese se separă prin virgulă.</div></div>
+ </div>
+ <div class="card-footer"><button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Salvează</button></div>
+</form>
+{% endblock %}

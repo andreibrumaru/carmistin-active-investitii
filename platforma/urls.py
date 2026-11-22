@@ -8,6 +8,11 @@ from . import views_documente as vd
 from . import views_santier as vs
 from . import views_cont as vc
 from . import views_avize as va
+from . import views_utilitati as vu
+from . import views_repartizare
+from . import views_parteneri as vpt
+from . import views_echipamente as vech
+from . import views_solicitari as vsol
 
 urlpatterns = [
     path("", v.dashboard, name="dashboard"),
@@ -15,6 +20,8 @@ urlpatterns = [
     path("active/harta/", v.locatii_harta, name="locatii_harta"),
     path("active/noua/", v.locatie_form, name="locatie_noua"),
     path("active/<int:pk>/sterge/", v.locatie_sterge, name="locatie_sterge"),
+    path("active/<int:pk>/utilitati/<str:tip>/", vu.utilitate_salveaza, name="utilitate_salveaza"),
+    path("active/<int:pk>/utilitati/<str:tip>/documente/", vu.utilitate_documente, name="utilitate_documente"),
     path("active/cod-pentru-societate/", v.cod_pentru_societate, name="cod_pentru_societate"),
     path("active/cf-citire/", v.cf_citire_definire, name="cf_citire_definire"),
     path("societati/acronim/", v.acronim_propus, name="acronim_propus"),
@@ -74,6 +81,8 @@ urlpatterns = [
     path("sarcini/aloca/", vs.sarcina_adauga, name="sarcina_adauga"),
     path("sarcini/<int:spk>/", vs.sarcina_modifica, name="sarcina_modifica"),
     path("cont/afisare/", vc.cont_afisare, name="cont_afisare"),
+    path("setari/", vc.setari_aplicatie, name="setari_aplicatie"),
+    path("setari/plati/", vc.setari_plati, name="setari_plati"),
     path("notificari/citite/", vs.notificari_citite, name="notificari_citite"),
     path("proiecte/<int:pk>/activitate/<int:rpk>/pdf/", vm.raport_activitate_pdf, name="raport_activitate_pdf"),
     path("proiecte/<int:pk>/activitate/<int:rpk>/sterge/", vm.raport_activitate_sterge, name="raport_activitate_sterge"),
@@ -100,6 +109,18 @@ urlpatterns = [
     path("proiecte/<int:pk>/gantt/<int:act_pk>/", v.gantt_muta, name="gantt_muta"),
     path("proiecte/<int:pk>/contract-din-scan/", v.contract_din_scan, name="contract_din_scan"),
     path("proiecte/<int:pk>/contract/<int:cpk>/echipamente/", v.contract_echipamente, name="contract_echipamente"),
+    path("proiecte/<int:pk>/solicitare-plata/", vsol.solicitare_creeaza, name="solicitare_creeaza"),
+    path("solicitari-plata/<int:spk>/decizie/", vsol.solicitare_decizie, name="solicitare_decizie"),
+    path("solicitare-plata/<str:token>/", vsol.solicitare_din_email, name="solicitare_din_email"),
+    path("echipamente/<int:pk>/aloca/", vech.echipament_aloca, name="echipament_aloca"),
+    path("echipamente/<int:pk>/status/", vech.echipament_status, name="echipament_status"),
+    path("parteneri/", vpt.parteneri, name="parteneri"),
+    path("parteneri/<int:pk>/", vpt.partener_detaliu, name="partener"),
+    path("parteneri/adauga/", vpt.partener_adauga, name="partener_adauga"),
+    path("parteneri/<int:pk>/actualizeaza/", vpt.partener_actualizeaza, name="partener_actualizeaza"),
+    path("parteneri/cauta/", vpt.parteneri_cauta, name="parteneri_cauta"),
+    path("parteneri/anaf/", vpt.partener_anaf, name="partener_anaf"),
+    path("repartizare/<str:tip>/<int:obj_pk>/", views_repartizare.repartizare, name="repartizare"),
     path("proiecte/<int:pk>/<str:tip>/nou/", v.obiect_form, name="obiect_nou"),
     path("proiecte/<int:pk>/<str:tip>/<int:obj_pk>/", v.obiect_form, name="obiect_editare"),
     path("documente/<int:pk>/", v.document_descarca, name="document"),

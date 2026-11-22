@@ -1,0 +1,141 @@
+{# Sub-ecranul „Contracte și facturi”: lista contractelor (stânga) + desfășurătorul facturilor contractului ales (dreapta) #}
+{% load fmt %}
+<div class="cf">
+ <div class="cf-lista-col">
+  <div class="d-flex gap-2 mb-2">
+   {% if contracte|length > 6 %}<input type="search" class="form-control form-control-sm cf-cauta" placeholder="Caută prestator / nr. contract">{% endif %}
+   {% if editabil %}<div class="dropdown ms-auto"><button class="btn btn-sm btn-primary dropdown-toggle text-nowrap" data-bs-toggle="dropdown"><i class="bi bi-plus-lg"></i> Contract</button>
+     <ul class="dropdown-menu dropdown-menu-end"><li><a class="dropdown-item" href="{% url 'contract_din_scan' p.pk %}"><i class="bi bi-stars"></i> Încarcă contract (citire AI)</a></li><li><a class="dropdown-item" href="{% url 'obiect_nou' p.pk 'contract' %}"><i class="bi bi-pencil-square"></i> Introducere manuală</a></li></ul></div>{% endif %}
+  </div>
+  <div class="cf-lista">
+   {% for c in contracte %}
+   <button type="button" class="cf-ct {% if contract_activ == c.pk|stringformat:'s' %}activ{% endif %}" data-ct="{{ c.pk }}" data-cauta="{{ c.partener|lower }} {{ c.numar|lower }}" title="{{ c.partener }} · {{ c.get_tip_display }}">
+    <span class="cf-ct-sus"><b>{{ c.partener }}</b>{% if c.sumar.scadente_depasite %}<i class="bi bi-exclamation-circle-fill text-danger" title="facturi cu scadența depășită"></i>{% endif %}<span class="cf-val">{{ c.valoare_act|bp:p }}</span></span>
+    <span class="cf-ct-meta"><span><span class="cf-tip cf-tip-{{ c.culoare }}" title="{{ c.get_tip_display }}"></span>{% if c.recurent %}<i class="bi bi-arrow-repeat text-primary" title="plăți recurente: {{ c.valoare_perioada|bani2 }} {{ c.moneda }}/{{ c.eticheta_perioada }} × {{ c.nr_perioade }}"></i> {% endif %}{{ c.numar }} · {{ c.data|date:"d.m.y" }}{% if c.status != 'activ' %} · {{ c.get_status_display|lower }}{% endif %}</span><span class="{% if c.pct_real > 100 %}text-danger fw-semibold{% endif %}">{% if c.sumar.facturat %}{{ c.pct_real }}%{% else %}—{% endif %}</span></span>
+    <span class="cf-bara"><i class="{% if c.pct_real > 100 %}peste{% endif %}" style="width:{{ c.pct_facturat }}%"></i></span>
+   </button>
+   {% endfor %}
+   {% if fara_contract.randuri or editabil_fin %}
+   <button type="button" class="cf-ct cf-ct-fara {% if contract_activ == 'fara' %}activ{% endif %}" data-ct="fara" data-cauta="fara contract taxe avize">
+    <span class="cf-ct-sus"><b>Facturi fără contract</b><span class="cf-val">{{ fara_contract.sumar.facturat|bp:p }}</span></span>
+    <span class="cf-ct-meta"><span>avize, taxe, autorizații · {{ fara_contract.randuri|length }} factur{{ fara_contract.randuri|length|pluralize:"ă,i" }}</span></span>
+   </button>
+   {% endif %}
+   {% if not contracte %}<div class="text-secondary small p-3 text-center">Niciun contract încărcat.</div>{% endif %}
+  </div>
+  {% if contracte %}<div class="small text-secondary mt-2 px-1">Total contractat <b>{{ p.angajat_ron|bp:p }}</b> · facturat <b>{{ total_facturat_contracte|bp:p }}</b> {{ p.moneda_urmarire }}</div>{% endif %}
+ </div>
+
+ <div class="cf-detaliu-col">
+ {% for c in contracte %}
+ <div class="card cf-det {% if contract_activ != c.pk|stringformat:'s' %}d-none{% endif %}" data-ct="{{ c.pk }}">
+  <div class="cf-antet">
+   <div class="flex-grow-1 min-w-0">
+    <div class="cf-titlu">{{ c.partener }} <span class="cf-sub-titlu">{{ c.numar }} / {{ c.data|date:"d.m.Y" }} · {{ c.get_tip_display|lower }}{% if c.termen_executie %} · termen {{ c.termen_executie|date:"d.m.Y" }}{% endif %}</span>
+     <span class="badge text-bg-light">{{ c.get_status_display }}</span>
+     {% for a in c.acte_aditionale.all %}<span class="badge text-bg-light border fw-normal" title="act adițional: {{ a.obiect }}">AA {{ a.numar }}{% if a.diferenta_ron %} {% if a.diferenta_ron > 0 %}+{% endif %}{{ a.diferenta_ron|bp:p }}{% endif %}</span>{% endfor %}</div>
+    {% if c.obiect %}<div class="cf-obiect" title="{{ c.obiect }}">{{ c.obiect }}</div>{% endif %}
+   </div>
+   {% if c.scan %}<a class="btn btn-sm btn-outline-secondary py-0" href="{% url 'document' c.scan.pk %}" data-vizualizeaza title="contractul scanat (v{{ c.scan.versiune }})"><i class="bi bi-file-earmark-pdf text-danger"></i></a>{% else %}<span class="badge text-bg-warning" title="contractul scanat nu a fost încărcat">fără scan</span>{% endif %}
+   {% if editabil %}<div class="dropdown"><button class="btn btn-sm btn-outline-secondary py-0" data-bs-toggle="dropdown" title="acțiuni contract"><i class="bi bi-three-dots"></i></button>
+    <ul class="dropdown-menu dropdown-menu-end">
+     <li><a class="dropdown-item" href="{% url 'obiect_editare' p.pk 'contract' c.pk %}"><i class="bi bi-pencil"></i> Editează / încarcă scan nou</a></li>
+     <li><a class="dropdown-item" href="{% url 'obiect_nou' p.pk 'act_aditional' %}?contract={{ c.pk }}"><i class="bi bi-file-earmark-plus"></i> Act adițional</a></li>
+     <li><a class="dropdown-item" href="{% url 'obiect_nou' p.pk 'conditie' %}?contract={{ c.pk }}"><i class="bi bi-list-check"></i> Condiție contractuală</a></li>
+     <li><a class="dropdown-item" href="{% url 'contract_echipamente' p.pk c.pk %}"><i class="bi bi-cpu"></i> Echipamente din contract</a></li>
+     <li><a class="dropdown-item" href="{% url 'obiect_nou' p.pk 'alocare_contract' %}?contract={{ c.pk }}"><i class="bi bi-diagram-3"></i> Repartizare pe linii de buget</a></li>
+    </ul></div>{% endif %}
+  </div>
+
+  <div class="cf-strip">
+   <div><span>Valoare</span><b>{{ c.valoare_act|bp2:p }}</b>{% if c.moneda != p.moneda_urmarire %}<small>{{ c.valoare|bani2 }} {{ c.moneda }}</small>{% elif c.moneda == 'EUR' %}<small>@ {{ c.curs }}</small>{% endif %}</div>
+   <div><span>Facturat</span><b class="{% if c.pct_real > 100 %}text-danger{% endif %}">{{ c.sumar.facturat|bp2:p }}</b><small class="{% if c.pct_real > 100 %}text-danger fw-semibold{% endif %}">{{ c.pct_real }}%{% if c.rest_facturat < 0 %} · depășit cu {{ c.rest_facturat|bp:p|cut:"-" }}{% elif c.rest_facturat > 0 %} · rest {{ c.rest_facturat|bp:p }}{% endif %}</small></div>
+   <div><span>Achitat</span><b class="{% if c.sumar.facturat and c.sumar.platit >= c.sumar.facturat %}text-success{% endif %}">{{ c.sumar.platit|bp2:p }}</b></div>
+   <div><span>Rest de plată</span><b class="{% if c.sumar.scadente_depasite %}text-danger{% endif %}">{{ c.sumar.rest_plata|bp2:p }}</b>{% if c.sumar.scadente_depasite %}<small class="text-danger">{{ c.sumar.scadente_depasite }} scadent{{ c.sumar.scadente_depasite|pluralize:"ă,e" }} depășit{{ c.sumar.scadente_depasite|pluralize:"ă,e" }}</small>{% endif %}</div>
+   <div class="cf-strip-aloc"><span>Buget</span>
+    <div>{% for a in c.alocari.all %}<span class="cf-linie-chip" title="{{ a.linie_buget.denumire }}">{{ a.linie_buget.capitol }} · {{ a.valoare_ron|bp:p }}</span>{% empty %}<span class="text-secondary">—</span>{% endfor %}
+     {% if c.nealocat_buget %}<span class="text-danger small">nealocat {{ c.nealocat_buget|bp:p }}</span>{% endif %}
+     {% if editabil %}<a href="{% url 'obiect_nou' p.pk 'alocare_contract' %}?contract={{ c.pk }}" title="repartizare pe linii de buget"><i class="bi bi-pencil"></i></a>{% endif %}</div></div>
+  </div>
+
+  {% if c.recurenta %}{% with r=c.recurenta %}
+  <div class="cf-rec">
+   <div class="cf-rec-sus"><i class="bi bi-arrow-repeat text-primary"></i> <b>{{ c.valoare_perioada|bani2 }} {{ c.moneda }} / {{ c.eticheta_perioada }}</b> × {{ c.nr_perioade }}
+    <span class="text-secondary">· {{ r.perioade.0.inceput|date:"d.m.Y" }} – {% with u=r.perioade|last %}{{ u.sfarsit|date:"d.m.Y" }}{% endwith %}</span>
+    · facturate <b>{{ r.facturate }}/{{ c.nr_perioade }}</b>
+    {% if r.restante %}<span class="text-danger fw-semibold">· {{ r.restante }} {% if r.restante == 1 %}perioadă începută nefacturată{% else %}perioade începute nefacturate{% endif %}</span>{% elif not r.urmatoarea %}<span class="text-success">· toate perioadele facturate</span>{% endif %}</div>
+   <div class="cf-rec-grila">{% for x in r.perioade %}<span class="cf-rec-{{ x.stare }}" title="{{ x.nr }}/{{ c.nr_perioade }}: {{ x.inceput|date:'d.m.Y' }} – {{ x.sfarsit|date:'d.m.Y' }} · {% if x.stare == 'facturata' %}facturată{% elif x.stare == 'restanta' %}începută, nefacturată{% else %}viitoare{% endif %}"></span>{% endfor %}</div>
+  </div>{% endwith %}{% endif %}
+
+  <div class="cf-facturi-antet"><span><i class="bi bi-receipt"></i> Facturi <span class="text-secondary fw-normal">({{ c.randuri|length }})</span></span>
+   {% if editabil_fin %}{% if c.recurenta.link_factura %}<a class="btn btn-sm btn-outline-primary py-0 px-2 ms-auto" href="{% url 'obiect_nou' p.pk 'factura' %}?{{ c.recurenta.link_factura }}" title="precompletată cu fee-ul perioadei {{ c.recurenta.urmatoarea.nr }}"><i class="bi bi-plus-lg"></i> Factură {{ c.recurenta.urmatoarea.nr }}/{{ c.nr_perioade }}</a>
+   {% else %}<a class="btn btn-sm btn-outline-primary py-0 px-2 ms-auto" href="{% url 'obiect_nou' p.pk 'factura' %}?contract={{ c.pk }}&furnizor={{ c.partener|urlencode }}&cui_furnizor={{ c.cui_partener|urlencode }}"><i class="bi bi-plus-lg"></i> Factură</a>{% endif %}{% endif %}</div>
+  {% include "platforma/_contract_facturi.html" with randuri=c.randuri sumar=c.sumar %}
+
+  {% if c.tip == 'furnizare' or c.lista_ech %}
+  <div class="cf-ech">
+   <div class="d-flex align-items-center mb-1"><span class="fw-semibold small"><i class="bi bi-cpu"></i> Echipamente din contract</span>
+    {% if c.lista_ech %}<span class="small text-secondary ms-2">{{ c.lista_ech|length }} poziții · {{ c.total_ech|bp:p }} {{ p.moneda_urmarire }}{% if c.total_ech < c.valoare_act %} · rest contract (montaj, transport, servicii) {{ c.valoare_act|sub:c.total_ech|bp:p }}{% endif %}</span>{% endif %}
+    {% if editabil %}<a class="btn btn-sm btn-outline-primary py-0 ms-auto" href="{% url 'contract_echipamente' p.pk c.pk %}"><i class="bi bi-check2-square"></i> {% if c.lista_ech %}Modifică{% else %}Alege din lista de echipamente{% endif %}</a>{% endif %}</div>
+   {% if c.lista_ech %}<table class="table table-sm small mb-0"><thead><tr><th>Linie</th><th>Echipament</th><th class="num">Cant.</th><th class="num">Estimat RZ</th><th class="num">Contractat</th><th>Status</th></tr></thead><tbody>
+    {% for e in c.lista_ech %}<tr><td class="text-secondary">{{ e.linie_buget.capitol|default:"—" }}</td><td>{{ e.denumire }}{% if e.specificatii %} <span class="text-secondary">· {{ e.specificatii }}</span>{% endif %}</td><td class="num">{{ e.cantitate|floatformat:"-2" }} {{ e.um }}</td>
+      <td class="num text-secondary">{{ e.valoare_estimata|bp:p }}</td><td class="num fw-semibold">{{ e.valoare_ron|bp:p }}</td>
+      <td><span class="badge {% if e.status == 'receptionat' %}text-bg-success{% elif e.status == 'planificat' %}text-bg-light{% else %}text-bg-info{% endif %}">{{ e.get_status_display }}</span></td></tr>{% endfor %}
+   </tbody></table>
+   {% else %}<div class="small text-warning-emphasis">Contract de furnizare fără echipamente identificate. Alegeți din lista de echipamente a Raportului Zero utilajele achiziționate prin acest contract.</div>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if c.conditii.all %}
+  <details class="cf-extra"><summary class="small fw-semibold">Condiții contractuale ({{ c.conditii.all|length }})</summary>
+   <table class="table table-sm small mb-0">{% for x in c.conditii.all %}<tr><td style="width:150px"><span class="badge text-bg-light">{{ x.get_tip_display }}</span>{% if x.extras_ai %} <i class="bi bi-stars text-primary" title="extras de AI{% if x.validat_de %}, validat de {{ x.validat_de }}{% endif %}"></i>{% endif %}</td><td>{{ x.descriere }}{% if x.fragment_sursa %}<div class="fragment">„{{ x.fragment_sursa|truncatechars:250 }}” {% if x.pagina %}(pag. {{ x.pagina }}){% endif %}</div>{% endif %}</td><td>{{ x.valoare }}</td><td>{{ x.termen|date:"d.m.Y" }}</td>{% if editabil %}<td><a href="{% url 'obiect_editare' p.pk 'conditie' x.pk %}"><i class="bi bi-pencil"></i></a></td>{% endif %}</tr>{% endfor %}</table>
+  </details>{% endif %}
+  {% if c.acte_aditionale.all %}
+  <details class="cf-extra"><summary class="small fw-semibold">Acte adiționale ({{ c.acte_aditionale.all|length }})</summary>
+   <table class="table table-sm small mb-0">{% for a in c.acte_aditionale.all %}<tr><td>AA {{ a.numar }}/{{ a.data|date:"d.m.Y" }}</td><td>{{ a.obiect }}</td><td class="num">{{ a.diferenta_ron|bp:p }} {{ p.moneda_urmarire }}</td><td>{% if a.linie_buget %}cap. {{ a.linie_buget.capitol }}{% else %}<span class="text-secondary">proporțional</span>{% endif %}</td><td>{{ a.termen_nou|date:"d.m.Y" }}</td><td>{% for d in a.documente.all %}{% if not d.arhivat %}<a href="{% url 'document' d.pk %}" data-vizualizeaza><i class="bi bi-file-earmark-pdf text-danger"></i></a>{% endif %}{% endfor %}</td>{% if editabil %}<td><a href="{% url 'obiect_editare' p.pk 'act_aditional' a.pk %}"><i class="bi bi-pencil"></i></a></td>{% endif %}</tr>{% endfor %}</table>
+  </details>{% endif %}
+ </div>
+ {% endfor %}
+
+ {% if fara_contract.randuri or editabil_fin %}
+ <div class="card cf-det {% if contract_activ != 'fara' %}d-none{% endif %}" data-ct="fara">
+  <div class="cf-antet"><div class="flex-grow-1"><div class="cf-titlu">Facturi fără contract <span class="cf-sub-titlu">avize, taxe, autorizații și alte plăți fără contract</span></div></div>
+   {% if editabil_fin %}<div class="dropdown"><button class="btn btn-sm btn-outline-primary py-0 px-2 dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-plus-lg"></i> Factură / chitanță</button>
+    <ul class="dropdown-menu dropdown-menu-end">{% for cod, et in tipuri_fara_contract %}<li><a class="dropdown-item" href="{% url 'obiect_nou' p.pk 'factura' %}?tip_cheltuiala={{ cod }}">{{ et }}</a></li>{% endfor %}</ul></div>{% endif %}</div>
+  <div class="cf-strip">
+   <div><span>Facturat</span><b>{{ fara_contract.sumar.facturat|bp2:p }}</b></div>
+   <div><span>Achitat</span><b>{{ fara_contract.sumar.platit|bp2:p }}</b></div>
+   <div><span>Rest de plată</span><b class="{% if fara_contract.sumar.scadente_depasite %}text-danger{% endif %}">{{ fara_contract.sumar.rest_plata|bp2:p }}</b></div>
+   {% if fara_contract.pe_tip %}<div class="cf-strip-aloc"><span>Pe tip</span><div>{% for t in fara_contract.pe_tip %}<button type="button" class="cf-linie-chip cf-filtru-tip" data-tip="{{ t.cod }}" title="filtrează">{{ t.eticheta }} · {{ t.total|bp:p }} <span class="text-secondary">({{ t.n }})</span></button>{% endfor %}</div></div>{% endif %}
+  </div>
+  {% include "platforma/_contract_facturi.html" with randuri=fara_contract.randuri sumar=fara_contract.sumar cu_furnizor=1 %}
+ </div>
+ {% endif %}
+ {% if not contracte and not fara_contract.randuri and not editabil_fin %}<div class="card"><div class="card-body text-center text-secondary py-5"><i class="bi bi-receipt fs-2 d-block mb-2"></i>Niciun contract încărcat.{% if editabil %} Folosiți „+ Contract”.{% endif %}</div></div>{% endif %}
+ </div>
+</div>
+<script>
+(() => {
+  const btn = document.querySelectorAll('.cf-ct'), det = document.querySelectorAll('.cf-det');
+  btn.forEach(b => b.addEventListener('click', () => {
+    btn.forEach(x => x.classList.toggle('activ', x === b));
+    det.forEach(d => d.classList.toggle('d-none', d.dataset.ct !== b.dataset.ct));
+    const u = new URL(location.href); u.searchParams.set('tab', 'contracte'); u.searchParams.set('c', b.dataset.ct); history.replaceState(null, '', u);
+  }));
+  const cauta = document.querySelector('.cf-cauta');
+  if (cauta) cauta.addEventListener('input', () => {
+    const t = cauta.value.trim().toLowerCase();
+    btn.forEach(b => b.classList.toggle('d-none', !!t && !b.dataset.cauta.includes(t)));
+  });
+  // facturi fără contract: un clic pe tip (Avize, Taxe…) filtrează tabelul; al doilea clic anulează filtrul
+  document.querySelectorAll('.cf-filtru-tip').forEach(ch => ch.addEventListener('click', () => {
+    const activ = !ch.classList.contains('activ');
+    document.querySelectorAll('.cf-filtru-tip').forEach(x => x.classList.toggle('activ', activ && x === ch));
+    let ascuns = false;
+    ch.closest('.cf-det').querySelectorAll('.cf-facturi tbody tr').forEach(tr => {
+      if (tr.classList.contains('cf-fa')) ascuns = activ && tr.dataset.tip !== ch.dataset.tip;
+      tr.classList.toggle('d-none', ascuns);
+    });
+  }));
+})();
+</script>

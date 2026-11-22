@@ -1,0 +1,30 @@
+{% load fmt %}<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;background:#f3f5f8;font-family:Segoe UI,Arial,sans-serif;color:#1f2937">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f5f8;padding:24px 0"><tr><td align="center">
+<table role="presentation" width="760" cellpadding="0" cellspacing="0" style="max-width:760px;background:#fff;border:1px solid #dde3ea;border-radius:8px">
+<tr><td style="padding:18px 26px;border-bottom:3px solid #1d9e75">
+ <div style="font-size:18px;font-weight:700;color:#0b5a46">SOLICITARE DE PLATĂ {{ s.numar }}</div>
+ <div style="font-size:13px;color:#6b7280;margin-top:4px">{{ p.cod }} · {{ p.denumire }} · {{ p.beneficiar }}</div>
+ <div style="font-size:13px;color:#6b7280;margin-top:2px">Inițiată de {{ s.creata_de.get_full_name|default:s.creata_de.username }} la {{ s.creata_la|date:"d.m.Y H:i" }} · data propusă a plății <b>{{ s.data_plata|date:"d.m.Y" }}</b></div>
+ {% if rol == 'suplimentar' %}<div style="margin-top:8px;background:#fff3cd;border:1px solid #e8a33d;border-radius:5px;padding:6px 10px;font-size:13px;color:#5c3d00">Se cere aprobarea dvs. <b>suplimentară</b> – totalul depășește pragul proiectului ({{ p.prag_aprobare_suplimentara|bani }} RON).</div>{% endif %}
+</td></tr>
+<tr><td style="padding:18px 26px">
+<table role="presentation" width="100%" cellpadding="5" cellspacing="0" style="border-collapse:collapse;font-size:13px">
+ <tr style="background:#0b5a46;color:#fff;font-weight:600"><td style="padding:6px">Furnizor</td><td style="padding:6px">Factură</td><td style="padding:6px">Data</td><td style="padding:6px">Scadență</td><td style="padding:6px;text-align:right">Fără TVA</td><td style="padding:6px;text-align:right">TVA</td><td style="padding:6px;text-align:right">De plată</td></tr>
+ {% for r in randuri %}<tr>
+  <td style="border-bottom:1px solid #e5e7eb">{{ r.f.furnizor }}{% if r.f.contract %}<div style="color:#6b7280;font-size:11px">contract {{ r.f.contract.numar }}</div>{% endif %}</td>
+  <td style="border-bottom:1px solid #e5e7eb;font-weight:600;white-space:nowrap">{{ r.f.numar }}</td>
+  <td style="border-bottom:1px solid #e5e7eb;white-space:nowrap">{{ r.f.data|date:"d.m.Y" }}</td>
+  <td style="border-bottom:1px solid #e5e7eb;white-space:nowrap">{{ r.f.scadenta|date:"d.m.Y"|default:"—" }}</td>
+  <td style="border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap">{{ r.pl.suma_ron|bani2 }}</td>
+  <td style="border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap;color:#6b7280">{{ r.tva|bani2 }}</td>
+  <td style="border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap;font-weight:700">{{ r.total|bani2 }}</td></tr>{% endfor %}
+ <tr style="background:#e3f4ee;font-weight:700"><td colspan="4" style="padding:7px">TOTAL ({{ randuri|length }} facturi) – RON</td><td style="text-align:right;padding:7px">{{ total|bani2 }}</td><td style="text-align:right;padding:7px">{{ total_tva|bani2 }}</td><td style="text-align:right;padding:7px;font-size:15px">{{ total_plata|bani2 }}</td></tr>
+</table>
+{% if s.observatii %}<div style="margin-top:10px;font-size:13px"><b>Observații:</b> {{ s.observatii }}</div>{% endif %}
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:20px"><tr>
+ <td style="background:#1d9e75;border-radius:6px"><a href="{{ link }}?actiune=aproba" style="display:inline-block;padding:11px 22px;color:#fff;text-decoration:none;font-weight:700">Aprob plata</a></td>
+ <td style="width:10px"></td>
+ <td style="border:1px solid #d9534f;border-radius:6px"><a href="{{ link }}?actiune=respinge" style="display:inline-block;padding:10px 20px;color:#d9534f;text-decoration:none;font-weight:700">Resping</a></td>
+</tr></table>
+<div style="font-size:12px;color:#6b7280;margin-top:10px">După aprobare, centralizarea plăților și facturile atașate pleacă automat la trezorerie. Butoanele deschid o pagină de confirmare (linkul este valabil {{ zile }} zile). Puteți aproba și din aplicație: <a href="{{ link_aplicatie }}">{{ p.cod }} → Plăți</a>.</div>
+</td></tr></table></td></tr></table></body></html>

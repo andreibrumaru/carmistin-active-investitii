@@ -32,6 +32,7 @@ User = get_user_model()
 from .coduri import nr_inregistrare_nou, urmatorul_cod_locatie
 from .hg import CAPITOLE, LINII_ECHIPAMENTE, SUBCAPITOLE, capitol_din, creeaza_linii
 from .permisiuni import doar_proiectele_lui
+from .parteneri import partener_pentru
 from .permisiuni import (e_admin, e_financiar, poate_aviza_rz, poate_bloca_buget, poate_crea_proiect, poate_edita,
                          poate_edita_financiar, poate_modifica_buget, poate_vedea, proiecte_vizibile, rol, vede_tot, poate_setari)
 
@@ -87,6 +88,8 @@ def context_global(request):
     if poate_aviza_rz(request.user):
         nr += m.Proiect.objects.filter(stare_rz="trimis").count()
     nr += len(stinv.cereri_de_aprobat(request.user))
+    from .solicitari import de_aprobat as solicitari_de_aprobat
+    nr += len(solicitari_de_aprobat(request.user))
     ctx = {"rol_curent": rol(request.user), "e_admin": e_admin(request.user), "e_financiar": e_financiar(request.user),
            "poate_crea_proiect": poate_crea_proiect(request.user), "nr_aprobari": nr,
            "doar_proiectele_lui": doar_proiectele_lui(request.user)}
@@ -114,10 +117,10 @@ def context_global(request):
 
 def sectiune_meniu(cale):
     """Secțiunea meniului lateral căreia îi aparține pagina curentă (după adresă)."""
-    for prefix, sec in (("/rapoarte-activitate", "dashboard"), ("/cont/", "cont"), ("/sarcini", "sarcini"), ("/investitii/anual", "buget"), ("/active", "active"), ("/societati", "active"), ("/proprietari-externi", "active"),
+    for prefix, sec in (("/rapoarte-activitate", "rapoarte"), ("/setari", "setari"), ("/admin", "setari"), ("/cont/", "cont"), ("/sarcini", "sarcini"), ("/investitii/anual", "rapoarte"), ("/active", "active"), ("/societati", "active"), ("/proprietari-externi", "active"),
                         ("/investitii", "investitii"), ("/proiecte", "investitii"), ("/rapoarte-zero", "investitii"), ("/avizare", "investitii"),
-                        ("/rapoarte/autorizatii", "autorizatii"), ("/aprobari", "aprobari"), ("/plati", "aprobari"),
-                        ("/export-erp", "export"), ("/jurnal", "jurnal"), ("/administrare", "admin"), ("/documente", "investitii")):
+                        ("/rapoarte/autorizatii", "rapoarte"), ("/aprobari", "sarcini"), ("/plati", "sarcini"),
+                        ("/export-erp", "setari"), ("/jurnal", "setari"), ("/administrare/echipe", "setari"), ("/administrare", "setari"), ("/documente", "investitii"), ("/parteneri", "setari")):
         if cale.startswith(prefix):
             return sec
     return "dashboard"
@@ -689,7 +692,7 @@ def locatie_detaliu(request, pk):
         "standarde": list(loc.standarde.prefetch_related("documente")),
         "utilizatori": User.objects.filter(is_active=True).order_by("first_name", "username"),
         "ctrl_deschise": [c for c in controale if c.status == "deschis"],
-        "documente": loc.documente.filter(arhivat=False, raport_evaluare__isnull=True, autorizatie__isnull=True, control__isnull=True,
+        "documente": loc.documente.filter(arhivat=False, raport_evaluare__isnull=True, utilitate__isnull=True, autorizatie__isnull=True, control__isnull=True,
                                           carte_funciara__isnull=True).exclude(categorie__in=CATEGORII_ANEXE + ("foto", "cf")),
         "carti": loc.carti.prefetch_related("documente"),
         "randuri_cf": _randuri_cf(loc),
@@ -705,6 +708,9 @@ def locatie_detaliu(request, pk):
         "urmator": loc.urmatorul_cod_proiect(), "tab": request.GET.get("tab", "prezentare"), "azi": azi,
     }
     ctx.update(_istoric_activ(loc))
+    from .views_utilitati import context_utilitati
+    ctx.update(context_utilitati(loc))
+    ctx["utilitate_activa"] = request.GET.get("u", "energie")
     return render(request, "platforma/locatie_detaliu.html", ctx)
 
 
@@ -2015,7 +2021,7 @@ def proiect_detaliu(request, pk):
     curs = p.curs
     facturi = list(p.facturi.select_related("contract", "furnizor_societate", "lot_export").prefetch_related("plati", "documente", "alocari__linie_buget"))
     plati = list(m.Plata.objects.filter(factura__proiect=p).select_related(
-        "factura", "propusa_de", "aprobat_tehnic_de", "aprobat_financiar_de", "aprobat_suplimentar_de", "lot_export").order_by("-data"))
+        "factura", "solicitare", "propusa_de", "aprobat_tehnic_de", "aprobat_financiar_de", "aprobat_suplimentar_de", "lot_export").order_by("-data"))
     for pl in plati:
         pl.actiuni = plati_mod.actiuni_posibile(u, pl)
     ani = _ani_proiect(p)
@@ -2025,7 +2031,6 @@ def proiect_detaliu(request, pk):
         "modifica_buget": poate_modifica_buget(u, p), "poate_bloca": poate_bloca_buget(u, p),
         "capitole": capitole, "curs": curs, "facturi": facturi, "plati": plati, "depasiri": depasiri,
         "depasire_totala": sum((max(l.peste_contract, l.peste_factura) for l in depasiri), Decimal(0)),
-        "contracte": p.contracte.prefetch_related("acte_aditionale", "conditii", "facturi", "documente", "alocari__linie_buget"),
         "certificate": p.certificate_urbanism.prefetch_related("documente"),
         "avize": p.avize.select_related("responsabil", "certificat").prefetch_related("documente"),
         "finantari": p.finantari.prefetch_related("obligatii", "documente"),
@@ -2050,7 +2055,7 @@ def proiect_detaliu(request, pk):
         "plan_ani": [(an, plan.get(an, Decimal(0)), _realizat_an(p, an)) for an in ani],
         "form_doc": f.DocumentForm(proiect=p),
         "form_gantt": f.ImportGanttForm(),
-        "tab": {"financiar": "contracte", "gantt": "monitorizare", "echipa": "setari", "acces": "setari"}.get(request.GET.get("tab"), request.GET.get("tab", "prezentare")), "azi": timezone.localdate(),
+        "tab": {"gantt": "monitorizare", "echipa": "setari", "acces": "setari"}.get(request.GET.get("tab"), request.GET.get("tab", "prezentare")), "azi": timezone.localdate(),
         "stare_ai": ai.stare_ai(),
         "avize_stat": {e: p.avize.filter(status=s).count() for s, e in m.Aviz.STATUS},
         "statusuri_aviz": m.Aviz.STATUS,
@@ -2061,14 +2066,26 @@ def proiect_detaliu(request, pk):
         "total_facturat_contracte": sum((x.valoare_ron for x in facturi if x.contract_id), Decimal(0)),
     }
     ctx["buget_eur"] = p.in_eur(p.buget_actualizat_ron)
+    # tab-ul comun „Buget și contractare”: Buget HG / Contracte și facturi / Echipamente / Plăți
+    from .contracte import context_contracte, sub_ecran
+    ctx.update(context_contracte(request, p, facturi, ctx["echipamente"]))
+    ctx["sub_buget"] = sub_ecran(ctx["tab"]) or "buget"
+    if sub_ecran(ctx["tab"]):
+        ctx["tab"] = "buget"
+    ctx["plati_in_curs"] = sum(1 for pl in plati if pl.stare not in ("platita", "respinsa"))
+    from .views_solicitari import context_plati
+    ctx.update(context_plati(request, p, u))
     ctx.update(_alocare_ctx(request, p))
     from .views_monitorizare import context_monitorizare
     ctx.update(context_monitorizare(request, p))
     ctx["sectiune_setari"] = request.GET.get("tab") if request.GET.get("tab") in ("echipa", "acces") else ""
-    if (ctx["tab"] == "setari" and not ctx["poate_setari"]) or (ctx["tab"] == "istoric" and not e_admin(u)):
+    if (ctx["tab"] == "setari" and not ctx["poate_setari"]) or (ctx["tab"] == "istoric" and not e_admin(u)) \
+            or (ctx["tab"] == "inno" and not p.executat_inno):
         ctx["tab"] = "prezentare"
     from .views_documente import context_documente
     ctx.update(context_documente(request, p))
+    from .prezentare import context_prezentare  # tab-ul Prezentare: rezumat + cronologie
+    ctx.update(context_prezentare(p))
     return render(request, "platforma/proiect.html", ctx)
 
 
@@ -2126,7 +2143,7 @@ def contract_echipamente(request, pk, cpk):
                          + (" Alocarea pe liniile de buget a fost actualizată." if request.POST.get("aloca") else ""))
         if c.nealocat_ron > 1:
             messages.warning(request, f"Din contract au rămas nealocați {_lei(c.nealocat_ron)} RON (ex. montaj, transport, servicii) – alocați-i pe linia potrivită.")
-        return redirect(f"{p.get_absolute_url()}?tab=echipamente")
+        return redirect(f"{p.get_absolute_url()}?tab=contracte&c={c.pk}")
     for e in ech:
         e.alt = bool(e.contract_id and e.contract_id != c.pk)  # contractat prin alt contract
     return render(request, "platforma/contract_echipamente.html", {
@@ -2308,6 +2325,17 @@ STERGERE_PERMISA = {"linie_buget", "conditie", "aviz", "obligatie", "raport_prog
 TIPURI_FINANCIARE = {"factura", "plata", "alocare"}
 
 
+def _contract_id(o):
+    """Contractul de care ține obiectul salvat – pentru a reveni pe el în „Contracte și facturi”."""
+    if isinstance(o, m.Contract):
+        return o.pk
+    if isinstance(o, (m.FacturaAlocare, m.Plata)):
+        return o.factura.contract_id or ("fara" if o.factura_id else None)
+    if isinstance(o, m.Factura):
+        return o.contract_id or "fara"
+    return getattr(o, "contract_id", None)
+
+
 def _verifica_drept(user, p, tip, obj):
     if tip in TIPURI_FINANCIARE:
         ok = poate_edita_financiar(user, p)
@@ -2342,6 +2370,11 @@ def obiect_form(request, pk, tip, obj_pk=None):
                         else reverse("raport_zero", args=[p.pk]))
     Form, eticheta = f.FORMULARE[tip]
     model = Form._meta.model
+    if tip in ("alocare", "alocare_contract"):  # repartizarea se face pe toate liniile odată (bife multiple)
+        par = "factura" if tip == "alocare" else "contract"
+        par_id = getattr(get_object_or_404(model, pk=obj_pk), f"{par}_id") if obj_pk else request.GET.get(par, "")
+        if str(par_id).isdigit():
+            return redirect("repartizare", tip=par, obj_pk=int(par_id))
     obj = None
     if obj_pk:
         obj = get_object_or_404(model, pk=obj_pk)
@@ -2383,6 +2416,10 @@ def obiect_form(request, pk, tip, obj_pk=None):
                     o.aprobat_de = request.user
                 if isinstance(o, m.Plata) and not o.pk:
                     o.propusa_de = request.user
+                if isinstance(o, m.Contract):  # partenerul rămâne în registrul de parteneri (date ANAF după CUI)
+                    o.firma_partener = partener_pentru(o.cui_partener, o.partener)
+                elif isinstance(o, m.Factura) and not o.furnizor_societate_id:
+                    o.firma_furnizor = partener_pentru(o.cui_furnizor, o.furnizor)
                 o.save()
                 form.save_m2m()
                 _salveaza_scan(request, form, p, o)
@@ -2400,6 +2437,9 @@ def obiect_form(request, pk, tip, obj_pk=None):
                 for avert in _avertismente(o):
                     messages.warning(request, avert)
                 dupa = f"{p.get_absolute_url()}?tab={TAB_PENTRU[tip]}"
+                cid = _contract_id(o)
+                if cid and TAB_PENTRU[tip] == "contracte":
+                    dupa += f"&c={cid}"
                 if isinstance(o, m.Contract) and o.nealocat_ron > 0:
                     messages.info(request, "Repartizați valoarea contractului pe liniile de buget.")
                     dupa = f"/proiecte/{p.pk}/alocare_contract/nou/?contract={o.pk}&valoare_ron={o.nealocat_ron}"
@@ -2716,11 +2756,28 @@ def plata_actiune(request, pk, actiune):
 
 @login_required
 def aprobari(request):
-    plati = plati_mod.plati_de_aprobat(request.user)
+    """Aprobările s-au mutat în „Sarcinile mele” (fila Aprobări)."""
+    return redirect(reverse("sarcini") + "?vedere=aprobari")
+
+
+def context_aprobari(user):
+    """Ce așteaptă aprobarea mea + ce am trimis eu spre aprobare (Rapoarte Zero, schimbări de status, plăți)."""
+    from django.db.models import Q
+    plati = plati_mod.plati_de_aprobat(user)
     for pl in plati:
-        pl.actiuni = plati_mod.actiuni_posibile(request.user, pl)
-    rz = m.Proiect.objects.filter(stare_rz="trimis") if poate_aviza_rz(request.user) else []
-    return render(request, "platforma/aprobari.html", {"plati": plati, "rz": rz, "cereri_status": stinv.cereri_de_aprobat(request.user)})
+        pl.actiuni = plati_mod.actiuni_posibile(user, pl)
+    rz = m.Proiect.objects.filter(stare_rz="trimis") if poate_aviza_rz(user) else []
+    trimise_rz = m.Proiect.objects.filter(stare_rz="trimis").filter(Q(pm=user) | Q(coordonator=user) | Q(implementator=user))
+    trimise_status = m.CerereStatus.objects.filter(stare="asteptare", cerut_de=user).select_related("proiect")
+    trimise_plati = m.Plata.objects.filter(propusa_de=user, stare__in=["propusa", "aprobata_tehnic"]).select_related("factura__proiect")
+    from . import solicitari as sol
+    solicitari = sol.de_aprobat(user)
+    for x in solicitari:
+        x.roluri = sol.roluri_utilizator(user, x)
+    trimise_solicitari = m.SolicitarePlata.objects.filter(creata_de=user, stare="trimisa").select_related("proiect").prefetch_related("plati")
+    trimise_plati = trimise_plati.filter(solicitare__isnull=True)
+    return {"plati": plati, "rz": rz, "cereri_status": stinv.cereri_de_aprobat(user), "solicitari_plata": solicitari, "trimise_solicitari": trimise_solicitari,
+            "trimise_rz": trimise_rz, "trimise_status": trimise_status, "trimise_plati": trimise_plati}
 
 
 @login_required

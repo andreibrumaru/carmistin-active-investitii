@@ -33,7 +33,9 @@
   <div class="rz-titlu"><i class="bi bi-diagram-3"></i> Tipul investiției, solicitant și responsabil</div>
   <div class="row g-3">
     <div class="col-md-6">{% include "platforma/_camp.html" with field=form.tip_investitie %}</div>
-    <div class="col-md-6"><div class="rz-bifa">{% include "platforma/_camp.html" with field=form.necesita_ac %}</div></div>
+    <div class="col-md-6"><div class="rz-bifa">{% include "platforma/_camp.html" with field=form.necesita_ac %}
+      <div class="form-check form-switch rz-inno mt-2 pt-2 border-top" title="Lucrările sunt executate de INNO AG, compania de construcții a grupului. Proiectul primește fereastra INNO AG.">
+        {{ form.executat_inno }} <label class="form-check-label fw-semibold" for="{{ form.executat_inno.id_for_label }}">Lucrare executată prin <span class="badge badge-inno">INNO AG</span></label></div></div></div>
     <div class="col-md-6">{% include "platforma/_camp.html" with field=form.solicitant %}</div>
     <div class="col-md-6">{% include "platforma/_camp.html" with field=form.responsabil %}</div>
     <div class="col-12">{% include "platforma/_camp.html" with field=form.descriere_lucrari %}</div>

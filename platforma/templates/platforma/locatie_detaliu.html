@@ -62,15 +62,16 @@
 
 {% with t=tab %}
 <ul class="nav nav-tabs mb-3">
-  <li class="nav-item"><button class="nav-link {% if t == 'prezentare' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-prezentare" id="buton-prezentare">Prezentare</button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'investitii' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-investitii">Investiții <span class="badge text-bg-light">{{ deschise|length }} / {{ inchise|length }}</span></button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'anexe' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-anexe">Anexe <span class="badge text-bg-light">{{ anexe|length }}</span></button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'poze' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-poze">Fotografii <span class="badge text-bg-light">{{ poze|length }}</span></button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'evaluari' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-evaluari">Rapoarte de evaluare <span class="badge text-bg-light">{{ evaluari|length }}</span></button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'autorizatii' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-autorizatii">Autorizații de funcționare {% if aut_lipsa %}<span class="badge text-bg-danger">{{ aut_lipsa }} lipsă</span>{% else %}<span class="badge text-bg-light">{{ autorizatii|length }}</span>{% endif %}</button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'standarde' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-standarde">Standarde <span class="badge text-bg-light">{{ standarde|length }}</span></button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'controale' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-controale">Procese-verbale și note de constatare <span class="badge {% if ctrl_deschise %}text-bg-warning{% else %}text-bg-light{% endif %}">{{ controale|length }}</span></button></li>
-  <li class="nav-item"><button class="nav-link {% if t == 'documente' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-documente">Alte documente</button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'prezentare' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-prezentare" id="buton-prezentare"><i class="bi bi-grid-1x2"></i> Prezentare</button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'investitii' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-investitii"><i class="bi bi-kanban"></i> Investiții <span class="badge text-bg-light">{{ deschise|length }} / {{ inchise|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'anexe' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-anexe"><i class="bi bi-paperclip"></i> Anexe <span class="badge text-bg-light">{{ anexe|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'poze' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-poze"><i class="bi bi-images"></i> Fotografii <span class="badge text-bg-light">{{ poze|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'utilitati' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-utilitati"><i class="bi bi-plug"></i> Utilități <span class="badge text-bg-light">{{ utilitati_completate }}/{{ utilitati|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'evaluari' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-evaluari"><i class="bi bi-graph-up-arrow"></i> Rapoarte de evaluare <span class="badge text-bg-light">{{ evaluari|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'autorizatii' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-autorizatii"><i class="bi bi-patch-check"></i> Autorizații de funcționare {% if aut_lipsa %}<span class="badge text-bg-danger">{{ aut_lipsa }} lipsă</span>{% else %}<span class="badge text-bg-light">{{ autorizatii|length }}</span>{% endif %}</button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'standarde' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-standarde"><i class="bi bi-award"></i> Standarde <span class="badge text-bg-light">{{ standarde|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'controale' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-controale"><i class="bi bi-clipboard-check"></i> Procese-verbale și note de constatare <span class="badge {% if ctrl_deschise %}text-bg-warning{% else %}text-bg-light{% endif %}">{{ controale|length }}</span></button></li>
+  <li class="nav-item"><button class="nav-link {% if t == 'documente' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-documente"><i class="bi bi-folder2"></i> Alte documente</button></li>
   <li class="nav-item"><button class="nav-link {% if t == 'istoric' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#a-istoric"><i class="bi bi-clock-history"></i> Istoric modificări <span class="badge text-bg-light">{{ istoric_modificari|length }}</span></button></li>
 </ul>
 {% endwith %}
@@ -399,6 +400,7 @@
 </div></div>
 
 {# ---------- ALTE DOCUMENTE ---------- #}
+<div class="tab-pane fade {% if tab == 'utilitati' %}show active{% endif %}" id="a-utilitati">{% include "platforma/_utilitati.html" %}</div>
 <div class="tab-pane fade {% if tab == 'istoric' %}show active{% endif %}" id="a-istoric">
  <div class="card mb-3"><div class="card-header d-flex align-items-center"><i class="bi bi-signpost-split me-1"></i> Istoricul categoriei activului
    <span class="badge ms-2 badge-categorie-{{ loc.stare_activ }}">acum: {{ loc.get_stare_activ_display }}</span>

@@ -1,0 +1,101 @@
+{% load fmt %}{# Prezentare (varianta C): rezumatul proiectului în stânga, cronologia proiectului în dreapta #}
+<div class="row g-3 prez">
+ <div class="col-lg-4 col-xxl-3">
+  <div class="prez-rezumat">
+   <div class="card mb-3"><div class="card-body">
+    <div class="d-flex align-items-center gap-2 mb-2"><span class="small text-secondary">Status investiție</span>
+     {% if editabil and p.status and not p.cerere_status_deschisa %}<span class="dropdown ms-auto">
+      <button type="button" class="badge border-0 fs-6 prez-status st-{{ p.status|slugify }}" data-bs-toggle="dropdown" data-bs-auto-close="outside" title="schimbă statusul">{{ p.status_afisat }} <i class="bi bi-chevron-down small"></i></button>
+      <div class="dropdown-menu dropdown-menu-end p-3" style="width:290px"><form method="post" action="{% url 'proiect_status' p.pk %}">{% csrf_token %}
+        <label class="form-label small fw-semibold mb-1">Status</label>
+        <select name="status_nou" class="form-select form-select-sm mb-2" required>{% for s in statusuri_investitie %}<option value="{% if s != p.status %}{{ s }}{% endif %}" {% if s == p.status %}selected disabled{% endif %}>{{ s }}{% if s == p.status %} (actual){% endif %}</option>{% endfor %}</select>
+        <input name="motiv" class="form-control form-control-sm mb-2" placeholder="Motivul schimbării" required>
+        <button class="btn btn-sm btn-primary w-100">{% if poate_aproba_status %}Schimbă statusul{% else %}Cere schimbarea statusului{% endif %}</button>
+        {% if not poate_aproba_status %}<div class="small text-secondary mt-1">Se aplică după aprobarea {% if p.aprobator_status %}lui {{ p.aprobator_status.get_full_name|default:p.aprobator_status }}{% else %}administratorului{% endif %}.</div>{% endif %}
+      </form></div></span>
+     {% else %}<span class="badge fs-6 ms-auto prez-status st-{{ p.status|slugify }}">{{ p.status_afisat }}</span>{% endif %}
+    </div>
+    {% with c=p.cerere_status_deschisa %}{% if c %}
+      <div class="alert alert-warning small py-2 mb-2"><i class="bi bi-hourglass-split"></i> Cerere: <b>{{ c.status_vechi|default:"—" }} → {{ c.status_nou }}</b>, de {{ c.cerut_de.get_full_name|default:c.cerut_de }} la {{ c.cerut_la|date:"d.m.Y H:i" }}<div>Motiv: {{ c.motiv }}</div>
+        <div class="mt-1">Se aprobă de {% if p.aprobator_status %}<b>{{ p.aprobator_status.get_full_name|default:p.aprobator_status }}</b> (a avizat Raportul Zero){% else %}administrator{% endif %}.</div>
+        {% if poate_aproba_status %}<div class="d-flex gap-2 mt-2"><form method="post" action="{% url 'proiect_status_decizie' p.pk c.pk 'aproba' %}">{% csrf_token %}<button class="btn btn-sm btn-success py-0"><i class="bi bi-check2"></i> Aprobă</button></form>
+          <form method="post" action="{% url 'proiect_status_decizie' p.pk c.pk 'respinge' %}" data-prompt="Motivul respingerii:" data-prompt-camp="motiv">{% csrf_token %}<input type="hidden" name="motiv"><button class="btn btn-sm btn-outline-danger py-0">Respinge</button></form></div>{% endif %}
+      </div>
+    {% elif editabil and p.status %}
+    {% elif not p.status %}<div class="small text-secondary mb-2">Investiția intră „În execuție” la avizarea Raportului Zero.</div>{% endif %}{% endwith %}
+    {% with b=buget_pr %}
+    <div class="prez-buget">
+      <div class="d-flex justify-content-between small"><span>Execuție buget <span class="text-secondary">(facturat / buget)</span></span><b>{{ b.pct_facturat }}%</b></div>
+      <div class="progress mb-1" style="height:8px"><div class="progress-bar bg-success" style="width:{{ b.pct_facturat|plafon }}%"></div></div>
+      <div class="small text-secondary mb-2">{{ b.facturat|bp:p }} din {{ b.buget|bp:p }}</div>
+      <div class="d-flex justify-content-between small"><span>Angajat (contracte)</span><b>{{ b.pct_angajat }}%</b></div>
+      <div class="progress mb-2" style="height:5px"><div class="progress-bar {% if b.pct_angajat > 100 %}bg-danger{% endif %}" style="width:{{ b.pct_angajat|plafon }}%"></div></div>
+      <div class="d-flex justify-content-between small"><span>Plătit</span><b>{{ b.pct_platit }}%</b></div>
+      <div class="progress" style="height:5px"><div class="progress-bar bg-secondary" style="width:{{ b.pct_platit|plafon }}%"></div></div>
+    </div>{% endwith %}
+    <div class="prez-ind mt-3">{% for culoare, text, tab_ in indicatori %}<a class="prez-chip" {% if tab_ %}href="?tab={{ tab_ }}"{% endif %}><span class="prez-d d-{{ culoare }}"></span>{{ text }}</a>{% endfor %}
+      {% if p.executat_inno %}<span class="prez-chip"><span class="badge badge-inno">INNO AG</span> executant</span>{% endif %}</div>
+    {% if cereri_status %}<details class="small mt-3"><summary class="text-secondary">Istoricul statusului ({{ cereri_status|length }})</summary><ul class="mb-0 ps-3 mt-1">{% for c in cereri_status %}
+      <li>{{ c.cerut_la|date:"d.m.Y" }}: {{ c.status_vechi|default:"—" }} → <b>{{ c.status_nou }}</b> · <span class="{% if c.stare == 'aprobata' %}text-success{% elif c.stare == 'respinsa' %}text-danger{% else %}text-warning-emphasis{% endif %}">{{ c.get_stare_display|lower }}</span>{% if c.decis_de %} de {{ c.decis_de.get_full_name|default:c.decis_de }}{% endif %} – {{ c.motiv }}{% if c.motiv_decizie %} ({{ c.motiv_decizie }}){% endif %}</li>{% endfor %}</ul></details>{% endif %}
+   </div></div>
+
+   <div class="card"><div class="card-header d-flex align-items-center py-2"><span class="fw-semibold small">Date din Raportul Zero</span><a class="small ms-auto" href="{% url 'raport_zero' p.pk %}">deschide <i class="bi bi-box-arrow-up-right"></i></a></div>
+    <dl class="prez-date mb-0">
+      <dt>Nr. înregistrare</dt><dd>{{ p.nr_inregistrare }}</dd>
+      <dt>Beneficiar</dt><dd>{{ p.beneficiar }}</dd>
+      <dt>Locație</dt><dd>{% if p.locatie %}<a href="{{ p.locatie.get_absolute_url }}">{{ p.locatie.cod }}</a> {{ p.locatie.denumire|truncatechars:40 }}{% else %}fără activ alocat{% endif %}</dd>
+      <dt>Linie / divizie</dt><dd>{{ p.linie|default:"—" }}{% if p.divizie %} / {{ p.divizie }}{% endif %}</dd>
+      <dt>Responsabil</dt><dd>{{ p.responsabil_proiect|default:"—" }}</dd>
+      <dt>Solicitant</dt><dd>{{ p.solicitant|default:"—" }}</dd>
+      <dt>Tip investiție</dt><dd>{{ p.get_tip_investitie_display|default:"—" }}</dd>
+      <dt>Autorizare</dt><dd>{% if p.tip_autorizare == 'cu_ac' %}cu autorizație de construire{% elif p.tip_autorizare %}fără autorizație de construire{% else %}—{% endif %}</dd>
+      <dt>Perioadă</dt><dd>{{ p.data_demarare|date:"d.m.Y"|default:"—" }} – {% if p.fara_termen %}FT{% else %}{{ p.data_finalizare|date:"d.m.Y"|default:"—" }}{% endif %}</dd>
+      <dt>Prioritate</dt><dd>{{ p.get_prioritate_display }}</dd>
+      <dt>Finanțare</dt><dd>{% include "platforma/_structura_finantare.html" with compact=1 %}</dd>
+      {% if p.descriere_lucrari %}<dt>Descriere</dt><dd class="prez-desc">{{ p.descriere_lucrari|linebreaksbr }}</dd>{% endif %}
+      {% if p.observatii_rz %}<dt>Observații</dt><dd>{{ p.observatii_rz|linebreaksbr }}</dd>{% endif %}
+      {% for pv in procese_verbale %}<dt>{% if forloop.first %}Închidere{% endif %}</dt><dd><a href="{% url 'pv_detaliu' p.pk pv.pk %}">{{ pv.get_tip_display }} {{ pv.numar }}</a> · {{ pv.data|date:"d.m.Y" }} · <span class="badge {% if pv.status == 'semnat' %}text-bg-success{% else %}text-bg-warning{% endif %}">{{ pv.get_status_display }}</span></dd>{% endfor %}
+    </dl>
+    <div class="card-footer small text-secondary py-2">Datele se modifică doar printr-o revizie a Raportului Zero.</div>
+   </div>
+  </div>
+ </div>
+
+ <div class="col-lg-8 col-xxl-9">
+  <div class="card">
+   <div class="card-header d-flex align-items-center gap-2 flex-wrap"><i class="bi bi-clock-history"></i><span class="fw-semibold">Cronologia proiectului</span>
+     <div class="prez-filtre ms-auto d-flex flex-wrap gap-1">
+       <button type="button" class="btn btn-sm btn-outline-secondary active" data-cat="">Toate <span class="badge rounded-pill text-bg-light">{{ cronologie|length }}</span></button>
+       {% for k, et, ic, n in cronologie_categorii %}{% if n %}<button type="button" class="btn btn-sm btn-outline-secondary" data-cat="{{ k }}"><i class="bi {{ ic }}"></i> {{ et }} <span class="badge rounded-pill text-bg-light">{{ n }}</span></button>{% endif %}{% endfor %}
+     </div></div>
+   <div class="card-body prez-cron">
+    {% for e in cronologie %}
+     {% ifchanged e.moment.date %}<div class="prez-zi">{{ e.moment|date:"l, d F Y"|capfirst }}</div>{% endifchanged %}
+     <div class="prez-ev" data-cat="{{ e.cat }}">
+       <span class="prez-ev-ic cat-{{ e.cat }}"><i class="bi {{ e.iconita }}"></i></span>
+       <div class="flex-grow-1 min-w-0">
+         <div><b>{{ e.model|capfirst }}</b> {{ e.verb }}{% if e.nr > 1 %} <span class="badge text-bg-light">×{{ e.nr }}</span>{% else %}: <span class="text-body">{{ e.obiect|truncatechars:90 }}</span>{% endif %}</div>
+         {% if e.detalii and e.nr == 1 %}<div class="small text-secondary">{% for d in e.detalii %}{{ d }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+       </div>
+       <div class="small text-secondary text-end text-nowrap">{{ e.moment|date:"H:i" }}<div>{{ e.user }}</div></div>
+     </div>
+    {% empty %}<p class="text-secondary small mb-0">Nicio modificare înregistrată încă.</p>{% endfor %}
+   </div>
+  </div>
+ </div>
+</div>
+<script>
+(() => {
+  const btn = document.querySelectorAll('.prez-filtre [data-cat]');
+  btn.forEach(b => b.addEventListener('click', () => {
+    btn.forEach(x => x.classList.toggle('active', x === b));
+    const c = b.dataset.cat;
+    document.querySelectorAll('.prez-ev').forEach(e => e.classList.toggle('d-none', !!c && e.dataset.cat !== c));
+    document.querySelectorAll('.prez-zi').forEach(z => {  // ziua rămâne vizibilă doar dacă are evenimente afișate
+      let x = z.nextElementSibling, are = false;
+      while (x && !x.classList.contains('prez-zi')) { if (!x.classList.contains('d-none')) are = true; x = x.nextElementSibling; }
+      z.classList.toggle('d-none', !are);
+    });
+  }));
+})();
+</script>

@@ -65,7 +65,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "platforma" / "templates_admin"],  # tema aplicației pentru ecranele de administrare
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [

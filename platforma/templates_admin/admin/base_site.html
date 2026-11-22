@@ -1,0 +1,39 @@
+{% extends "admin/base.html" %}{% load static %}
+{# Ecranele de administrare (Setări) în tema aplicației: aceleași culori, aceeași siglă, link înapoi în aplicație #}
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} · Setări · Carmistin{% endblock %}
+{% block extrastyle %}{{ block.super }}
+<link rel="icon" type="image/png" href="{% static 'platforma/favicon.png' %}">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  :root, html[data-theme="light"], html[data-theme="auto"] {
+    --primary: #1d9e75; --secondary: #12322e; --accent: #e8a33d; --primary-fg: #fff;
+    --header-color: #d8eee8; --header-branding-color: #fff; --header-bg: #12322e; --header-link-color: #fff;
+    --breadcrumbs-fg: #0b5a46; --breadcrumbs-link-fg: #0b5a46; --breadcrumbs-bg: #e3f4ee;
+    --link-fg: #0b5a46; --link-hover-color: #12322e; --link-selected-fg: #12322e;
+    --hairline-color: #e6ecea; --border-color: #dfe7e4; --darkened-bg: #f6f9f8; --selected-bg: #e3f4ee; --selected-row: #fff8eb;
+    --button-bg: #1d9e75; --button-hover-bg: #0f7a5a; --default-button-bg: #12322e; --default-button-hover-bg: #1d4a43;
+    --object-tools-bg: #6b7c78; --object-tools-hover-bg: #12322e;
+    --font-family-primary: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  body { background: #f4f6f9; }
+  #header { padding: 10px 24px; }
+  #branding h1 { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .1em; font-size: 1rem; }
+  #branding h1 img { width: 30px; height: 30px; filter: invert(1); mix-blend-mode: screen; }
+  #branding h1 small { letter-spacing: 0; font-weight: 400; color: #9cc7bd; font-size: .8rem; }
+  .inapoi-app { color: #fff !important; background: #1d9e75; border-radius: 8px; padding: 4px 10px; text-decoration: none; margin-right: 10px; }
+  .inapoi-app:hover { background: #0f7a5a; }
+  .module h2, .module caption, .inline-group h2 { background: #12322e; border-radius: 8px 8px 0 0; }
+  .module { border-radius: 10px; overflow: hidden; box-shadow: 0 1px 2px rgba(18, 50, 46, .06); background: #fff; }
+  #content { padding: 20px 28px; }
+  #content h1 { color: #12322e; font-weight: 600; }
+  div.breadcrumbs { padding: 8px 28px; }
+  #nav-sidebar { background: #fff; }
+  .button, input[type=submit], input[type=button], .submit-row input, a.button { border-radius: 7px; }
+  #changelist-filter { border-radius: 10px; }
+  #changelist-filter h2 { background: #12322e; }
+  #toggle-nav-sidebar { display: none; }
+</style>{% endblock %}
+{% block branding %}<h1 id="site-name"><a href="{% url 'admin:index' %}"><img src="{% static 'platforma/logo-semn.png' %}" alt=""> CARMISTIN <small>Setări</small></a></h1>{% endblock %}
+{% block usertools %}<div id="user-tools"><a class="inapoi-app" href="{% url 'setari_aplicatie' %}"><i class="bi bi-arrow-left"></i> Înapoi în aplicație</a>
+  {{ request.user.get_full_name|default:request.user.username }} · <form id="logout-form" method="post" action="{% url 'logout' %}" style="display:inline">{% csrf_token %}<button type="submit">Ieșire</button></form></div>{% endblock %}
+{% block nav-global %}{% endblock %}

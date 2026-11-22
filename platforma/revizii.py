@@ -10,12 +10,12 @@ CAMPURI = {
     "denumire": "denumire", "linie": "linie", "divizie": "divizie", "tip_investitie": "tip_investitie",
     "necesita_ac": "tip_autorizare", "solicitant": "solicitant", "descriere_lucrari": "descriere_lucrari",
     "valoare_rz": "valoare_rz", "moneda_rz": "moneda_rz", "prioritate": "prioritate",
-    "data_demarare": "data_demarare", "data_finalizare": "data_finalizare", "fara_termen": "fara_termen", "fonduri_ue": "fonduri_ue",
+    "data_demarare": "data_demarare", "data_finalizare": "data_finalizare", "fara_termen": "fara_termen", "executat_inno": "executat_inno", "fonduri_ue": "fonduri_ue",
     "fin_nerambursabil": "fin_nerambursabil", "fin_bancara": "fin_bancara", "fin_proprii": "fin_proprii",
     "val_nerambursabil": "val_nerambursabil", "val_bancara": "val_bancara", "observatii_rz": "observatii_rz",
 }
 NUMERICE = {"valoare_rz", "val_nerambursabil", "val_bancara"}
-BIFE = {"fara_termen", "fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "necesita_ac"}
+BIFE = {"fara_termen", "executat_inno", "fonduri_ue", "fin_nerambursabil", "fin_bancara", "fin_proprii", "necesita_ac"}
 
 
 def _norm(camp, v):
@@ -118,7 +118,7 @@ def marcheaza_echipamente(randuri, ref, cheie_valoare_ron):
 
 ETICHETE = {
     "denumire": "Denumire proiect", "linie": "Linie de business", "divizie": "Divizie", "tip_investitie": "Tip investiție",
-    "necesita_ac": "Necesită autorizație de construire", "solicitant": "Solicitant", "responsabil": "Responsabil proiect",
+    "necesita_ac": "Necesită autorizație de construire", "executat_inno": "Executat prin INNO AG", "solicitant": "Solicitant", "responsabil": "Responsabil proiect",
     "descriere_lucrari": "Descriere investiție", "valoare_rz": "Valoare Raport Zero", "moneda_rz": "Moneda RZ",
     "prioritate": "Prioritate", "data_demarare": "Data demarare", "data_finalizare": "Termen finalizare", "fara_termen": "Proiect FT (fără termen de finalizare)",
     "fonduri_ue": "Fonduri UE", "fin_nerambursabil": "Finanțare nerambursabilă", "fin_bancara": "Finanțare bancară",

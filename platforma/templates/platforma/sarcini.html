@@ -1,11 +1,12 @@
 {% extends "platforma/base.html" %}
 {% block titlu %}Sarcinile mele{% endblock %}
 {% block continut %}
-{% if poate_aloca %}<ul class="nav nav-pills nav-pills-setari mb-3">
-  <li class="nav-item"><a class="nav-link {% if vedere != 'alocare' %}active{% endif %}" href="{% url 'sarcini' %}"><i class="bi bi-list-check"></i> Sarcinile mele <span class="badge rounded-pill text-bg-light">{{ total }}</span></a></li>
-  <li class="nav-item"><a class="nav-link {% if vedere == 'alocare' %}active{% endif %}" href="{% url 'sarcini' %}?vedere=alocare"><i class="bi bi-person-lines-fill"></i> Alocare sarcini</a></li>
-</ul>{% endif %}
-{% if vedere == 'alocare' %}{% include "platforma/_alocare_sarcini.html" %}{% else %}
+<ul class="nav nav-pills nav-pills-setari mb-3">
+  <li class="nav-item"><a class="nav-link {% if not vedere %}active{% endif %}" href="{% url 'sarcini' %}"><i class="bi bi-list-check"></i> Sarcinile mele <span class="badge rounded-pill text-bg-light">{{ total }}</span></a></li>
+  <li class="nav-item"><a class="nav-link {% if vedere == 'aprobari' %}active{% endif %}" href="{% url 'sarcini' %}?vedere=aprobari"><i class="bi bi-check2-square"></i> Aprobări {% if nr_aprobari %}<span class="badge rounded-pill text-bg-warning">{{ nr_aprobari }}</span>{% endif %}</a></li>
+  {% if poate_aloca %}<li class="nav-item"><a class="nav-link {% if vedere == 'alocare' %}active{% endif %}" href="{% url 'sarcini' %}?vedere=alocare"><i class="bi bi-person-lines-fill"></i> Alocare sarcini</a></li>{% endif %}
+</ul>
+{% if vedere == 'alocare' %}{% include "platforma/_alocare_sarcini.html" %}{% elif vedere == 'aprobari' %}{% include "platforma/_aprobari.html" %}{% else %}
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <div><h4 class="mb-0">Sarcinile mele</h4>
     <div class="small text-secondary">Generate din alocările dumneavoastră: etapele și subetapele unde sunteți responsabil și raportul zilnic de șantier pe proiectele unde sunteți „Responsabil teren”.</div></div>

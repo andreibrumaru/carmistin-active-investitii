@@ -1,0 +1,31 @@
+{# Desfășurătorul facturilor: o factură pe mai multe linii de buget = rândul „total factură” + câte un sub-rând ↳ pe linie #}
+{% load fmt %}
+<div class="table-responsive"><table class="table table-sm mb-0 align-middle cf-facturi">
+ <thead><tr><th>Factură</th><th>Data</th>{% if cu_furnizor %}<th>Furnizor</th>{% endif %}<th>Linie de buget</th><th class="num">Valoare ({{ p.moneda_urmarire }})</th><th>Scadență</th><th class="num">Achitat</th><th class="num">Rest</th><th></th></tr></thead>
+ <tbody>
+ {% for r in randuri %}{% with x=r.f %}
+  <tr class="cf-fa" data-tip="{{ x.tip_cheltuiala|default:'nespecificat' }}">
+   <td class="text-nowrap"><b>{{ x.numar }}</b>{% for d in x.documente.all %} <a href="{% url 'document' d.pk %}" data-vizualizeaza title="{{ d.titlu }}"><i class="bi bi-paperclip"></i></a>{% endfor %}</td>
+   <td class="text-nowrap text-secondary">{{ x.data|date:"d.m.y" }}</td>
+   {% if cu_furnizor %}<td class="cf-trunc" title="{{ x.furnizor }}">{% if x.tip_cheltuiala %}<span class="cf-tip-chelt">{{ x.get_tip_cheltuiala_display }}</span> {% endif %}{{ x.furnizor }}</td>{% endif %}
+   <td class="cf-trunc">{% if r.impartita %}<span class="text-secondary"><i class="bi bi-diagram-2"></i> {{ r.sub|length }} linii</span>{% elif r.linie %}<span title="{{ r.linie.capitol }} {{ r.linie.denumire }}"><b class="fw-semibold">{{ r.linie.capitol }}</b> {{ r.linie.denumire }}</span>{% if editabil_fin and not x.lot_export %} <a href="{% url 'obiect_editare' p.pk 'alocare' r.sub.0.alocare.pk %}" title="modifică repartizarea"><i class="bi bi-pencil"></i></a>{% endif %}{% else %}<span class="text-danger">nerepartizată</span>{% if editabil_fin %} <a href="{% url 'obiect_nou' p.pk 'alocare' %}?factura={{ x.pk }}&valoare_ron={{ r.nealocat }}">+ alocă</a>{% endif %}{% endif %}</td>
+   <td class="num fw-semibold"{% if x.moneda != p.moneda_urmarire %} title="{{ x.valoare|bani2 }} {{ x.moneda }}"{% endif %}>{{ x.valoare_ron|bp2:p }}</td>
+   <td class="text-nowrap {% if x.scadenta_depasita %}text-danger fw-semibold{% endif %}">{{ x.scadenta|date:"d.m.y"|default:"—" }}{% if x.scadenta_depasita %} <i class="bi bi-exclamation-triangle" title="scadență depășită"></i>{% endif %}</td>
+   <td class="num {% if x.achitata %}text-success fw-semibold{% endif %}">{{ r.platit|bp2:p }}{% if x.in_aprobare_ron %} <i class="bi bi-hourglass-split text-secondary" title="în aprobare: {{ x.in_aprobare_ron|bp:p }} {{ p.moneda_urmarire }}"></i>{% endif %}</td>
+   <td class="num {% if r.rest > 0 and x.scadenta_depasita %}text-danger fw-semibold{% elif r.rest > 0 %}text-warning-emphasis{% else %}text-secondary{% endif %}">{{ r.rest|bp2:p }}</td>
+   <td class="text-nowrap cf-act">{% if editabil_fin %}{% if not x.lot_export %}<a href="{% url 'obiect_editare' p.pk 'factura' x.pk %}" title="editează factura"><i class="bi bi-pencil"></i></a>{% endif %}
+     {% if not x.documente.all %}<a href="{% url 'obiect_nou' p.pk 'document' %}?factura={{ x.pk }}&categorie=factura&titlu=Factura {{ x.numar|urlencode }}" title="atașează factura"><i class="bi bi-upload"></i></a>{% endif %}
+{% endif %}{% if r.rest > x.in_aprobare_ron and not r.nealocat %} <a href="?tab=plati" class="cf-plata" title="de plătit – solicitarea de plată se generează din „Plăți”"><i class="bi bi-cash-coin"></i></a>{% endif %}</td>
+  </tr>
+  {% if r.impartita %}
+   {% for s in r.sub %}<tr class="cf-sub"><td class="text-end text-secondary">↳</td><td></td>{% if cu_furnizor %}<td></td>{% endif %}
+    <td class="cf-trunc"><span title="{{ s.linie.capitol }} {{ s.linie.denumire }}"><b class="fw-semibold">{{ s.linie.capitol }}</b> {{ s.linie.denumire }}</span>{% if editabil_fin and not x.lot_export %} <a href="{% url 'obiect_editare' p.pk 'alocare' s.alocare.pk %}" title="modifică repartizarea"><i class="bi bi-pencil"></i></a>{% endif %}</td>
+    <td class="num">{{ s.valoare|bp2:p }}</td><td></td><td class="num">{{ s.platit|bp2:p }}</td><td class="num">{{ s.valoare|sub:s.platit|bp2:p }}</td><td></td></tr>{% endfor %}
+   {% if r.nealocat %}<tr class="cf-sub"><td class="text-end text-secondary">↳</td><td></td>{% if cu_furnizor %}<td></td>{% endif %}<td class="text-danger">nerepartizat{% if editabil_fin %} <a href="{% url 'obiect_nou' p.pk 'alocare' %}?factura={{ x.pk }}&valoare_ron={{ r.nealocat }}">+ alocă</a>{% endif %}</td><td class="num text-danger">{{ r.nealocat|bp2:p }}</td><td colspan="4"></td></tr>{% endif %}
+  {% endif %}
+ {% endwith %}{% empty %}
+  <tr><td colspan="{% if cu_furnizor %}9{% else %}8{% endif %}" class="text-center text-secondary py-3">{% if cu_furnizor %}Nicio factură fără contract. Folosiți „+ Factură / chitanță” pentru avize, taxe, autorizații.{% else %}Nicio factură emisă pe acest contract.{% endif %}</td></tr>
+ {% endfor %}
+ </tbody>
+ {% if randuri %}<tfoot><tr class="fw-semibold"><td {% if cu_furnizor %}colspan="4"{% else %}colspan="3"{% endif %}>Total</td><td class="num">{{ sumar.facturat|bp2:p }}</td><td></td><td class="num">{{ sumar.platit|bp2:p }}</td><td class="num">{{ sumar.rest_plata|bp2:p }}</td><td></td></tr></tfoot>{% endif %}
+</table></div>

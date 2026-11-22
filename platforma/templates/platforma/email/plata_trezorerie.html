@@ -1,0 +1,29 @@
+{% load fmt %}<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;background:#f3f5f8;font-family:Segoe UI,Arial,sans-serif;color:#1f2937">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f5f8;padding:24px 0"><tr><td align="center">
+<table role="presentation" width="800" cellpadding="0" cellspacing="0" style="max-width:800px;background:#fff;border:1px solid #dde3ea;border-radius:8px">
+<tr><td style="padding:18px 26px;border-bottom:3px solid #1d9e75">
+ <div style="font-size:18px;font-weight:700;color:#0b5a46">PLĂȚI APROBATE · {{ s.numar }}</div>
+ <div style="font-size:13px;color:#374151;margin-top:4px"><b>{{ p.beneficiar }}</b> · {{ p.cod }} · {{ p.denumire }}</div>
+ <div style="margin-top:10px;background:#e3f4ee;border:1px solid #9fd8c0;border-radius:5px;padding:7px 10px;font-size:13px;color:#0b5a46">
+  ✔ Aprobată de <b>{{ s.aprobat_de.get_full_name|default:s.aprobat_de.username }}</b> (administrator) la {{ s.aprobat_la|date:"d.m.Y H:i" }} · data plății: <b>{{ s.data_plata|date:"d.m.Y" }}</b></div>
+ <div style="font-size:12px;color:#6b7280;margin-top:6px">Inițiată de {{ s.creata_de.get_full_name|default:s.creata_de.username }} la {{ s.creata_la|date:"d.m.Y H:i" }}</div>
+</td></tr>
+<tr><td style="padding:18px 26px">
+<table role="presentation" width="100%" cellpadding="5" cellspacing="0" style="border-collapse:collapse;font-size:13px">
+ <tr style="background:#0b5a46;color:#fff;font-weight:600"><td style="padding:6px">#</td><td style="padding:6px">Furnizor</td><td style="padding:6px">Factură</td><td style="padding:6px">Data</td><td style="padding:6px">Scadență</td><td style="padding:6px;text-align:right">Fără TVA</td><td style="padding:6px;text-align:right">TVA</td><td style="padding:6px;text-align:right">De plată</td></tr>
+ {% for r in randuri %}<tr>
+  <td style="border-bottom:1px solid #e5e7eb;color:#6b7280">{{ forloop.counter }}</td>
+  <td style="border-bottom:1px solid #e5e7eb">{{ r.f.furnizor }}{% if r.f.cui_furnizor %}<div style="color:#6b7280;font-size:11px">CUI {{ r.f.cui_furnizor }}{% if r.f.contract %} · contract {{ r.f.contract.numar }}{% endif %}</div>{% endif %}</td>
+  <td style="border-bottom:1px solid #e5e7eb;font-weight:600;white-space:nowrap">{{ r.f.numar }}</td>
+  <td style="border-bottom:1px solid #e5e7eb;white-space:nowrap">{{ r.f.data|date:"d.m.Y" }}</td>
+  <td style="border-bottom:1px solid #e5e7eb;white-space:nowrap">{{ r.f.scadenta|date:"d.m.Y"|default:"—" }}</td>
+  <td style="border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap">{{ r.pl.suma_ron|bani2 }}</td>
+  <td style="border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap;color:#6b7280">{{ r.tva|bani2 }}</td>
+  <td style="border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap;font-weight:700">{{ r.total|bani2 }}</td></tr>{% endfor %}
+ <tr style="background:#e3f4ee;font-weight:700"><td colspan="5" style="padding:7px">TOTAL DE PLATĂ ({{ randuri|length }} facturi) – RON</td><td style="text-align:right;padding:7px">{{ total|bani2 }}</td><td style="text-align:right;padding:7px">{{ total_tva|bani2 }}</td><td style="text-align:right;padding:7px;font-size:15px">{{ total_plata|bani2 }}</td></tr>
+</table>
+{% if s.observatii %}<div style="margin-top:10px;font-size:13px"><b>Observații:</b> {{ s.observatii }}</div>{% endif %}
+<div style="margin-top:12px;font-size:13px"><b>Facturi atașate ({{ docs|length }}):</b> {% for d in docs %}{{ d.factura.numar }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+ {% if fara_doc %}<div style="color:#a12622;margin-top:4px">Fără document încărcat în aplicație: {% for f in fara_doc %}{{ f.numar }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}</div>
+<div style="font-size:12px;color:#6b7280;margin-top:14px">Sumele sunt în RON; TVA calculat proporțional cu suma de plată. Detalii în aplicație: <a href="{{ link_aplicatie }}">{{ p.cod }} → Plăți</a>.</div>
+</td></tr></table></td></tr></table></body></html>

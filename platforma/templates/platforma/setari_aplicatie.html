@@ -1,0 +1,13 @@
+{% extends "platforma/base.html" %}
+{% block titlu %}Setări aplicație{% endblock %}
+{% block continut %}
+<div class="mb-3"><h4 class="mb-0">Setări aplicație</h4><div class="small text-secondary">Configurarea aplicației: utilizatori și roluri, nomenclatoare, firme, autorizații, echipe, jurnal.</div></div>
+{% for grup, carduri in sectiuni %}
+<div class="setari-grup">{{ grup }}</div>
+<div class="row g-3 mb-3">{% for c in carduri %}
+  <div class="col-md-6 col-xl-4"><a class="card h-100 setari-card text-decoration-none" href="{{ c.url }}">
+    <div class="card-body d-flex gap-3 align-items-start"><span class="setari-ic"><i class="bi {{ c.iconita }}"></i></span>
+      <div><div class="fw-semibold text-body">{{ c.titlu }}{% if c.nr is not None %} <span class="badge rounded-pill text-bg-light">{{ c.nr }}</span>{% endif %}</div><div class="small text-secondary">{{ c.desc }}</div></div></div></a></div>
+{% endfor %}</div>
+{% endfor %}
+{% endblock %}

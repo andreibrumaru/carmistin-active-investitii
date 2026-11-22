@@ -1,0 +1,71 @@
+{% extends "platforma/base.html" %}
+{% load fmt %}
+{% block titlu %}{{ titlu }}{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center mb-3">
+  <a href="{{ inapoi }}" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  <div><h4 class="mb-0">{{ titlu }}</h4><div class="text-secondary small">{{ eticheta }}</div></div>
+</div>
+{% if eroare %}<div class="alert alert-danger">{{ eroare }}</div>{% endif %}
+<form method="post" id="formRep">{% csrf_token %}
+<div class="card">
+ <div class="card-body pb-2">
+  <div class="cf-kpi cf-kpi-3 mt-0" style="max-width:720px">
+   <div><span>Valoare {% if tip == 'contract' %}contract{% else %}factură{% endif %} (fără TVA)</span><b>{{ baza|bani2 }} {{ moneda }}</b>{% if curs %}<small>curs {{ curs }} · {{ o.valoare_ron|bani2 }} RON</small>{% endif %}</div>
+   <div><span>Repartizat pe linii</span><b id="repTotal">0</b></div>
+   <div><span>Rest de repartizat</span><b id="repRest">0</b></div>
+  </div>
+  <div class="small text-secondary">Bifați una sau mai multe linii de buget și completați valoarea pe fiecare, în <b>{{ moneda }}</b>{% if curs %} (moneda contractului; se convertește în RON la cursul {{ curs }}){% endif %}. La bifare se propune automat restul nerepartizat.</div>
+ </div>
+ <div class="d-flex align-items-center px-3 pb-2 gap-3">
+  {% if doar_cu_buget %}<div class="form-check form-switch small mb-0"><input class="form-check-input" type="checkbox" id="toateLiniile"><label class="form-check-label" for="toateLiniile">Arată și liniile fără buget</label></div>{% endif %}
+ </div>
+ <div class="table-responsive"><table class="table table-sm align-middle mb-0 rep-tabel">
+  <thead><tr><th style="width:36px"></th><th style="width:60px">Cap.</th><th>Linie de buget</th><th class="num">Buget actualizat ({{ p.moneda_urmarire }})</th><th class="num">Disponibil ({{ p.moneda_urmarire }})</th><th class="num" style="width:190px">Valoare repartizată ({{ moneda }})</th></tr></thead>
+  <tbody>{% for r in randuri %}
+   <tr class="rep-rand {% if r.bifata %}rep-bifat{% endif %} {% if doar_cu_buget and not r.cu_buget and not r.bifata %}d-none rep-fara-buget{% elif not r.cu_buget %}rep-fara-buget{% endif %}">
+    <td><input class="form-check-input rep-bifa" type="checkbox" name="linie" value="{{ r.l.pk }}" id="l{{ r.l.pk }}" {% if r.bifata %}checked{% endif %}></td>
+    <td class="text-secondary"><label for="l{{ r.l.pk }}">{{ r.l.capitol }}</label></td>
+    <td><label for="l{{ r.l.pk }}">{{ r.l.denumire }}</label></td>
+    <td class="num">{{ r.buget|bp:p }}</td>
+    <td class="num {% if r.disponibil < 0 %}text-danger{% endif %}">{{ r.disponibil|bp:p }}</td>
+    <td><input name="v_{{ r.l.pk }}" value="{{ r.valoare }}" class="form-control form-control-sm text-end rep-val" inputmode="decimal" {% if not r.bifata %}disabled{% endif %}></td>
+   </tr>{% endfor %}</tbody>
+ </table></div>
+ <div class="card-footer d-flex gap-2 align-items-center">
+  <button class="btn btn-primary btn-sm"><i class="bi bi-check2"></i> Salvează repartizarea</button>
+  <a href="{{ inapoi }}" class="btn btn-outline-secondary btn-sm">Renunță</a>
+  <span class="small text-secondary ms-auto">Liniile debifate își pierd alocarea la salvare.</span>
+ </div>
+</div>
+</form>
+<script>
+(() => {
+  const baza = {{ baza|stringformat:"s" }}, moneda = '{{ moneda }}';
+  const nr = t => { t = (t || '').replace(/\s/g, ''); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); else if ((t.match(/\./g) || []).length > 1) t = t.replace(/\./g, ''); const v = parseFloat(t); return isNaN(v) ? 0 : v; };
+  const fmt = v => new Intl.NumberFormat('ro-RO', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(v) + ' ' + moneda;
+  const randuri = [...document.querySelectorAll('.rep-rand')];
+  const total = () => randuri.reduce((s, r) => s + (r.querySelector('.rep-bifa').checked ? nr(r.querySelector('.rep-val').value) : 0), 0);
+  const recalc = () => {
+    const t = total(), rest = Math.round((baza - t) * 100) / 100;
+    document.getElementById('repTotal').textContent = fmt(t);
+    const e = document.getElementById('repRest'); e.textContent = fmt(rest);
+    e.className = rest < 0 ? 'text-danger' : (rest === 0 ? 'text-success' : 'text-warning-emphasis');
+  };
+  randuri.forEach(r => {
+    const b = r.querySelector('.rep-bifa'), v = r.querySelector('.rep-val');
+    b.addEventListener('change', () => {
+      v.disabled = !b.checked; r.classList.toggle('rep-bifat', b.checked);
+      if (!b.checked) v.value = '';
+      if (b.checked && !nr(v.value)) { const rest = Math.round((baza - total()) * 100) / 100; if (rest > 0) v.value = rest.toFixed(2).replace('.', ','); v.focus(); v.select(); }
+      recalc();
+    });
+    v.addEventListener('input', recalc);
+  });
+  document.getElementById('toateLiniile')?.addEventListener('change', e => {
+    randuri.filter(r => r.classList.contains('rep-fara-buget') && !r.querySelector('.rep-bifa').checked).forEach(r => r.classList.toggle('d-none', !e.target.checked));
+  });
+  recalc();
+})();
+</script>
+{% endblock %}

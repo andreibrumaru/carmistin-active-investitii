@@ -1,0 +1,27 @@
+{% extends "platforma/base.html" %}
+{% load fmt %}
+{% block titlu %}Registrul partenerilor{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+  {% if e_admin %}<a href="{% url 'setari_aplicatie' %}" class="btn btn-sm btn-outline-secondary me-1" title="Setări aplicație"><i class="bi bi-arrow-left"></i></a>{% endif %}
+  <div><h4 class="mb-0">Registrul partenerilor</h4>
+    <div class="text-secondary small">{{ total }} parteneri · datele firmelor se preiau de la ANAF după CUI{% if neverificati %} · {{ neverificati }} neverificați încă la ANAF{% endif %}</div></div>
+  {% if poate_modifica %}<form method="post" action="{% url 'partener_adauga' %}" class="ms-auto d-flex gap-2">{% csrf_token %}
+    <input name="cui" class="form-control form-control-sm" placeholder="CUI (ex. RO14399840)" style="width:190px" required>
+    <button class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-plus-lg"></i> Adaugă din ANAF</button></form>{% endif %}
+</div>
+<div class="card">
+ <div class="card-body py-2"><form method="get" class="d-flex gap-2"><input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Caută după denumire, CUI sau nr. Reg. Com." style="max-width:360px">
+   <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button>{% if q %}<a href="{% url 'parteneri' %}" class="btn btn-sm btn-link">toți</a>{% endif %}</form></div>
+ <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+  <thead><tr><th>Partener</th><th>CUI</th><th>Reg. Com.</th><th>Județ</th><th>Stare fiscală</th><th class="num">Contracte</th><th class="num">Valoare contractată (RON)</th><th class="num">Facturi</th></tr></thead>
+  <tbody>{% for pt in parteneri %}<tr role="button" onclick="location.href='{% url 'partener' pt.pk %}'">
+    <td><a href="{% url 'partener' pt.pk %}" class="fw-semibold text-decoration-none">{{ pt.denumire }}</a></td>
+    <td class="text-nowrap">{{ pt.cui }}</td><td class="small text-secondary">{{ pt.nr_reg_com|default:"—" }}</td><td class="small">{{ pt.judet|default:"—" }}</td>
+    <td>{% if pt.inactiv or pt.radiat %}<span class="badge text-bg-danger">{% if pt.radiat %}radiat{% else %}inactiv{% endif %}</span>{% elif pt.platitor_tva %}<span class="badge text-bg-success">plătitor TVA</span>{% elif pt.platitor_tva is False %}<span class="badge text-bg-warning">neplătitor TVA</span>{% endif %}
+      {% if not pt.verificat_anaf_la %}<span class="badge text-bg-light border" title="adăugat din contractele existente; datele ANAF se preiau la prima verificare">neverificat</span>{% endif %}</td>
+    <td class="num">{{ pt.nr_contracte }}</td><td class="num">{{ pt.valoare_contracte|bani }}</td><td class="num">{{ pt.nr_facturi }}</td>
+  </tr>{% empty %}<tr><td colspan="8" class="text-center text-secondary py-4">{% if q %}Niciun partener găsit.{% else %}Registrul este gol. Partenerii se adaugă automat la salvarea contractelor sau din „Adaugă din ANAF”.{% endif %}</td></tr>{% endfor %}</tbody>
+ </table></div>
+</div>
+{% endblock %}

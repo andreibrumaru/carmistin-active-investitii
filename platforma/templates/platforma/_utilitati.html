@@ -1,0 +1,91 @@
+{# Utilitățile activului: lista utilităților în stânga, datele utilității alese în dreapta (fără reîncărcarea paginii) #}
+<div class="row g-3 ut">
+ <div class="col-lg-3">
+  <div class="list-group ut-lista">
+   {% for x in utilitati %}
+   <button type="button" class="list-group-item list-group-item-action ut-btn {% if x.tip == utilitate_activa %}active{% endif %}" data-ut="{{ x.tip }}">
+     <div class="d-flex align-items-center gap-2"><i class="bi {{ x.iconita }} ut-ic"></i><span class="fw-semibold">{{ x.eticheta }}</span>
+       {% if x.u %}<span class="badge ut-st-{{ x.u.stare }} ms-auto">{{ x.u.get_stare_display }}</span>{% else %}<span class="badge text-bg-light ms-auto">necompletat</span>{% endif %}</div>
+     {% if x.sumar %}<div class="small ut-sumar">{{ x.sumar }}</div>{% endif %}
+   </button>
+   {% endfor %}
+  </div>
+  <div class="small text-secondary mt-2">{{ utilitati_completate }} din {{ utilitati|length }} utilități cu date. Apăsați pe o utilitate pentru detalii.</div>
+ </div>
+
+ <div class="col-lg-9">
+ {% for x in utilitati %}{% with u=x.u %}
+ <div class="card ut-panou {% if x.tip != utilitate_activa %}d-none{% endif %}" data-ut="{{ x.tip }}">
+  <div class="card-header d-flex align-items-center gap-2"><i class="bi {{ x.iconita }} fs-5 ut-ic"></i><span class="fw-semibold">{{ x.eticheta }}</span>
+    {% if u %}<span class="badge ut-st-{{ u.stare }}">{{ u.get_stare_display }}</span>{% endif %}
+    {% if e_admin %}<button type="button" class="btn btn-sm btn-outline-primary ms-auto" data-bs-toggle="collapse" data-bs-target="#ut-edit-{{ x.tip }}"><i class="bi bi-pencil"></i> {% if u %}Editează datele{% else %}Completează datele{% endif %}</button>{% endif %}</div>
+
+  {% if e_admin %}<div class="collapse" id="ut-edit-{{ x.tip }}"><form method="post" action="{% url 'utilitate_salveaza' loc.pk x.tip %}" class="card-body border-bottom bg-body-tertiary row g-2 small">{% csrf_token %}
+    <div class="col-md-3"><label class="form-label mb-0">Stare</label><select name="stare" class="form-select form-select-sm">{% for c, et in stari_utilitate %}<option value="{{ c }}" {% if u.stare == c %}selected{% endif %}>{{ et }}</option>{% endfor %}</select></div>
+    <div class="col-md-5"><label class="form-label mb-0">Furnizor / operator</label><input name="furnizor" value="{{ u.furnizor }}" class="form-control form-control-sm"></div>
+    <div class="col-md-4"><label class="form-label mb-0">Titular punct de consum</label><input name="titular" value="{{ u.titular }}" class="form-control form-control-sm"></div>
+    <div class="col-md-4"><label class="form-label mb-0">Cod loc de consum (POD / CLC / NLC)</label><input name="cod_loc_consum" value="{{ u.cod_loc_consum }}" class="form-control form-control-sm"></div>
+    <div class="col-md-4"><label class="form-label mb-0">Contract furnizare</label><input name="nr_contract" value="{{ u.nr_contract }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md-2"><label class="form-label mb-0">Consum mediu anual ({{ x.um }})</label><input name="consum_anual" value="{{ u.consum_anual|default_if_none:'' }}" class="form-control form-control-sm" placeholder="din curbă"></div>
+    <div class="col-6 col-md-2"><label class="form-label mb-0">Consum mediu lunar ({{ x.um }})</label><input name="consum_lunar" value="{{ u.consum_lunar|default_if_none:'' }}" class="form-control form-control-sm" placeholder="din curbă"></div>
+    <div class="col-12 fw-semibold mt-2">Date tehnice</div>
+    {% for c in x.campuri %}<div class="col-md-4"><label class="form-label mb-0">{{ c.eticheta }}{% if c.um %} ({{ c.um }}){% endif %}</label><input name="d_{{ c.cheie }}" value="{{ c.valoare }}" class="form-control form-control-sm"></div>{% endfor %}
+    <div class="col-12 fw-semibold mt-2">Curba de consum – consum lunar ({{ x.um }})</div>
+    <div class="col-12"><div class="table-responsive"><table class="table table-sm mb-0 ut-curba-tabel"><thead><tr><th>An</th>{% for l in luni %}<th>{{ l }}</th>{% endfor %}</tr></thead><tbody>
+      {% for r in x.curba %}<tr><td><input type="hidden" name="an" value="{{ r.an }}"><b>{{ r.an }}</b></td>{% for v in r.luni %}<td><input name="c_{{ r.an }}_{{ forloop.counter0 }}" value="{{ v.v|default_if_none:'' }}" class="form-control form-control-sm"></td>{% endfor %}</tr>{% endfor %}
+      <tr class="table-light"><td><input name="an_nou" class="form-control form-control-sm" placeholder="an nou" style="width:72px" {% if not x.curba %}value="{{ an_curent }}"{% endif %}></td>{% for l in luni %}<td><input name="c_nou_{{ forloop.counter0 }}" class="form-control form-control-sm"></td>{% endfor %}</tr>
+    </tbody></table></div><div class="form-text">Consumul mediu anual / lunar se calculează din cel mai recent an, dacă îl lăsați gol. Un an se șterge golindu-i toate lunile.</div></div>
+    <div class="col-12"><label class="form-label mb-0">Observații</label><textarea name="observatii" rows="2" class="form-control form-control-sm">{{ u.observatii }}</textarea></div>
+    <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Salvează</button></div>
+  </form></div>{% endif %}
+
+  <div class="card-body">
+   {% if not u and not e_admin %}<p class="text-secondary small mb-0">Nu există date pentru această utilitate.</p>{% else %}
+   <div class="row g-3 mb-2 ut-date">
+     <div class="col-sm-6 col-xl-4"><div class="ut-lbl">Furnizor / operator</div><div>{{ u.furnizor|default:"—" }}</div></div>
+     <div class="col-sm-6 col-xl-4"><div class="ut-lbl">Titular punct de consum</div><div>{{ u.titular|default:"—" }}</div></div>
+     <div class="col-sm-6 col-xl-4"><div class="ut-lbl">Cod loc de consum</div><div>{{ u.cod_loc_consum|default:"—" }}</div></div>
+     <div class="col-sm-6 col-xl-4"><div class="ut-lbl">Contract furnizare</div><div>{{ u.nr_contract|default:"—" }}</div></div>
+     <div class="col-sm-6 col-xl-4"><div class="ut-lbl">Consum mediu anual</div><div class="fw-semibold">{% if u.consum_anual %}{{ u.consum_anual|floatformat:"0g" }} {{ x.um }}{% else %}—{% endif %}</div></div>
+     <div class="col-sm-6 col-xl-4"><div class="ut-lbl">Consum mediu lunar</div><div class="fw-semibold">{% if u.consum_lunar %}{{ u.consum_lunar|floatformat:"0g" }} {{ x.um }}{% else %}—{% endif %}</div></div>
+   </div>
+   <div class="ut-sectiune">Date tehnice</div>
+   <div class="row g-2 mb-3 ut-date">{% for c in x.campuri %}{% if c.valoare %}<div class="col-sm-6 col-xl-4"><div class="ut-lbl">{{ c.eticheta }}</div><div class="fw-semibold">{{ c.valoare }}{% if c.um %} <span class="text-secondary fw-normal">{{ c.um }}</span>{% endif %}</div></div>{% endif %}{% empty %}{% endfor %}
+     {% if not u.detalii %}<div class="col-12 small text-secondary">Nicio dată tehnică completată.{% if e_admin %} Folosiți „{% if u %}Editează{% else %}Completează{% endif %} datele”.{% endif %}</div>{% endif %}</div>
+
+   <div class="ut-sectiune d-flex align-items-center gap-2">Curba de consum
+     {% if x.curba|length > 1 %}<span class="btn-group btn-group-sm ms-2">{% for r in x.curba %}<button type="button" class="btn btn-outline-secondary py-0 ut-an {% if forloop.first %}active{% endif %}" data-an="{{ r.an }}">{{ r.an }}</button>{% endfor %}</span>{% endif %}</div>
+   {% for r in x.curba %}<div class="ut-grafic {% if not forloop.first %}d-none{% endif %}" data-an="{{ r.an }}">
+     <div class="ut-bare">{% for v in r.luni %}<div class="ut-bara" title="{{ v.luna }} {{ r.an }}: {% if v.fmt %}{{ v.fmt }} {{ x.um }}{% else %}fără date{% endif %}"><span class="ut-val">{{ v.fmt }}</span><i style="height:{{ v.h }}%" class="{% if not v.fmt %}gol{% endif %}"></i><span class="ut-luna">{{ v.luna }}</span></div>{% endfor %}</div>
+     <div class="small text-secondary">{{ r.an }}: total {{ r.total }} {{ x.um }}{% if r.n < 12 %} ({{ r.n }} luni cu date){% endif %}</div>
+   </div>{% empty %}<div class="small text-secondary mb-3">Nicio curbă de consum. {% if e_admin %}Introduceți consumul lunar în „{% if u %}Editează{% else %}Completează{% endif %} datele”.{% endif %}</div>{% endfor %}
+
+   <div class="ut-sectiune mt-3">Documente</div>
+   <ul class="list-unstyled small mb-2">{% for d in x.docs %}<li class="d-flex align-items-center gap-2 py-1 border-bottom"><i class="bi bi-file-earmark-text text-primary"></i><a href="{% url 'document' d.pk %}">{{ d.titlu }}</a><span class="badge text-bg-light">{{ d.get_categorie_display }}</span><span class="ms-auto text-secondary">{{ d.incarcat_la|date:"d.m.Y" }}</span></li>{% empty %}<li class="text-secondary">Niciun document atașat.</li>{% endfor %}</ul>
+   {% if e_admin %}<form method="post" enctype="multipart/form-data" action="{% url 'utilitate_documente' loc.pk x.tip %}" class="d-flex gap-2 flex-wrap align-items-center">{% csrf_token %}
+     <select name="categorie" class="form-select form-select-sm" style="width:auto">{% for k, v in categorii_doc_utilitati %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+     <input type="file" name="fisiere" multiple class="form-control form-control-sm" style="max-width:320px" required>
+     <input name="titlu" class="form-control form-control-sm" style="max-width:220px" placeholder="Titlu (opțional)">
+     <button class="btn btn-sm btn-outline-primary"><i class="bi bi-paperclip"></i> Atașează</button></form>{% endif %}
+   {% if u.observatii %}<div class="small mt-3"><b>Observații:</b> {{ u.observatii|linebreaksbr }}</div>{% endif %}
+   {% endif %}
+  </div>
+ </div>
+ {% endwith %}{% endfor %}
+ </div>
+</div>
+<script>
+(() => {
+  const btn = document.querySelectorAll('.ut-btn'), panouri = document.querySelectorAll('.ut-panou');
+  btn.forEach(b => b.addEventListener('click', () => {
+    btn.forEach(x => x.classList.toggle('active', x === b));
+    panouri.forEach(p => p.classList.toggle('d-none', p.dataset.ut !== b.dataset.ut));
+    const url = new URL(location.href); url.searchParams.set('tab', 'utilitati'); url.searchParams.set('u', b.dataset.ut); history.replaceState(null, '', url);
+  }));
+  document.querySelectorAll('.ut-an').forEach(b => b.addEventListener('click', () => {
+    const p = b.closest('.ut-panou');
+    p.querySelectorAll('.ut-an').forEach(x => x.classList.toggle('active', x === b));
+    p.querySelectorAll('.ut-grafic').forEach(g => g.classList.toggle('d-none', g.dataset.an !== b.dataset.an));
+  }));
+})();
+</script>

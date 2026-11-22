@@ -1,0 +1,45 @@
+{% load static fmt %}<!doctype html><html lang="ro"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solicitare de plată{% if s %} {{ s.numar }}{% endif %} · Carmistin</title>
+<meta name="robots" content="noindex">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="{% static 'platforma/stil.css' %}?v=20261122e" rel="stylesheet">
+<link rel="icon" type="image/png" href="{% static 'platforma/favicon.png' %}"></head>
+<body class="bg-light"><div class="container py-4" style="max-width:900px">
+<div class="text-center mb-3"><img src="{% static 'platforma/logo-carmistin.png' %}" alt="Carmistin – The Food Company" class="logo-document"><div class="fw-bold mt-2" style="color:#0b5a46">Solicitare de plată</div></div>
+{% if gata %}
+ <div class="alert {% if gata == 'aproba' %}alert-success{% else %}alert-warning{% endif %} fs-5"><i class="bi {% if gata == 'aproba' %}bi-patch-check{% else %}bi-x-circle{% endif %}"></i>
+  Solicitarea <b>{{ s.numar }}</b> a fost <b>{% if gata == 'aproba' %}aprobată{% else %}respinsă{% endif %}</b> de {{ aprobator.get_full_name|default:aprobator.username }}.
+  {% if gata == 'aproba' and s.stare == 'trimisa' %}<div class="small mt-1">Se așteaptă și aprobarea celuilalt aprobator.</div>{% elif gata == 'aproba' %}<div class="small mt-1">{{ trezorerie_mesaj }}</div>{% endif %}</div>
+ <a href="{% url 'proiect_detaliu' s.proiect_id %}?tab=plati" class="btn btn-outline-primary">Deschide în aplicație</a>
+{% elif eroare %}
+ <div class="alert alert-secondary"><i class="bi bi-info-circle"></i> {{ eroare }}</div>
+ {% if s %}<a href="{% url 'proiect_detaliu' s.proiect_id %}?tab=plati" class="btn btn-outline-primary">Deschide în aplicație</a>{% endif %}
+{% endif %}
+{% if s and not gata %}
+<div class="card mb-3"><div class="card-body">
+ <h5 class="mb-1">{{ s.numar }} · <span class="cod">{{ s.proiect.cod }}</span> {{ s.proiect.denumire }}</h5>
+ <div class="text-secondary small mb-3">{{ s.proiect.beneficiar }} · inițiată de {{ s.creata_de.get_full_name|default:s.creata_de.username }} la {{ s.creata_la|date:"d.m.Y H:i" }} · data propusă a plății <b>{{ s.data_plata|date:"d.m.Y" }}</b></div>
+ {% if rol == 'suplimentar' %}<div class="alert alert-warning small py-2">Aprobare suplimentară: totalul depășește pragul proiectului ({{ s.proiect.prag_aprobare_suplimentara|bani }} RON).</div>{% endif %}
+ <div class="table-responsive"><table class="table table-sm small mb-0 align-middle">
+  <thead><tr class="text-secondary"><th>Furnizor</th><th>Factură</th><th>Data</th><th>Scadență</th><th class="num">Fără TVA</th><th class="num">TVA</th><th class="num">De plată (RON)</th></tr></thead>
+  <tbody>{% for r in randuri %}<tr><td>{{ r.f.furnizor }}</td><td class="fw-semibold">{{ r.f.numar }}</td><td>{{ r.f.data|date:"d.m.Y" }}</td><td>{{ r.f.scadenta|date:"d.m.Y"|default:"—" }}</td>
+   <td class="num">{{ r.pl.suma_ron|bani2 }}</td><td class="num text-secondary">{{ r.tva|bani2 }}</td><td class="num fw-semibold">{{ r.total|bani2 }}</td></tr>{% endfor %}</tbody>
+  <tfoot><tr class="fw-bold"><td colspan="4">Total ({{ randuri|length }} facturi)</td><td class="num">{{ total|bani2 }}</td><td class="num">{{ total_tva|bani2 }}</td><td class="num">{{ total_plata|bani2 }}</td></tr></tfoot>
+ </table></div>
+ {% if s.observatii %}<div class="small mt-2"><b>Observații:</b> {{ s.observatii }}</div>{% endif %}
+</div></div>
+{% if not eroare %}
+<form method="post" class="card card-body">{% csrf_token %}
+ <div class="mb-2">Aprobator: <b>{{ aprobator.get_full_name|default:aprobator.username }}</b>{% if rol == 'suplimentar' %} (aprobare suplimentară){% endif %}</div>
+ <div class="btn-group mb-3" role="group">
+  <input type="radio" class="btn-check" name="actiune" value="aproba" id="a1" {% if actiune != 'respinge' %}checked{% endif %} onchange="motivv()"><label class="btn btn-outline-success" for="a1"><i class="bi bi-check2-circle"></i> Aprob plata</label>
+  <input type="radio" class="btn-check" name="actiune" value="respinge" id="a2" {% if actiune == 'respinge' %}checked{% endif %} onchange="motivv()"><label class="btn btn-outline-danger" for="a2">Resping</label></div>
+ <label class="form-label small">Motiv / observații <span id="obl" class="text-danger">(obligatoriu la respingere)</span></label>
+ <textarea name="motiv" class="form-control mb-2 {% if lipsa_motiv %}is-invalid{% endif %}" rows="2"></textarea>{% if lipsa_motiv %}<div class="invalid-feedback d-block mb-2">Scrieți motivul respingerii.</div>{% endif %}
+ <button class="btn btn-lg" id="btn">Confirm</button>
+ <div class="small text-secondary mt-2">Confirmarea are același efect ca aprobarea din aplicație și se înregistrează în istoric.</div>
+</form>
+<script>function motivv(){const r=document.getElementById('a2').checked;document.getElementById('obl').style.display=r?'':'none';const b=document.getElementById('btn');b.className='btn btn-lg '+(r?'btn-danger':'btn-success');b.textContent=r?'Confirm respingerea':'Confirm aprobarea';}motivv();</script>
+{% endif %}{% endif %}
+</div></body></html>

@@ -58,6 +58,38 @@
   }, true);
 })();
 </script>
+<script>
+// Contract cu plăți recurente: câmpurile perioadei apar la bifă, iar valoarea = valoare pe perioadă × nr. perioade.
+(() => {
+  const bifa = document.querySelector('input[name=recurent]');
+  if (!bifa) return;
+  const camp = n => document.querySelector(`[name=${n}]`), col = el => el && el.closest('[class*=col-]');
+  const dep = ['periodicitate', 'valoare_perioada', 'nr_perioade', 'data_start'].map(camp);
+  const val = camp('valoare'), vp = camp('valoare_perioada'), np = camp('nr_perioade'), per = camp('periodicitate');
+  const nr = t => parseFloat(String(t || '').replace(/\s/g, '').replace(/\.(?=.*[.,])/g, '').replace(',', '.')) || 0;
+  let nota = document.createElement('div'); nota.className = 'form-text text-primary'; val.after(nota);
+  function calc() {
+    const r = bifa.checked;
+    dep.forEach(el => col(el) && col(el).classList.toggle('d-none', !r));
+    val.readOnly = r; val.classList.toggle('bg-light', r);
+    if (r && vp.value && np.value) {
+      const v = nr(vp.value) * (parseInt(np.value) || 0);
+      val.value = v.toFixed(2);
+      const u = {lunar: 'luni', trimestrial: 'trimestre', anual: 'ani'}[per.value] || 'perioade';
+      nota.textContent = `= ${nr(vp.value).toLocaleString('ro-RO', {minimumFractionDigits: 2})} × ${np.value} ${u}`;
+    } else nota.textContent = r ? 'Se calculează din valoarea pe perioadă × numărul de perioade.' : '';
+  }
+  [bifa, vp, np, per].forEach(el => el && el.addEventListener('input', calc));
+  bifa.addEventListener('change', calc); calc();
+})();
+// Factură: tipul cheltuielii (aviz, taxă…) apare doar când nu este aleasă un contract.
+(() => {
+  const c = document.querySelector('select[data-fara-contract]'), t = document.querySelector('[name=tip_cheltuiala]');
+  if (!c || !t) return;
+  const f = () => t.closest('[class*=col-]').classList.toggle('d-none', !!c.value);
+  c.addEventListener('change', f); f();
+})();
+</script>
 {% if curs_info %}{% include "platforma/_curs_selector.html" %}{% endif %}
 <div id="ecranCitire" class="d-none position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background:rgba(20,35,60,.55);z-index:2000">
   <div class="card p-4 text-center" style="max-width:380px"><div class="spinner-border text-primary mx-auto mb-3"></div>

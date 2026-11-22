@@ -1,0 +1,47 @@
+{% extends "platforma/base.html" %}
+{% load fmt %}
+{% block titlu %}{{ pt.denumire }}{% endblock %}
+{% block continut %}
+<div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+  <a href="{% url 'parteneri' %}" class="btn btn-sm btn-outline-secondary me-2"><i class="bi bi-arrow-left"></i></a>
+  <div><h4 class="mb-0">{{ pt.denumire }}</h4><div class="text-secondary small">CUI {{ pt.cui }}{% if pt.nr_reg_com %} · {{ pt.nr_reg_com }}{% endif %}{% if pt.cod_caen %} · CAEN {{ pt.cod_caen }}{% endif %}</div></div>
+  {% if poate_modifica %}<form method="post" action="{% url 'partener_actualizeaza' pt.pk %}" class="ms-auto">{% csrf_token %}
+    <button class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Reverifică la ANAF</button></form>{% endif %}
+</div>
+{% if pt.inactiv or pt.radiat %}<div class="alert alert-danger"><i class="bi bi-exclamation-octagon"></i> Firma figurează la ANAF ca <b>{% if pt.radiat %}radiată{% else %}inactivă fiscal{% endif %}</b>. Facturile emise de un contribuabil inactiv nu dau drept de deducere a TVA.</div>{% endif %}
+<div class="row g-3">
+ <div class="col-lg-4">
+  <div class="card mb-3"><div class="card-header">Date ANAF</div><div class="card-body small">
+   <div class="d-flex flex-wrap gap-1 mb-2">
+    {% if pt.platitor_tva %}<span class="badge text-bg-success">plătitor TVA</span>{% elif pt.platitor_tva is False %}<span class="badge text-bg-warning">neplătitor TVA</span>{% endif %}
+    {% if pt.tva_incasare %}<span class="badge text-bg-info">TVA la încasare</span>{% endif %}
+    {% if pt.e_factura %}<span class="badge text-bg-light border">RO e-Factura</span>{% endif %}
+    {% if not pt.inactiv and not pt.radiat and pt.verificat_anaf_la %}<span class="badge text-bg-light border">activ</span>{% endif %}</div>
+   <div class="ut-lbl">Adresa sediului</div><div class="mb-2">{{ pt.adresa|default:"—" }}</div>
+   <div class="ut-lbl">Stare înregistrare</div><div class="mb-2">{{ pt.stare_inregistrare|default:"—" }}</div>
+   <div class="text-secondary">{% if pt.verificat_anaf_la %}Verificat la ANAF: {{ pt.verificat_anaf_la|date:"d.m.Y H:i" }}{% else %}Neverificat încă la ANAF (preluat din contractele existente).{% endif %}</div>
+  </div></div>
+  <div class="card"><div class="card-header">Date de contact</div>
+   <form method="post" class="card-body row g-2 small">{% csrf_token %}
+    <div class="col-12"><label class="form-label mb-0">Persoană de contact</label><input name="persoana_contact" value="{{ pt.persoana_contact }}" class="form-control form-control-sm" {% if not poate_modifica %}disabled{% endif %}></div>
+    <div class="col-6"><label class="form-label mb-0">Telefon</label><input name="telefon" value="{{ pt.telefon }}" class="form-control form-control-sm" {% if not poate_modifica %}disabled{% endif %}></div>
+    <div class="col-6"><label class="form-label mb-0">Email</label><input name="email" value="{{ pt.email }}" class="form-control form-control-sm" {% if not poate_modifica %}disabled{% endif %}></div>
+    <div class="col-12"><label class="form-label mb-0">IBAN</label><input name="iban" value="{{ pt.iban }}" class="form-control form-control-sm" {% if not poate_modifica %}disabled{% endif %}></div>
+    <div class="col-12"><label class="form-label mb-0">Observații</label><textarea name="observatii" rows="2" class="form-control form-control-sm" {% if not poate_modifica %}disabled{% endif %}>{{ pt.observatii }}</textarea></div>
+    {% if poate_modifica %}<div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Salvează</button></div>{% endif %}
+   </form></div>
+ </div>
+ <div class="col-lg-8">
+  <div class="card mb-3"><div class="card-header d-flex">Contracte <span class="ms-auto small text-secondary">{{ contracte|length }} · {{ total_contracte|bani }} RON</span></div>
+   <div class="table-responsive"><table class="table table-sm mb-0 align-middle small"><thead><tr><th>Proiect</th><th>Contract</th><th>Tip</th><th class="num">Valoare (RON)</th><th class="num">Facturat</th><th>Status</th></tr></thead>
+   <tbody>{% for c in contracte %}<tr><td><a class="cod" href="{{ c.proiect.get_absolute_url }}?tab=contracte&c={{ c.pk }}">{{ c.proiect.cod }}</a></td><td>{{ c.numar }} / {{ c.data|date:"d.m.Y" }}</td><td>{{ c.get_tip_display }}</td>
+     <td class="num">{{ c.valoare_totala_ron|bani }}</td><td class="num">{{ c.facturat_ron|bani }}</td><td><span class="badge text-bg-light">{{ c.get_status_display }}</span></td></tr>
+   {% empty %}<tr><td colspan="6" class="text-secondary text-center py-3">Niciun contract pe proiectele pe care le vedeți.</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="card"><div class="card-header d-flex">Facturi <span class="ms-auto small text-secondary">{{ facturi|length }} · {{ total_facturi|bani }} RON · achitat {{ total_platit|bani }}</span></div>
+   <div class="table-responsive"><table class="table table-sm mb-0 align-middle small"><thead><tr><th>Proiect</th><th>Factură</th><th>Contract</th><th class="num">Valoare (RON)</th><th>Scadență</th><th class="num">Achitat</th></tr></thead>
+   <tbody>{% for x in facturi %}<tr><td><a class="cod" href="{{ x.proiect.get_absolute_url }}?tab=contracte&c={% if x.contract_id %}{{ x.contract_id }}{% else %}fara{% endif %}">{{ x.proiect.cod }}</a></td><td>{{ x.numar }} / {{ x.data|date:"d.m.Y" }}</td><td>{{ x.contract.numar|default:"—" }}</td>
+     <td class="num">{{ x.valoare_ron|bani }}</td><td class="{% if x.scadenta_depasita %}text-danger fw-semibold{% endif %}">{{ x.scadenta|date:"d.m.Y"|default:"—" }}</td><td class="num">{{ x.platit_ron|bani }}</td></tr>
+   {% empty %}<tr><td colspan="6" class="text-secondary text-center py-3">Nicio factură.</td></tr>{% endfor %}</tbody></table></div></div>
+ </div>
+</div>
+{% endblock %}
